@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "ChantierVrai",
+    "NSCameraUsageDescription": "ChantierVrai utilise la caméra pour photographier l'avancement du chantier.",
+    "NSMicrophoneUsageDescription": "ChantierVrai utilise le micro pour les vidéos du chantier.",
+    "NSLocationWhenInUseUsageDescription": "ChantierVrai vérifie que chaque photo est prise sur le terrain du chantier."
+  }
+}

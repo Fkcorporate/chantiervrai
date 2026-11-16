@@ -1,0 +1,88 @@
+# Déploiement sur Render (https://render.com) : « New + » → « Blueprint » → choisir ce dépôt.
+# Render crée le service web, la base PostgreSQL, le disque permanent et les deux tâches planifiées.
+# À remplir ensuite dans le tableau de bord (valeurs marquées sync: false) : stockage distant, e-mail, alertes.
+services:
+  - type: web
+    name: chantiervrai
+    runtime: python
+    region: frankfurt              # le plus proche de l'Afrique de l'Ouest parmi les régions Render
+    plan: starter                  # un disque permanent exige une offre payante
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 2 --threads 4 -t 180 -b 0.0.0.0:$PORT app:app
+    healthCheckPath: /sante
+    disk:                          # photos, documents, sauvegardes locales : gardés d'un déploiement à l'autre
+      name: donnees
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: CV_INSTANCE           # tout ce qui doit survivre aux redéploiements va sur le disque
+        value: /var/data
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chantiervrai-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: CRON_TOKEN            # protège /taches/… ; partagé avec les tâches planifiées ci-dessous
+        generateValue: true
+      - key: PUBLIC_URL            # ex. https://chantiervrai.ci (ou l'adresse .onrender.com)
+        sync: false
+      - key: ALERT_EMAILS          # qui reçoit les alertes (erreurs, sauvegardes) ; sinon les super-admins
+        sync: false
+      - key: OFFSITE_ENDPOINT      # copie des sauvegardes hors de Render (voir README, « Mise en ligne sur Render »)
+        sync: false
+      - key: OFFSITE_BUCKET
+        sync: false
+      - key: OFFSITE_KEY_ID
+        sync: false
+      - key: OFFSITE_SECRET
+        sync: false
+      - key: OFFSITE_REGION
+        value: auto                # « auto » pour Cloudflare R2 ; la région du bucket sinon
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+
+  # Les tâches planifiées appellent le service web par le réseau privé de Render : lui seul a accès au disque.
+  - type: cron
+    name: chantiervrai-relances
+    runtime: python
+    region: frankfurt
+    schedule: "*/5 * * * *"
+    buildCommand: "true"
+    startCommand: >-
+      curl -fsS -X POST -H "Authorization: Bearer $CRON_TOKEN" "http://$WEB_HOSTPORT/taches/relancer"
+    envVars:
+      - key: CRON_TOKEN
+        fromService: {type: web, name: chantiervrai, envVarKey: CRON_TOKEN}
+      - key: WEB_HOSTPORT         # adresse interne du service web (réseau privé de Render)
+        fromService: {type: web, name: chantiervrai, property: hostport}
+
+  - type: cron
+    name: chantiervrai-quotidien
+    runtime: python
+    region: frankfurt
+    schedule: "30 2 * * *"         # 2 h 30 UTC = 2 h 30 à Abidjan
+    buildCommand: "true"
+    startCommand: >-
+      curl -fsS -X POST -H "Authorization: Bearer $CRON_TOKEN" "http://$WEB_HOSTPORT/taches/quotidien"
+    envVars:
+      - key: CRON_TOKEN
+        fromService: {type: web, name: chantiervrai, envVarKey: CRON_TOKEN}
+      - key: WEB_HOSTPORT         # adresse interne du service web (réseau privé de Render)
+        fromService: {type: web, name: chantiervrai, property: hostport}
+
+databases:
+  - name: chantiervrai-db
+    region: frankfurt
+    plan: basic-256mb              # sauvegardes quotidiennes de Render incluses ; la base gratuite expire après 30 jours
+    postgresMajorVersion: "16"

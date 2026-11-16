@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "ChantierVrai",
+    "slug": "chantiervrai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "chantiervrai",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#F5F3EE" },
+    "locales": { "fr": "./locales/fr.json", "en": "./locales/en.json" },
+    "ios": {
+      "bundleIdentifier": "ci.chantiervrai.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "fr",
+        "CFBundleAllowMixedLocalizations": true,
+        "NSCameraUsageDescription": "ChantierVrai utilise la caméra pour photographier l'avancement du chantier.",
+        "NSMicrophoneUsageDescription": "ChantierVrai utilise le micro pour les vidéos du chantier.",
+        "NSLocationWhenInUseUsageDescription": "ChantierVrai vérifie que chaque photo est prise sur le terrain du chantier.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "ci.chantiervrai.app",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#0E5A3A" },
+      "permissions": ["CAMERA", "RECORD_AUDIO", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "POST_NOTIFICATIONS"],
+      "blockedPermissions": ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO"]
+    },
+    "plugins": [
+      ["expo-camera", {
+        "cameraPermission": "ChantierVrai utilise la caméra pour photographier l'avancement du chantier.",
+        "microphonePermission": "ChantierVrai utilise le micro pour les vidéos du chantier.",
+        "recordAudioAndroid": true
+      }],
+      ["expo-location", {
+        "locationWhenInUsePermission": "ChantierVrai vérifie que chaque photo est prise sur le terrain du chantier."
+      }],
+      ["expo-notifications", { "color": "#0E5A3A" }],
+      "expo-secure-store",
+      "expo-localization"
+    ],
+    "extra": {
+      "apiUrl": "https://chantiervrai.ci",
+      "eas": { "projectId": "" }
+    }
+  }
+}

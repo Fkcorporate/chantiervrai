@@ -1,0 +1,12 @@
+Flask>=3.0
+Pillow>=10.0
+numpy>=1.24
+# Floutage automatique des visages sur le portail citoyen (recommandé)
+opencv-python-headless>=4.8
+# PostgreSQL (si DATABASE_URL est défini)
+psycopg[binary]>=3.1
+# Attestation Android (Play Integrity)
+cryptography>=41
+# Serveur de production et copie des sauvegardes hors du serveur
+gunicorn>=22
+requests>=2.31
