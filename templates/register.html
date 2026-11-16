@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Créer un compte · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Créer un compte") }}</h1>
+<form method="post" class="card">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<fieldset class="roles" style="border:0;padding:0;margin:0">
+<legend class="muted" style="margin-bottom:8px">{{ _("Vous êtes :") }}</legend>
+<label><input type="radio" name="role" value="proprio" required> {{ _("Propriétaire ou maître d'ouvrage") }}</label>
+<label><input type="radio" name="role" value="chef" required> {{ _("Chef de chantier") }}</label>
+<label><input type="radio" name="role" value="inspecteur" required> {{ _("Inspecteur indépendant") }}</label>
+<label><input type="radio" name="role" value="fournisseur" required> {{ _("Fournisseur de matériaux (quincaillerie, dépôt)") }}</label>
+<label><input type="radio" name="role" value="pro" required> {{ _("Professionnel du BTP (architecte, ingénieur, bureau de contrôle, conducteur de travaux, entrepreneur, comptable)") }}</label>
+</fieldset>
+<label>{{ _("Nom complet") }}<input name="name" required autocomplete="name"></label>
+<label>{{ _("E-mail") }}<input type="email" name="email" required autocomplete="email"></label>
+<label>{{ _("Téléphone (WhatsApp, Mobile Money)") }}<input name="phone" inputmode="tel" autocomplete="tel" placeholder="07 00 00 00 00"></label>
+<div id="insp-fields" class="stack hidden">
+<label id="profession-label" class="hidden">{{ _("Votre métier") }}<select name="profession"><option value="">–</option>{% for k, v in PROFESSIONS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label id="company-label" class="hidden">{{ _("Nom de l'entreprise, RCCM") }}<input name="company"></label>
+<label>{{ _("Zone d'intervention") }}<input name="zone" placeholder="{{ _("Abidjan, Bingerville, Grand-Bassam") }}"></label>
+<label id="supplier-terms" class="check hidden"><input type="checkbox" name="supplier_terms" value="1"> <span>{{ _("J'accepte les") }} <a href="{{ url_for('supplier_terms') }}" target="_blank">{{ _("conditions fournisseur") }}</a> {{ _("(commission ChantierVrai facturée chaque mois)") }}</span></label>
+<label>{{ _("Présentation (diplômes, expérience, adresse du dépôt)") }}<textarea name="bio"></textarea></label>
+</div>
+<label>{{ _("Mot de passe (8 caractères minimum)") }}<input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
+<label class="check"><input type="checkbox" name="terms" value="1" required> <span>{{ _("J'accepte les") }} <a href="{{ url_for('terms') }}" target="_blank">{{ _("conditions d'utilisation") }}</a> {{ _("et la") }} <a href="{{ url_for('privacy') }}" target="_blank">{{ _("politique de confidentialité") }}</a>{{ _(", y compris l'utilisation de ma position lors de l'envoi des preuves.") }}</span></label>
+<button class="btn" type="submit">{{ _("Créer mon compte") }}</button>
+</form>
+<p class="muted">{{ _("Déjà inscrit ?") }} <a href="{{ url_for('login') }}">{{ _("Se connecter") }}</a></p>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('input[name=role]').forEach(function (r) {
+  r.addEventListener('change', function () {
+    if (!r.checked) return;
+    var pro = r.value === 'inspecteur' || r.value === 'fournisseur' || r.value === 'pro';
+    document.getElementById('profession-label').classList.toggle('hidden', r.value !== 'pro');
+    document.getElementById('insp-fields').classList.toggle('hidden', !pro);
+    document.getElementById('supplier-terms').classList.toggle('hidden', r.value !== 'fournisseur');
+    document.getElementById('company-label').classList.toggle('hidden', r.value !== 'fournisseur' && r.value !== 'pro');
+  });
+});
+</script>
+{% endblock %}

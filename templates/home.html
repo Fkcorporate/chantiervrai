@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_macros.html" import risk_pill, csrf with context %}
+{% block content %}
+{% if me.role == 'inspecteur' %}
+<h1>{{ _("Mes inspections") }}</h1>
+{% for i in inspections %}
+<div class="card">
+<div class="row"><b>{{ i.project_name }}</b><span class="pill{% if i.status == 'demandee' %} warn{% endif %}">{{ INSP_STATUS[i.status] }}</span></div>
+<span class="muted">{{ i.address or _('Adresse non précisée') }}{% if i.step_name %} {{ _("· Étape :") }} {{ i.step_name }}{% endif %}</span>
+<span class="muted">{{ _("Demandé par") }} {{ i.owner_name }}{% if i.wanted_date %} {{ _("· souhaitée le") }} {{ d(i.wanted_date) }}{% endif %}{% if i.fee %} · {{ fcfa(i.fee) }} FCFA{% endif %}</span>
+{% if i.message %}<div>{{ i.message }}</div>{% endif %}
+{% if i.status == 'demandee' %}
+<form method="post" action="{{ url_for('answer_inspection', iid=i.id) }}" class="grid2">
+{{ csrf() }}
+<button class="btn" name="decision" value="accepter">{{ _("Accepter") }}</button>
+<button class="btn ghost" name="decision" value="refuser">{{ _("Refuser") }}</button>
+</form>
+{% elif i.status in ('acceptee', 'realisee') %}
+<a class="btn ghost" href="{{ url_for('project', project_id=i.project_id) }}">{{ _('Faire l\'inspection') if i.status == 'acceptee' else _('Voir le chantier') }}</a>
+{% endif %}
+</div>
+{% else %}
+<div class="card muted">{{ _("Aucune demande pour l'instant. Complétez votre zone et votre tarif dans") }} <a href="{{ url_for('account') }}">{{ _("votre compte") }}</a> {{ _(": les propriétaires vous trouvent ainsi.") }}</div>
+{% endfor %}
+{% set ctrl_cards = cards|selectattr('0.id', 'in', controlled)|list %}
+{% if ctrl_cards %}
+<h2>{{ _("Chantiers où vous êtes contrôleur habilité") }}</h2>
+<div class="cards">
+{% for p, s, pred in ctrl_cards %}
+<a class="card" href="{{ url_for('project', project_id=p.id) }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ p.name }}</b>{% if pending_checks.get(p.id) %}<span class="pill warn">{{ pending_checks[p.id] }} {{ pl(pending_checks[p.id], "contrôle(s) à faire") }}</span>{% endif %}</div>
+<span class="muted">{{ p.address }}</span>
+</a>
+{% endfor %}
+</div>
+{% endif %}
+
+{% elif me.role == 'fournisseur' %}
+<h1>{{ _("Mes commandes") }}</h1>
+{% if not me.supplier_terms_at %}<a class="card alert" href="{{ url_for('supplier_terms') }}" style="text-decoration:none;color:inherit"><b>{{ _("Acceptez les conditions fournisseur") }}</b><span class="muted">{{ _("Votre catalogue n'est proposé aux chantiers qu'après acceptation de la commission ChantierVrai.") }}</span></a>{% endif %}
+{% if not me.verified %}<div class="card alert"><b>{{ _("Entreprise en attente de vérification") }}</b><span class="muted">{{ _("Préparez votre catalogue : il sera proposé aux chantiers dès que l'équipe aura vérifié votre entreprise.") }}</span></div>{% endif %}
+<div class="cards">
+{% for o in orders %}
+<a class="card" href="{{ url_for('order', oid=o.id) }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ o.ref }}</b><span class="pill{% if o.status in ('envoyee', 'acceptee') %} warn{% endif %}">{{ ORDER_STATUS[o.status] }}</span></div>
+<span class="muted">{{ o.project_name }} · {{ o.address or '' }}</span>
+<div class="row"><span class="muted">{% if o.delivery_date %}{{ _("Livraison le") }} {{ d(o.delivery_date) }}{% else %}{{ d(o.created_at) }}{% endif %}</span><b>{{ fcfa(o.total) }} FCFA</b></div>
+</a>
+{% else %}
+<div class="card muted">{{ _("Aucune commande pour l'instant. Les chantiers vous trouvent par votre catalogue :") }} <a href="{{ url_for('supplier_catalog') }}">{{ _("ajoutez vos produits et vos prix") }}</a>.</div>
+{% endfor %}
+</div>
+<a class="btn ghost" href="{{ url_for('supplier_catalog') }}">{{ _("Mon catalogue") }}</a>
+{% if not me.phone %}<div class="card alert"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b><span class="muted">{{ _("Il sert à recevoir les paiements automatiques.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>{% endif %}
+
+{% else %}
+<h1>{{ _("Mes chantiers") }}</h1>
+{% if onboarding %}
+<section class="card onboard" aria-labelledby="onboard-title">
+<div class="row"><b id="onboard-title">{{ _("Bien démarrer") }}</b><span class="muted">{{ onboarding.done }} / {{ onboarding.total }}</span></div>
+<div class="bar"><div style="width:{{ (onboarding.done * 100 / onboarding.total)|round }}%"></div></div>
+<ol class="checklist">
+{% for title, done, help, url, cta in onboarding['items'] %}
+<li class="{{ 'done' if done else '' }}"><span class="tick" aria-hidden="true">{{ '✓' if done else loop.index }}</span>
+<div><b>{% if url and not done and not cta %}<a href="{{ url }}">{{ title }}</a>{% else %}{{ title }}{% endif %}</b>{% if done %}<span class="sr-only"> {{ _("(fait)") }}</span>{% endif %}
+{% if not done %}<span class="muted">{{ help }}</span>{% if cta %}<a class="btn small" href="{{ url }}" target="_blank" rel="noopener">{{ cta }}</a>{% endif %}{% endif %}</div></li>
+{% endfor %}
+</ol>
+<form method="post" action="{{ url_for('hide_onboarding') }}">{{ csrf() }}<button class="btn ghost small">{{ _("Masquer cette liste") }}</button></form>
+</section>
+{% endif %}
+{% if portfolio and portfolio.n > 1 %}
+<div class="grid2">
+<div class="card"><span class="muted">{{ _("Chantiers") }}</span><span class="big">{{ portfolio.n }}</span><span class="muted">{{ portfolio.late }} {{ _("en retard prévu") }}</span></div>
+<div class="card"><span class="muted">{{ _("Budget total") }}</span><span class="big">{{ fcfa(portfolio.total) }}</span><span class="muted">{{ fcfa(portfolio.paid) }} {{ _("FCFA versés") }}</span></div>
+<div class="card"><span class="muted">{{ _("Paiements à valider") }}</span><span class="big">{{ portfolio.to_validate }}</span><span class="muted">{{ _("étape(s) déclarée(s) terminée(s)") }}</span></div>
+<div class="card"><span class="muted">{{ _("Indice de confiance moyen") }}</span><span class="big">{{ portfolio.trust if portfolio.trust is not none else '–' }}</span><span class="muted">{{ portfolio.low_trust }} {{ pl(portfolio.low_trust, "chantier(s) sous 60") }}</span></div>
+</div>
+{% endif %}
+<div class="cards">
+{% for p, s, pred in cards %}
+<a class="card" href="{{ url_for('project', project_id=p.id) }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ p.name }}</b>{% if s.to_validate %}<span class="pill warn">{{ _("À valider") }}</span>{% else %}{{ risk_pill(pred) }}{% endif %}</div>
+<span class="muted">{{ p.address }}{% if p.kind == 'public' %} {{ _("· Chantier public") }}{% if p.marche_ref %} {{ _("· Marché") }} {{ p.marche_ref }}{% endif %}{% endif %}</span>
+<div class="row"><span class="muted">{{ _("Avancement vérifié") }}</span><b>{{ s.verified_pct }} %</b></div>
+<div class="bar"><div style="width:{{ s.verified_pct }}%"></div></div>
+{% set tt = trusts.get(p.id) %}{% if tt and tt.score is not none %}<div class="row"><span class="muted">{{ _("Indice de confiance") }}</span><b class="score {{ tt.level }}" style="font-size:20px">{{ tt.score }}/100</b></div>{% endif %}
+</a>
+{% else %}
+<div class="card muted">{{ _("Aucun chantier pour l'instant.") }}</div>
+{% endfor %}
+</div>
+
+{% if me.role == 'proprio' %}
+<a class="btn" href="{{ url_for('new_project') }}">{{ _("Créer un chantier") }}</a>
+<a class="btn ghost" href="{{ url_for('import_markets') }}">{{ _("Importer des marchés publics (SIGOMAP)") }}</a>
+{% else %}
+<form method="post" action="{{ url_for('join_project') }}" class="card">
+{{ csrf() }}
+<b>{{ _("Rejoindre un chantier") }}</b>
+<label>{{ _("Code d'invitation donné par le propriétaire") }}<input name="code" required autocapitalize="characters" maxlength="12"></label>
+<button class="btn" type="submit">{{ _("Rejoindre") }}</button>
+</form>
+{% if not me.phone %}<div class="card alert"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b><span class="muted">{{ _("Il sert à recevoir les paiements automatiques.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>{% endif %}
+{% endif %}
+{% endif %}
+{% endblock %}

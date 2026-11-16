@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% import "_diagrams.html" as diag with context %}
+{% block title %}{{ c.title }} · {{ _("Académie du BTP") }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('academy') }}">← {{ _("Académie du BTP") }}</a>
+<h1>{{ c.title }}</h1>
+<span class="muted">{{ c.audience }} · {{ c.minutes }} min</span>
+
+{% if c.diagram %}<div class="card">{{ diag[c.diagram]() }}</div>{% endif %}
+
+{% for h, text in c.sections %}
+<div class="card"><b>{{ h }}</b><p style="margin:.3em 0 0;max-width:68ch">{{ text }}</p></div>
+{% endfor %}
+
+<div class="card">
+<b>{{ _("Liste de contrôle") }}</b>
+{% for item in c.checklist %}<label><input type="checkbox"> {{ item }}</label>{% endfor %}
+<span class="muted">{{ _("À imprimer ou à cocher sur le chantier.") }}</span>
+</div>
+
+{% if c.calc %}<a class="card" href="{{ url_for('calculator_public', type=c.calc) }}" style="text-decoration:none;color:inherit"><b>{{ _("Calculateur associé :") }} {{ calc_title }}</b><span class="muted">{{ _("Calculez les quantités pour votre ouvrage.") }}</span></a>{% endif %}
+
+<h2 id="quiz">{{ _("Quiz") }}</h2>
+{% if result %}
+<div class="card{% if result.score < result.total %} alert{% endif %}">
+<b>{{ result.score }} / {{ result.total }}</b>
+{% for d in result.details %}<div><span class="tag {{ 'blue' if d.ok else 'bad' }}">{{ _("Juste") if d.ok else _("Faux") }}</span> {{ d.q }}<br><span class="muted">{% if not d.ok %}{{ _("Bonne réponse :") }} {{ d.right }}. {% endif %}{{ d.why }}</span></div>{% endfor %}
+{% if not me %}<span class="muted">{{ _("Connectez-vous pour garder votre progression.") }}</span>{% endif %}
+</div>
+{% endif %}
+<form method="post" action="#quiz" class="card">{{ csrf() }}
+{% for q in c.quiz %}{% set qi = loop.index0 %}
+<fieldset style="border:0;padding:0;margin:0 0 10px"><legend><b>{{ loop.index }}. {{ q.q }}</b></legend>
+{% for o in q.options %}<label><input type="radio" name="q{{ qi }}" value="{{ loop.index0 }}" required> {{ o }}</label>{% endfor %}
+</fieldset>
+{% endfor %}
+<button class="btn">{{ _("Vérifier mes réponses") }}</button>
+</form>
+
+<a class="card" href="{{ url_for('academy_course', slug=nxt.slug) }}" style="text-decoration:none;color:inherit"><span class="muted">{{ _("Cours suivant") }}</span><b>{{ nxt.title }}</b></a>
+{% endblock %}

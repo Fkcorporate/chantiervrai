@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Mon abonnement · ChantierVrai") }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('account') }}" class="muted">{{ _("← Mon compte") }}</a>
+<h1>{{ _("Mon abonnement") }}</h1>
+
+<div class="card">
+<div class="row"><b>{{ _(PLANS[v.plan].label) }}</b><span class="tag{% if v.status in ('essai_fini', 'suspendu', 'resilie') %} bad{% elif v.status in ('impaye',) or (v.status == 'essai' and v.days_left is not none and v.days_left <= 7) %} amber{% endif %}">{{ SUB_STATUS[v.status] }}</span></div>
+{% if v.status == 'essai' %}<span>{{ _("Essai gratuit : encore") }} <b>{{ v.days_left }} {{ pl(v.days_left, "jour(s)") }}</b>, {{ _("jusqu'au") }} {{ d(v.sub.trial_end) }}.</span>
+{% elif v.status in ('actif', 'impaye') %}<span>{{ fcfa(v.price) }} {{ _("FCFA TTC par mois") }} · {{ CYCLES[v.sub.cycle] }} · {{ _("échéance le") }} {{ d(v.sub.period_end) }}{% if v.sub.cancel_at_end %} · <b>{{ _("s'arrête à l'échéance") }}</b>{% endif %}</span>
+{% elif v.status == 'essai_fini' %}<span>{{ _("Votre essai est terminé. Vos chantiers restent visibles et le chef de chantier peut continuer à envoyer ses preuves ; choisissez une offre pour créer de nouveaux chantiers.") }}</span>
+{% elif v.status == 'suspendu' %}<span>{{ _("Une facture est impayée. Les chantiers en cours continuent ; la création de chantiers et les options payantes reprennent dès le paiement.") }}</span>{% endif %}
+<span class="muted">{{ _("Chantiers en cours :") }} {{ v.used }}{% if v.limit %} / {{ v.limit }}{% else %} ({{ _("illimité") }}){% endif %}</span>
+{% if v.open %}<a class="btn" href="{{ url_for('billing_invoice', inv_id=v.open.id) }}">{{ _("Régler la facture") }} {{ v.open.number }} · {{ fcfa(v.open.amount) }} FCFA</a>{% endif %}
+{% if not enforced %}<span class="muted">{{ _("Facturation non appliquée sur ce serveur (mode test).") }}</span>{% endif %}
+</div>
+
+<h2>{{ _("Choisir une offre") }}</h2>
+<div class="grid3">
+{% for key, plan, price in plans %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="choose"><input type="hidden" name="plan" value="{{ key }}">
+<div class="row"><b>{{ _(plan.label) }}</b>{% if v.plan == key and v.status in ('actif', 'impaye') %}<span class="tag">{{ _("Votre offre") }}</span>{% endif %}</div>
+<span class="muted">{{ _(plan.pitch) }}</span>
+{% if price %}
+<span class="big">{{ fcfa(price) }}</span><span class="muted">{{ _("FCFA TTC par mois") }} · {{ _("ou") }} {{ fcfa(price * ANNUAL) }} {{ _("FCFA TTC par an") }}</span>
+<select name="cycle" aria-label="{{ _("Rythme de paiement") }}">{% for k, c in CYCLES.items() %}<option value="{{ k }}">{{ c }}</option>{% endfor %}</select>
+<button class="btn">{{ _("Choisir") }} {{ _(plan.label) }}</button>
+{% else %}
+<span class="big">{{ _("Sur devis") }}</span>
+<label>{{ _("Votre besoin") }}<input name="message" placeholder="{{ _("Nombre de chantiers, marchés publics, API…") }}"></label>
+<button class="btn ghost">{{ _("Demander un devis") }}</button>
+{% endif %}
+</form>
+{% endfor %}
+</div>
+<p class="muted">{{ _("Le chef de chantier, les inspecteurs, les fournisseurs et les professionnels que vous invitez n'ont rien à payer. Un nouveau choix d'offre prend effet à la fin de la période déjà payée.") }}</p>
+
+{% if v.status in ('actif', 'impaye') %}
+<form method="post" class="card">{{ csrf() }}
+{% if v.sub.cancel_at_end %}<button class="btn ghost" name="action" value="resume">{{ _("Annuler la résiliation") }}</button>
+{% else %}<span class="muted">{{ _("Vous pouvez arrêter quand vous voulez : l'abonnement va jusqu'à l'échéance, et vos données restent consultables et exportables.") }}</span><button class="btn ghost" name="action" value="cancel">{{ _("Résilier à l'échéance") }}</button>{% endif %}
+</form>
+{% endif %}
+
+<h2>{{ _("Mes factures") }}</h2>
+<div class="card">
+{% for inv in invoices %}<a class="row" href="{{ url_for('billing_invoice', inv_id=inv.id) }}"><span>{{ inv.number }} · {{ _(PLANS[inv.plan].label) }}{% if inv.kind != 'inspection' %} · {{ d(inv.period_start) }} → {{ d(inv.period_end) }}{% endif %}</span><span>{{ fcfa(inv.amount) }} FCFA <span class="tag{% if inv.status == 'a_payer' %} amber{% elif inv.status == 'annulee' %} grey{% endif %}">{{ INV_STATUS[inv.status] }}</span></span></a>
+{% else %}<span class="muted">{{ _("Aucune facture pour l'instant.") }}</span>{% endfor %}
+</div>
+{% endblock %}

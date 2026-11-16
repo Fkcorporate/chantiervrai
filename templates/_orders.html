@@ -1,0 +1,7 @@
+<div class="card" id="commandes">
+<div class="row"><b>{{ _("Achat direct des matériaux") }}</b><a class="btn small" href="{{ url_for('new_order', project_id=p.id) }}">{{ _("Commander") if role == 'owner' else _("Proposer une commande") }}</a></div>
+<span class="muted">{{ _("Vous payez le fournisseur vérifié, pas un intermédiaire. Il est payé seulement quand sa livraison est photographiée sur le terrain et comptée par le chef de chantier.") }}</span>
+{% for o in orders %}
+<a class="row" href="{{ url_for('order', oid=o.id) }}"><span>{{ o.ref }} · {{ o.supplier_name }} · {{ fcfa(o.received_total if o.received_total is not none else o.total) }} FCFA</span><span class="tag{% if o.status in ('proposee', 'livree', 'a_payer') %} amber{% elif o.status in ('litige', 'refusee') %} bad{% elif o.status in ('annulee',) %} grey{% endif %}">{{ ORDER_STATUS[o.status] }}</span></a>
+{% else %}<span class="muted">{{ _("Aucune commande pour l'instant.") }}</span>{% endfor %}
+</div>

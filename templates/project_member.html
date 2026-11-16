@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ p.name }} · ChantierVrai{% endblock %}
+{% block content %}
+<h1>{{ p.name }}</h1>
+<div class="row"><span class="muted">{{ p.address }}</span><span class="pill">{{ MEMBER_ROLES[member_role]|capitalize }}</span></div>
+
+<div class="dash"><div class="dash-main">
+<div class="card">
+<div class="row"><b>{{ _("Avancement vérifié") }}</b><b>{{ s.verified_pct }} %</b></div>
+<div class="bar"><div style="width:{{ s.verified_pct }}%"></div></div>
+{% if pred %}<span class="muted">{{ _("Fin estimée le") }} {{ d(pred.predicted_end) }}{% if pred.delay > 0 %} · {{ _("retard prévu de") }} {{ pred.delay }} {{ _("jours") }}{% endif %}</span>{% endif %}
+</div>
+
+<h2>{{ _("Étapes") }}</h2>
+<div class="card">
+{% for st in s.steps %}{% set cs = checks_by_step.get(st.id) %}
+<a class="row" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><span>{{ loop.index }}. {{ st.name }}</span><span class="muted">{{ STATUS[st.status] }}{% if cs and cs.missing and st.status not in ('paye', 'versement') %} · <span class="tag amber">{{ cs.missing }} {{ pl(cs.missing, "contrôle(s) à faire") }}</span>{% endif %}</span></a>
+{% endfor %}
+</div>
+
+<h2>{{ _("Outils") }}</h2>
+<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+<a class="btn ghost small" href="{{ url_for('project_sheet', project_id=p.id) }}">{{ _("Fiche du projet") }}</a>
+{% if 'finances' in rights %}<a class="btn ghost small" href="{{ url_for('financing', project_id=p.id) }}">{{ _("Plan de financement") }}</a>{% endif %}<a class="btn ghost small" href="{{ url_for('site_notes_page', project_id=p.id) }}">{{ _("Notes du chantier") }}</a>{% if 'stock' in rights %}<a class="btn ghost small" href="{{ url_for('project_stock', project_id=p.id) }}">{{ _("Stock et matériaux") }}</a>{% endif %}
+<a class="btn ghost small" href="{{ url_for('bim', project_id=p.id) }}">{{ _("Maquette numérique") }}</a><a class="btn ghost small" href="{{ url_for('zones_page', project_id=p.id) }}">{{ _("Avancement par zone") }}</a><a class="btn ghost small" href="{{ url_for('panos', project_id=p.id) }}">{{ _("Visites 360°") }}</a><a class="btn ghost small" href="{{ url_for('quantities', project_id=p.id) }}">{{ _("Quantités installées") }}</a><a class="btn ghost small" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Contrôle qualité") }}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a>
+<a class="btn ghost small" href="{{ url_for('sensors_page', project_id=p.id) }}">{{ _("Capteurs et météo") }}</a>
+{% if 'documents' in rights %}<a class="btn ghost small" href="{{ url_for('plan_reading', project_id=p.id) }}">{{ _("Lire un plan avec l'IA") }}</a>{% endif %}
+{% if 'decompte' in rights %}<a class="btn ghost small" href="{{ url_for('decompte', project_id=p.id) }}">{{ _("Situation des travaux et décompte") }}</a>{% endif %}
+{% if 'export' in rights %}<a class="btn ghost small" href="{{ url_for('accounting_export', project_id=p.id) }}">{{ _("Export comptable (CSV)") }}</a>{% endif %}
+<a class="btn ghost small" href="{{ url_for('calculator_public') }}">{{ _("Calculateur de matériaux") }}</a>
+</div>
+
+<h2>{{ _("Documents") }}</h2>
+<div class="card">
+{% for doc in documents %}<a class="row" href="{{ url_for('document', doc_id=doc.id) }}" target="_blank"><span>{{ doc.title }}</span><span class="tag grey">{{ _(doc.category) }}</span></a>
+{% else %}<span class="muted">{{ _("Aucun document.") }}</span>{% endfor %}
+</div>
+{% if 'documents' in rights %}
+<form method="post" action="{{ url_for('upload_document', project_id=p.id) }}" enctype="multipart/form-data" class="card">{{ csrf() }}
+<b>{{ _("Ajouter un plan ou un document") }}</b>
+<div class="grid2"><label>{{ _("Catégorie") }}<select name="category">{% for c in DOC_CATEGORIES %}<option value="{{ c }}"{% if c == 'Plan' %} selected{% endif %}>{{ _(c) }}</option>{% endfor %}</select></label>
+<label>{{ _("Titre") }}<input name="title" maxlength="150"></label></div>
+<input type="file" name="file" required>
+<button class="btn ghost">{{ _("Ajouter") }}</button>
+</form>
+{% endif %}
+</div><div class="dash-side">
+{% if trust and trust.score is not none %}
+<a class="card" href="{{ url_for('trust_page', project_id=p.id) }}" style="text-decoration:none;color:inherit">
+<span class="muted">{{ _("Indice de confiance") }}</span>
+<span class="score {{ trust.level }}" style="font-size:40px">{{ trust.score }}<span style="font-size:18px;font-weight:600">/100</span></span>
+<b>{{ trust.level_label }}</b></a>
+{% endif %}
+<h2>{{ _("Activité récente") }}</h2>
+<div class="card">
+{% for a in activity %}<div><span class="muted">{{ dt(a.created_at) }}</span><br>{% if a.author %}{{ a.author }} : {% endif %}{{ a.text|tr }}</div>{% else %}<span class="muted">{{ _("Rien pour l'instant.") }}</span>{% endfor %}
+</div>
+</div></div>
+{% endblock %}

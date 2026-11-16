@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ st.name }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
+<h1>{{ st.name }}</h1>
+<div class="row"><span class="muted">{{ fcfa(st.amount) }} FCFA{% if st.declared_at %} · {{ _("déclarée le") }} {{ d(st.declared_at) }}{% endif %}</span><span class="pill{% if st.status == 'declare' %} warn{% endif %}">{{ STATUS[st.status] }}</span></div>
+{% if st.status == 'declare' and st.declared_at and p.pay_mode != 'sequestre' and p.auto_validate and auto_validate_on %}<div class="card alert"><b>{{ _("Réponse attendue du propriétaire") }}</b><span class="muted">{{ _("Sans validation ni refus sous %(n)s jours après la déclaration, l'étape est validée automatiquement et le bon à payer est émis, si tous les contrôles obligatoires sont faits. Le propriétaire peut ouvrir un litige à tout moment.", n=AUTO_VALIDATE_DAYS) }}</span></div>{% endif %}
+{% if p.require_inspection and is_critical(st.name) and st.status in ('en_cours', 'declare') %}<div class="card alert"><b>{{ _("Inspection indépendante exigée") }}</b><span class="muted">{{ _("Étape critique : elle ne peut être validée qu'après un rapport d'inspection conforme.") }}</span>{% if role == 'owner' %}<a class="btn small" href="{{ url_for('project', project_id=p.id, onglet='dossier', _anchor='inspections') }}">{{ _("Commander l'inspection") }}</a>{% endif %}</div>{% endif %}
+{% if st.auto_validated %}<div class="card"><span class="tag amber">{{ _("Validée automatiquement faute de réponse du propriétaire") }}</span></div>{% endif %}
+
+<h2 id="controles">{{ _("Contrôles techniques") }}</h2>
+{% set missing = checks|selectattr('required')|rejectattr('status', 'equalto', 'conforme')|list %}
+{% if missing and st.status not in ('paye', 'versement') %}<div class="card alert"><b>{{ _("Paiement bloqué tant que les contrôles obligatoires ne sont pas conformes") }}</b><span class="muted">{{ missing|length }} {{ pl(missing|length, "contrôle(s) à faire par un contrôleur habilité.") }}{% if not controllers %} {{ _("Aucun contrôleur sur ce chantier : réservez un inspecteur ou ajoutez votre bureau de contrôle dans le dossier.") }}{% endif %}</span>
+{% if st.status == 'declare' and is_main_owner and p.kind != 'public' and not finance %}
+<details><summary>{{ _("Valider quand même, sans ces contrôles") }}</summary>
+<form method="post" action="{{ url_for('validate_step', project_id=p.id, step_id=st.id) }}" class="stack">{{ csrf() }}<input type="hidden" name="override" value="1">
+<span class="muted">{{ _("Vous prenez la responsabilité de payer sans contrôle technique. Ce choix est noté dans l'historique, signalé aux autres intervenants et baisse l'indice de confiance.") }}</span>
+{% if p.pay_mode == 'manuel' %}<label>{{ _("Référence du paiement Mobile Money (facultatif)") }}<input name="pay_ref"></label>{% endif %}
+<button class="btn ghost" onclick="return confirm('{{ _("Payer sans les contrôles obligatoires ?") }}')">{{ _("Valider sans les contrôles et payer") }}</button>
+</form></details>
+{% endif %}
+</div>{% endif %}
+{% for c in checks %}
+<div class="card">
+<div class="row"><b>{{ c.name|tr }}</b><span class="tag {{ 'bad' if c.status == 'non_conforme' else ('blue' if c.status == 'conforme' else 'amber' if c.required else 'grey') }}">{{ CHECK_STATUS[c.status] }}</span></div>
+<span class="muted">{{ _("Obligatoire avant paiement") if c.required else (_("Rendu facultatif par le propriétaire") if c.made_optional else _("Facultatif")) }}{% if c.kind == 'essai' %} · {{ _("essai, minimum") }} {{ c.min_value|qte }} {{ c.unit }}{% endif %}</span>
+{% if c.checked_at %}<span>{% if c.value is not none %}<b>{{ c.value|qte }} {{ c.unit }}</b> · {% endif %}{{ c.checker }}, {{ dt(c.checked_at) }}{% if c.note %} : {{ c.note }}{% endif %}{% if c.doc_id %} · <a href="{{ url_for('document', doc_id=c.doc_id) }}" target="_blank">{{ _("rapport") }}</a>{% endif %}</span>{% endif %}
+{% if can_check and st.status not in ('paye', 'versement') %}
+<details{% if c.status == 'a_faire' %} open{% endif %}><summary>{{ _("Saisir le résultat") if c.status == 'a_faire' else _("Modifier le résultat") }}</summary>
+<form method="post" action="{{ url_for('step_checks_action', project_id=p.id, step_id=st.id) }}" enctype="multipart/form-data" class="stack">{{ csrf() }}
+<input type="hidden" name="action" value="result"><input type="hidden" name="check_id" value="{{ c.id }}">
+{% if c.kind == 'essai' %}<label>{{ _("Résultat") }} ({{ c.unit }})<input name="value" inputmode="decimal" required></label>
+{% else %}<div class="grid2"><label><input type="radio" name="status" value="conforme" required> {{ _("Conforme") }}</label><label><input type="radio" name="status" value="non_conforme"> {{ _("Non conforme") }}</label></div>{% endif %}
+<label>{{ _("Observations") }}<textarea name="note" maxlength="500"></textarea></label>
+<label>{{ _("Rapport, PV d'essai ou photo (facultatif)") }}<input type="file" name="file"></label>
+<button class="btn">{{ _("Enregistrer le contrôle") }}</button>
+</form></details>
+{% endif %}
+{% if role == 'owner' and c.status != 'conforme' and st.status not in ('paye', 'versement') %}
+<form method="post" action="{{ url_for('step_checks_action', project_id=p.id, step_id=st.id) }}" class="row" style="justify-content:flex-start;gap:8px">{{ csrf() }}<input type="hidden" name="check_id" value="{{ c.id }}">
+{% if c.required and is_main_owner %}<button class="btn ghost small" name="action" value="optional" onclick="return confirm('{{ _("Rendre ce contrôle facultatif ? Ce choix sera noté et baissera l'indice de confiance.") }}')">{{ _("Rendre facultatif") }}</button>
+{% elif not c.required %}<button class="btn ghost small" name="action" value="required">{{ _("Rendre obligatoire") }}</button>{% if c.status == 'a_faire' %}<button class="btn ghost small" name="action" value="delete">{{ _("Retirer") }}</button>{% endif %}{% endif %}
+</form>
+{% endif %}
+</div>
+{% endfor %}
+<div class="row noprint" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+{% if role in ('chef', 'owner') and st.status not in ('paye', 'versement') %}<form method="post" action="{{ url_for('step_checks_action', project_id=p.id, step_id=st.id) }}">{{ csrf() }}<button class="btn ghost small" name="action" value="demander">{{ _("Demander le contrôle") }}</button></form>{% endif %}
+</div>
+{% if role in ('owner', 'inspecteur', 'admin') and st.status not in ('paye', 'versement') %}
+<details class="card"><summary><b>{{ _("Ajouter un contrôle") }}</b></summary>
+<form method="post" action="{{ url_for('step_checks_action', project_id=p.id, step_id=st.id) }}" class="stack">{{ csrf() }}<input type="hidden" name="action" value="add">
+<label>{{ _("Contrôle") }}<input name="name" required placeholder="{{ _("Contrôle de l'étanchéité de la terrasse") }}"></label>
+<div class="grid2"><label>{{ _("Type") }}<select name="kind"><option value="visuel">{{ _("Contrôle sur place") }}</option><option value="essai">{{ _("Essai avec résultat chiffré") }}</option></select></label>
+<label>{{ _("Minimum pour un essai") }}<input name="min_value" inputmode="decimal" placeholder="25"></label></div>
+<label><input type="checkbox" name="required" value="1" checked> {{ _("Obligatoire avant paiement") }}</label>
+<button class="btn ghost">{{ _("Ajouter") }}</button>
+</form></details>
+{% endif %}
+
+<h2>{{ _("Vérification avant paiement") }}</h2>
+<div class="card">
+{% for title, state, lines in verification %}
+<div class="verif"><span class="dot {{ state if state != 'ok' else '' }}" aria-label="{{ state }}"></span><div><b>{{ title }}</b>{% for l in lines %}<div class="muted">{{ l }}</div>{% endfor %}</div></div>
+{% endfor %}
+</div>
+
+{% if consumption %}
+<div class="card"><b>{{ _("Matériaux utilisés sur cette étape") }}</b>{% for c in consumption %}<div class="row"><span>{{ _(c.material) }}</span><span>{{ c.q|qte }} {{ c.unit or '' }}</span></div>{% endfor %}</div>
+{% endif %}
+
+{% if p.pay_mode == 'suivi' and st.status in ('versement', 'paye') %}
+<a class="card row" href="{{ url_for('pay_order', kind='etape', ref_id=st.id) }}" style="text-decoration:none;color:inherit"><b>{{ _("Bon à payer") }} {{ st.pay_ref if st.pay_ref and st.pay_ref.startswith('BAP') else '' }}</b><span class="tag{% if st.status == 'versement' %} amber{% endif %}">{{ _("Payé et confirmé") if st.status == 'paye' else _("Paiement à faire ou à confirmer") }}</span></a>
+{% endif %}
+{% if role == 'owner' and st.status == 'declare' %}
+{% set mine = approvals|selectattr('user_id', 'equalto', me.id)|list %}
+<form method="post" action="{{ url_for('validate_step', project_id=p.id, step_id=st.id) }}" class="card">{{ csrf() }}
+{% if finance %}
+<b>{{ _("Circuit de paiement à deux niveaux") }}</b>
+{% if me.id in finance %}<span class="muted">{{ _("Vous êtes responsable financier : vous payez après l'approbation du maître d'ouvrage.") }}</span>
+{% else %}<span class="muted">{{ _("Vous approuvez en tant que maître d'ouvrage ; le responsable financier paiera ensuite.") }}</span>{% endif %}
+{% endif %}
+{% if p.pay_mode == 'manuel' and (not finance or me.id in finance) %}<label>{{ _("Référence du paiement Mobile Money (facultatif)") }}<input name="pay_ref"></label>{% endif %}
+<button class="btn"{% if missing or mine %} disabled{% endif %}>{% if finance and me.id not in finance %}{{ _("Approuver l'étape") }}{% elif s.sequestre %}{{ _("Valider et verser") }} {{ fcfa(st.amount) }} FCFA{% elif s.suivi %}{{ _("Valider l'étape et émettre le bon à payer") }}{% else %}{{ _("Valider l'étape et confirmer le paiement") }}{% endif %}</button>
+{% if mine %}<span class="muted">{{ _("Vous avez déjà approuvé cette étape.") }}</span>{% endif %}
+</form>
+{% endif %}
+{% endblock %}

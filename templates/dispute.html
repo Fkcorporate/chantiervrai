@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_macros.html" import proof_card, csrf with context %}
+{% block title %}{{ _("Litige ·") }} {{ p.name }}{% endblock %}
+{% block content %}
+{% if role == 'admin' %}<a href="{{ url_for('admin') }}">{{ _("← Administration") }}</a>{% else %}<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>{% endif %}
+<h1>{{ _("Litige :") }} {{ d.subject }}</h1>
+<div class="row"><span class="muted">{{ p.name }}{% if st %} {{ _("· étape «") }} {{ st.name }} » ({{ STATUS[st.status] }}, {{ fcfa(st.amount) }} {{ _("FCFA)") }}{% endif %}</span>
+<span class="pill{% if d.status in ('ouvert', 'en_appel') %} warn{% endif %}">{{ STAGES[d.stage or 'echanges'] }}</span></div>
+
+<ol class="checklist dispute-steps">
+<li class="{{ 'done' if d.stage != 'echanges' else '' }}"><span class="tick" aria-hidden="true">1</span><div><b>{{ _("Échanges entre les parties") }}</b><span class="muted">{{ _("%(n)s jours pour trouver un accord.", n=RULES.respond) }}{% if d.stage == 'echanges' and d.respond_by %} {{ _("Jusqu'au") }} {{ dt(d.respond_by) }}.{% endif %}</span></div></li>
+<li class="{{ 'done' if d.stage in ('resolu', 'en_appel', 'clos') else '' }}"><span class="tick" aria-hidden="true">2</span><div><b>{{ _("Médiation ChantierVrai") }}</b><span class="muted">{{ _("Sans accord, le support examine le dossier et rend une décision écrite sous %(n)s jours.", n=RULES.decide) }}{% if d.stage == 'mediation' and d.decide_by %} {{ _("Avant le") }} {{ dt(d.decide_by) }}.{% endif %}</span></div></li>
+<li class="{{ 'done' if d.stage in ('en_appel', 'clos') else '' }}"><span class="tick" aria-hidden="true">3</span><div><b>{{ _("Recours") }}</b><span class="muted">{{ _("Chaque partie peut contester la décision une fois, sous %(n)s jours. Le fondateur rend alors la décision finale.", n=RULES.appeal) }}</span></div></li>
+</ol>
+
+<div class="card"><b>{{ _("Pièces recevables") }}</b><span class="muted">{{ _("Les photos et vidéos vérifiées par ChantierVrai, les PV de réception, les rapports d'inspection, les bons à payer et paiements déclarés ou confirmés, l'historique du chantier et les messages ci-dessous. Une photo refusée par les contrôles n'est pas recevable.") }}</span></div>
+
+{% if d.resolution %}<div class="card green"><b>{{ _("Décision de la médiation") if d.outcome != 'amiable' else _("Accord amiable") }}{% if d.outcome and d.outcome != 'amiable' %} · {{ OUTCOMES[d.outcome] }}{% endif %}</b><span>{{ d.resolution }}</span>{% if d.amount %}<span>{{ _("Montant retenu :") }} {{ fcfa(d.amount) }} FCFA</span>{% endif %}<span class="muted">{{ dt(d.resolved_at) }}{% if appeal_open %} · {{ _("recours possible jusqu'au") }} {{ dt(d.appeal_until) }}{% endif %}</span></div>{% endif %}
+{% if d.appeal_text %}<div class="card alert"><b>{{ _("Recours") }}</b><span>{{ d.appeal_text }}</span><span class="muted">{{ dt(d.appealed_at) }}</span></div>{% endif %}
+{% if d.final_decision %}<div class="card green"><b>{{ _("Décision finale") }}</b><span>{{ d.final_decision }}</span><span class="muted">{{ dt(d.final_at) }}</span></div>{% endif %}
+
+<div class="card log">
+{% for m in msgs %}<div><span>{{ dt(m.created_at) }}</span><span><b>{{ m.name }}{% if m.is_admin %} {{ _("(médiation)") }}{% endif %}</b> : {{ m.text }}</span></div>{% endfor %}
+</div>
+
+{% if d.status == 'ouvert' %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="message">
+<label>{{ _("Votre message") }}<textarea name="text" required></textarea></label>
+<button class="btn">{{ _("Envoyer") }}</button>
+</form>
+{% if is_party and d.stage == 'echanges' %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="mediation">
+<span class="muted">{{ _("Pas d'accord possible ? La médiation ChantierVrai peut décider sans attendre la fin du délai.") }}</span>
+<button class="btn ghost">{{ _("Demander la médiation maintenant") }}</button></form>
+{% endif %}
+{% if role == 'admin' %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="resolve">
+<b>{{ _("Rendre la décision de la médiation") }}</b>
+<label>{{ _("Sens de la décision") }}<select name="outcome">{% for k, v in OUTCOMES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Montant retenu (FCFA, facultatif)") }}<input name="amount" inputmode="numeric"></label>
+<label>{{ _("Décision motivée") }}<textarea name="text" required placeholder="{{ _("Les preuves vérifiées du 12/10 montrent… L'étape est due à hauteur de…") }}"></textarea></label>
+<button class="btn">{{ _("Rendre la décision") }}</button>
+</form>
+{% elif can_resolve %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="resolve">
+<b>{{ _("Clore le litige (accord trouvé)") }}</b>
+<label>{{ _("Accord") }}<textarea name="text" required placeholder="{{ _('Accord : le chef reprend la dalle, je valide ensuite.') }}"></textarea></label>
+<button class="btn ghost">{{ _("Clore") }}</button>
+</form>
+{% endif %}
+{% elif appeal_open and is_party %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="appeal">
+<b>{{ _("Contester la décision") }}</b>
+<label>{{ _("Motif du recours") }}<textarea name="text" required placeholder="{{ _("Élément nouveau, preuve ignorée, erreur de montant…") }}"></textarea></label>
+<button class="btn ghost">{{ _("Faire un recours") }}</button>
+</form>
+{% elif d.status == 'en_appel' and can('platform') %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="final">
+<b>{{ _("Décision finale") }}</b>
+<label>{{ _("Décision motivée") }}<textarea name="text" required></textarea></label>
+<button class="btn">{{ _("Rendre la décision finale") }}</button>
+</form>
+{% endif %}
+
+{% if pay_recs or pvs %}
+<h2>{{ _("Paiements et PV") }}</h2>
+<div class="card">
+{% for doc in pvs %}<a class="row" href="{{ url_for('document', doc_id=doc.id) }}" target="_blank"><span>{{ doc.title }}</span><span class="muted">{{ dt(doc.created_at) }}</span></a>{% endfor %}
+{% for r in pay_recs %}<div class="row"><span>{{ r.paid_on }} · {{ fcfa(r.amount) }} FCFA · {{ PAY_METHODS[r.method] }}{% if r.reference %} · {{ r.reference }}{% endif %}</span><span class="muted">{{ PAY_REC_STATUS[r.status] }}</span></div>{% endfor %}
+</div>
+{% endif %}
+{% if insp %}
+<h2>{{ _("Inspections") }}</h2>
+{% for i in insp %}<div class="card"><div class="row"><b>{{ i.inspector_name }}</b><span class="pill{% if i.verdict == 'non_conforme' %} warn{% endif %}">{{ VERDICTS[i.verdict] }}</span></div><div class="report">{{ i.report }}</div></div>{% endfor %}
+{% endif %}
+<h2>{{ _("Preuves") }}{% if st %} {{ _("de l'étape") }}{% endif %}</h2>
+{% for pr in proofs %}{{ proof_card(pr, p) }}{% else %}<div class="card muted">{{ _("Aucune preuve.") }}</div>{% endfor %}
+{% if role == 'admin' %}
+<h2>{{ _("Historique du chantier") }}</h2>
+<div class="card log">{% for a in history %}<div><span>{{ dt(a.created_at) }}</span><span>{{ a.author or '' }} : {{ a.text|tr }}</span></div>{% endfor %}</div>
+{% endif %}
+{% endblock %}

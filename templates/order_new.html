@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Commander des matériaux ·") }} {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else 'factures', _anchor='commandes') }}">← {{ p.name }}</a>
+<h1>{{ _("Commander des matériaux") }}</h1>
+<p class="muted">{{ _("L'argent part directement au fournisseur, et seulement pour ce qui est livré sur le terrain et compté. Plus de matériaux surfacturés ni de sacs fantômes.") }}</p>
+{% if not supplier %}
+{% for u in suppliers %}
+<a class="card" href="{{ url_for('new_order', project_id=p.id, fournisseur=u.id) }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ u.name }}</b><span class="tag">{{ _("Vérifié") }}</span></div>
+<span class="muted">{{ u.zone or _('Zone ?') }} · {{ u.n }} {{ pl(u.n, "produit(s)") }}</span>
+{% if u.bio %}<span class="muted">{{ u.bio|truncate(140) }}</span>{% endif %}
+</a>
+{% else %}<div class="card muted">{{ _("Aucun fournisseur vérifié pour l'instant. Invitez votre quincaillerie à s'inscrire comme fournisseur.") }}</div>{% endfor %}
+{% else %}
+<div class="card"><div class="row"><b>{{ supplier.name }}</b><a href="{{ url_for('new_order', project_id=p.id) }}">{{ _("Changer") }}</a></div><span class="muted">{{ supplier.zone or '' }}</span></div>
+<form method="post" class="card" id="order-form">{{ csrf() }}<input type="hidden" name="fournisseur" value="{{ supplier.id }}">
+<label>{{ _("Pour l'étape") }}<select name="step_id">{% for st in steps %}<option value="{{ st.id }}"{% if current and st.id == current.id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select></label>
+<div class="table-wrap"><table><thead><tr><th>{{ _("Produit") }}</th><th>{{ _("Prix") }}</th><th>{{ _("Quantité") }}</th></tr></thead><tbody>
+{% for pr in products %}
+<tr><td>{{ pr.name }}<br><span class="muted">{{ _(pr.material) }}</span>{% if warnings[pr.id] %}<br><span class="tag amber">{{ warnings[pr.id] }}</span>{% endif %}</td>
+<td>{{ fcfa(pr.price) }} / {{ pr.unit }}</td>
+<td><input name="qty_{{ pr.id }}" inputmode="decimal" data-price="{{ pr.price }}" class="qty" style="width:6em" aria-label="{{ _("Quantité") }} {{ pr.name }}"></td></tr>
+{% else %}<tr><td colspan="3" class="muted">{{ _("Ce fournisseur n'a aucun produit disponible.") }}</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="row"><span class="muted">{{ _("Total") }}</span><b><span id="order-total">0</span> FCFA</b></div>
+<label>{{ _("Note pour le fournisseur") }}<textarea name="note" maxlength="500" placeholder="{{ _("Accès par la rue derrière l'école, livrer le matin") }}"></textarea></label>
+<button class="btn">{{ _("Proposer au propriétaire") if role == 'chef' else _("Commander et réserver l'argent") }}</button>
+<span class="muted">{% if role == 'chef' %}{{ _("Le propriétaire approuve la commande avant l'envoi au fournisseur.") }}{% elif p.pay_mode == 'sequestre' %}{{ _("Le montant est réservé sur le séquestre. Le fournisseur est payé pour ce qui est livré, moins") }} {{ commission|qte }} {{ _("% de commission prise sur sa part.") }}{% else %}{{ _("Paiement manuel : vous payez le fournisseur après la réception confirmée.") }}{% endif %}</span>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var inputs = document.querySelectorAll('.qty'), out = document.getElementById('order-total');
+  if (!out) return;
+  function sum() {
+    var t = 0;
+    inputs.forEach(function (i) { var q = parseFloat((i.value || '').replace(',', '.')); if (q > 0) t += q * +i.dataset.price; });
+    out.textContent = Math.round(t).toLocaleString('fr-FR');
+  }
+  inputs.forEach(function (i) { i.addEventListener('input', sum); });
+})();
+</script>
+{% endblock %}

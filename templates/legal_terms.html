@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Conditions d'utilisation · ChantierVrai{% endblock %}
+{% block content %}
+<h1>Conditions générales d'utilisation</h1>
+<div class="card legal">
+<p class="muted">Modèle à faire relire par un juriste avant la mise en service. Les passages entre crochets sont à compléter.</p>
+<h2>1. Objet</h2>
+<p>ChantierVrai, édité par {{ company }}, est un service de suivi de chantier à distance. Il permet à un propriétaire ou maître d'ouvrage de suivre l'avancement de travaux grâce à des preuves photo et vidéo contrôlées, de valider des étapes et, s'il le souhaite, de faire verser des paiements après validation.</p>
+<h2>2. Comptes</h2>
+<p>Chaque utilisateur crée un compte personnel avec des informations exactes et garde son mot de passe secret. La double authentification est recommandée pour les comptes qui gèrent des paiements. {{ company }} peut suspendre un compte en cas de fraude, d'usurpation ou d'usage contraire aux présentes conditions.</p>
+<h2>3. Preuves et contrôles</h2>
+<p>Les contrôles automatiques (position GPS, date de prise de vue, doublons, ressemblance, analyse par intelligence artificielle) réduisent fortement le risque de fraude mais ne le suppriment pas. Ils constituent une aide à la décision. La décision de valider une étape et de payer appartient au seul propriétaire, qui peut faire appel à un inspecteur indépendant.</p>
+<p>Le chef de chantier s'engage à n'envoyer que des photos et vidéos prises sur le chantier concerné, au moment de l'envoi. Toute tentative de fraude entraîne la suspension du compte.</p>
+<h2>4. Paiements et séquestre</h2>
+<p>ChantierVrai ne détient pas les fonds des utilisateurs. En paiement suivi, le payeur règle directement le bénéficiaire (Mobile Money, virement, espèces avec reçu) ; ChantierVrai enregistre le bon à payer, la déclaration du payeur, sa référence ou son reçu, et la confirmation ou la contestation du bénéficiaire. Ces informations servent de trace entre les parties ; elles ne valent pas encaissement par ChantierVrai. En mode simple, le propriétaire note seulement la référence. Dans ces deux modes, les paiements se font hors de ChantierVrai, sous la seule responsabilité des parties. Lorsqu'il est proposé, en mode séquestre, les fonds sont détenus par [nom du partenaire de paiement agréé] et versés au chef de chantier après validation de chaque étape. Les frais applicables sont : [à compléter].</p>
+<h2>5. Inspections indépendantes</h2>
+<p>L'inspection indépendante est un service vendu par {{ company }} à prix fixe. {{ company }} attribue un inspecteur vérifié, sans lien avec le chantier, et le rémunère directement. Le rapport de l'inspecteur engage sa responsabilité professionnelle. Le propriétaire peut rendre l'inspection obligatoire avant la validation des étapes critiques (fondations, structure, dalle, toiture) ; elle l'est toujours sur un chantier public.</p>
+<h2>6. Validation automatique (option)</h2>
+<p>Lorsque {{ company }} la propose, le propriétaire peut accepter, chantier par chantier, qu'une étape déclarée terminée soit validée automatiquement s'il ne la valide ni ne la refuse dans le délai indiqué au moment de l'acceptation. Il est relancé au moins trois fois avant l'échéance, avec la date de validation. Jusqu'à cette date, il peut refuser l'étape avec un motif ou ouvrir un litige. La validation automatique n'a jamais lieu si un contrôle obligatoire manque, si l'inspection exigée n'est pas faite ou conforme, ou si un litige est ouvert. Elle émet le bon à payer : elle constate que l'étape est due, sans que {{ company }} ne détienne ni ne verse aucune somme. Le propriétaire peut retirer l'option quand aucune étape n'attend sa réponse ; le chef de chantier en est informé.</p>
+<h2>6 bis. Litiges entre utilisateurs</h2>
+<p>En cas de désaccord sur une étape, un paiement ou une commande, chaque partie peut ouvrir un litige dans l'application. Les parties disposent de 5 jours pour s'accorder ; à défaut, ou à la demande d'une partie, la médiation de {{ company }} rend une décision écrite et motivée sous 10 jours, à partir des seules pièces enregistrées (preuves vérifiées, PV, rapports d'inspection, paiements, historique, messages). Chaque partie peut former un recours unique sous 7 jours ; la décision sur recours est définitive dans l'application. La médiation ne remplace pas les voies de recours légales.</p>
+<h2>7. Portail citoyen</h2>
+<p>Pour les chantiers publics publiés par leur maître d'ouvrage, l'avancement, les photos approuvées et certains documents sont visibles par tous. Les signalements doivent être exacts et respectueux ; {{ company }} peut retirer tout message abusif.</p>
+<h2>8. Responsabilité</h2>
+<p>{{ company }} fournit un outil de suivi. Elle n'est ni constructeur, ni maître d'œuvre, et ne garantit pas la qualité des travaux. Sa responsabilité est limitée à [à compléter].</p>
+<h2>9. Contact et droit applicable</h2>
+<p>Contact : {{ contact }}. Les présentes conditions sont soumises au droit [ivoirien / à préciser].</p>
+</div>
+{% endblock %}

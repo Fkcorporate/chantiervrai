@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Équipe · ChantierVrai") }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('admin') }}" class="muted">{{ _("← Administration") }}</a>
+<h1>{{ _("Équipe ChantierVrai") }}</h1>
+<p class="muted">{{ _("Ces accès sont réservés à vos salariés. Les architectes, ingénieurs ou comptables invités par un client sur son chantier utilisent le compte Professionnel du BTP, pas cette page.") }}</p>
+{% if need_2fa %}<p class="muted">{{ _("La double authentification est obligatoire : un membre sans 2FA ne peut pas ouvrir l'administration.") }}</p>{% endif %}
+
+<h2>{{ _("Membres") }}</h2>
+<div class="card table-wrap"><table>
+<thead><tr><th>{{ _("Nom") }}</th><th>{{ _("Rôle") }}</th><th>{{ _("2FA") }}</th><th>{{ _("Dernière action") }}</th><th>{{ _("Actions") }}</th></tr></thead><tbody>
+{% for u in team %}
+<tr><td>{{ u.name }}<br><span class="muted">{{ u.email }}</span></td>
+<td>{{ STAFF_ROLES[staff_role(u)] }}</td>
+<td>{% if u.totp_on %}<span class="tag">{{ _("Activée") }}</span>{% else %}<span class="tag bad">{{ _("À activer") }}</span>{% endif %}</td>
+<td class="muted">{{ dt(last[u.id]) if last.get(u.id) else _("Aucune") }}</td>
+<td>{% if u.id != me.id %}<form method="post" class="acts-row">{{ csrf() }}<input type="hidden" name="id" value="{{ u.id }}">
+<select name="role" aria-label="{{ _("Rôle de") }} {{ u.name }}">{% for k, v in STAFF_ROLES.items() %}<option value="{{ k }}"{% if staff_role(u) == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+<button class="btn ghost small" name="action" value="role">{{ _("Changer le rôle") }}</button>
+<button class="btn ghost small" name="action" value="remove">{{ _("Retirer l'accès") }}</button>
+</form>{% else %}<span class="muted">{{ _("Vous") }}</span>{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+
+<h2>{{ _("Ajouter un membre") }}</h2>
+<form method="post" class="card">{{ csrf() }}
+<span class="muted">{{ _("La personne crée d'abord son compte sur ChantierVrai avec son e-mail professionnel.") }}</span>
+<div class="grid2"><label>{{ _("E-mail du compte") }}<input type="email" name="email" required></label>
+<label>{{ _("Rôle") }}<select name="role">{% for k, v in STAFF_ROLES.items() %}{% if k != 'super' %}<option value="{{ k }}">{{ v }}</option>{% endif %}{% endfor %}<option value="super">{{ STAFF_ROLES['super'] }}</option></select></label></div>
+<button class="btn" name="action" value="add">{{ _("Ajouter à l'équipe") }}</button>
+</form>
+
+<h2>{{ _("Ce que voit chaque rôle") }}</h2>
+<div class="card">{% for k, v in STAFF_ROLES.items() %}<div class="row"><b>{{ v }}</b><span class="muted">{{ help[k] }}</span></div>{% endfor %}</div>
+{% endblock %}

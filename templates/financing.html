@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Plan de financement") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}">← {{ p.name }}</a>
+<div class="row"><h1>{{ _("Plan de financement") }}</h1><a class="btn ghost small" href="{{ url_for('financing_file', project_id=p.id) }}">{{ _("Dossier de crédit") }}</a></div>
+<p class="muted">{{ _("D'où vient l'argent du chantier, quand il arrive, et s'il suffira pour payer chaque étape à temps. Vous saisissez vos sources ; ChantierVrai les confronte au planning. Aucun lien avec votre banque.") }}</p>
+<nav class="chips anchors" aria-label="{{ _("Sur cette page") }}">{% if pl.months|length > 1 %}<a class="chip" href="#mois">{{ _("Mois par mois") }}</a>{% endif %}<a class="chip" href="#sources">{{ _("Sources") }} ({{ pl.sources|length }})</a><a class="chip" href="#couts">{{ _("Autres coûts") }} ({{ costs|length }})</a><a class="chip" href="#revenus">{{ _("Revenus") }}</a></nav>
+
+<div class="grid3">
+<div class="card"><span class="muted">{{ _("Budget du chantier") }}</span><span class="big">{{ fcfa(pl.budget) }}</span><span class="muted">{{ _("étapes et autres coûts") }}</span></div>
+<div class="card"><span class="muted">{{ _("Financement prévu") }}</span><span class="big">{{ fcfa(pl.total_sources) }}</span><span class="muted">{% if pl.coverage is not none %}{{ pl.coverage }} % {{ _("du budget") }}{% endif %}{% if pl.confirmed %} · {{ fcfa(pl.confirmed) }} {{ _("confirmés") }}{% endif %}</span></div>
+<div class="card"><span class="muted">{{ _("Reçu / dépensé") }}</span><span class="big">{{ fcfa(pl.received) }}</span><span class="muted">{{ fcfa(pl.spent) }} {{ _("déjà payés") }} · {{ _("reste en caisse :") }} <span class="{{ 'fin-neg' if pl.cash < 0 else '' }}">{{ fcfa(pl.cash) }}</span></span></div>
+</div>
+
+{% if pl.shortfall %}<div class="card alert"><b>{{ _("Financement incomplet : il manque %(a)s FCFA sur l'ensemble du chantier.", a=fcfa(pl.shortfall)) }}</b><span class="muted">{{ _("Ajoutez une source (crédit, famille, tontine…) ou réduisez le budget.") }}</span></div>{% endif %}
+{% if pl.first_gap %}<div class="card alert"><b>{{ _("Trou de trésorerie en %(m)s : il manquera %(a)s FCFA.", m=month_label(pl.first_gap.month), a=fcfa(-pl.first_gap.balance)) }}</b>
+<span class="muted">{{ _("L'argent prévu n'arrive pas à temps pour payer les étapes de ce mois.") }}{% if pl.worst and pl.worst.month != pl.first_gap.month %} {{ _("Le manque le plus fort sera en %(m)s : %(a)s FCFA.", m=month_label(pl.worst.month), a=fcfa(-pl.worst.balance)) }}{% endif %} {{ _("Solutions : avancer une source, demander le déblocage d'une tranche, ou décaler une étape.") }}</span></div>
+{% elif pl.months and pl.total_sources %}<div class="card"><b>{{ _("Pas de trou de trésorerie prévu.") }}</b><span class="muted">{{ _("Chaque mois, l'argent reçu ou attendu couvre les étapes à payer.") }}</span></div>{% endif %}
+{% for s_, amount in pl.late %}<div class="card alert"><span>{{ _("En retard :") }} <b>{{ s_.label or KINDS[s_.kind] }}</b> — {{ fcfa(amount) }} FCFA {{ _("attendus ne sont pas encore reçus.") }}</span></div>{% endfor %}
+
+{% if pl.months|length > 1 %}
+<h2 id="mois">{{ _("Mois par mois") }}</h2>
+<div class="card">
+<div class="fin-bars">
+<b>{{ _("Mois") }}</b><b>{{ _("Entrées / sorties") }}</b><b>{{ _("Solde") }}</b>
+{% for m in pl.months %}
+<span{% if m.current %} style="font-weight:600"{% endif %}>{{ month_label(m.month) }}</span>
+<span><div class="fin-bar fin-in" style="width:{{ (100 * m['in'] / peak)|round|int }}%" title="{{ fcfa(m['in']) }}"></div><div class="fin-bar fin-out" style="width:{{ (100 * m.out / peak)|round|int }}%;margin-top:2px" title="{{ fcfa(m.out) }}"></div></span>
+<span class="{{ 'fin-neg' if m.balance < 0 else '' }}">{{ fcfa(m.balance) }}</span>
+{% endfor %}
+</div>
+<span class="muted">{{ _("Vert : argent reçu ou attendu. Orange : étapes et coûts à payer, à leur date de fin prévue. Solde : cumul depuis le début.") }}</span>
+</div>
+{% endif %}
+
+<h2 id="sources">{{ _("Sources de financement") }}</h2>
+{% for x in pl.sources %}{% set src = x.row %}
+<details class="card fold"{% if x.status == 'en_retard' %} open{% endif %}>
+<summary>
+<div class="row"><b>{{ src.label or KINDS[src.kind] }}</b><span class="tag {{ 'green' if x.status == 'recue' else 'bad' if x.status == 'en_retard' else 'blue' if x.status == 'confirmee' else 'grey' }}">{{ FSTATUS[x.status] }}</span></div>
+<div class="bar"><div style="width:{{ [100, (100 * x.received / x.total)|round|int if x.total else 0]|min }}%"></div></div>
+<span class="fin-sum">{{ fcfa(x.received) }} / {{ fcfa(x.total) }} FCFA {{ _("reçus") }}<span class="fold-hint" aria-hidden="true"></span></span>
+</summary>
+<span class="muted">{{ KINDS[src.kind] }}{% if src.lender %} · {{ src.lender }}{% endif %} · {% if src.kind == 'transferts' and src.months %}{{ fcfa(src.amount) }} FCFA × {{ src.months }} {{ _("mois") }} = {{ fcfa(x.total) }} FCFA{% else %}{{ fcfa(src.amount) }} FCFA{% endif %}{% if src.expected_on %} · {{ _("attendu le") if src.kind != 'transferts' else _("à partir du") }} {{ d(src.expected_on) }}{% endif %}</span>
+{% if x.remaining > 0 %}<span>{{ fcfa(x.remaining) }} FCFA {{ _("à recevoir") }}</span>{% endif %}
+{% if src.kind in LOANS %}<span class="muted">{% if x.payment %}{{ _("Mensualité :") }} {{ fcfa(x.payment) }} FCFA{% endif %}{% if src.rate %} · {{ _("taux") }} {{ src.rate }} %{% endif %}{% if src.months %} · {{ src.months }} {{ _("mois") }}{% endif %}{% if src.deferral_months %} · {{ _("différé") }} {{ src.deferral_months }} {{ _("mois") }}{% endif %}{% if x.cost %} · {{ _("coût des intérêts :") }} {{ fcfa(x.cost) }} FCFA{% endif %}</span>{% endif %}
+{% for r in rec_rows.get(src.id, []) %}<span class="muted">✓ {{ d(r.received_on) }} · {{ fcfa(r.amount) }} FCFA{% if r.note %} · {{ r.note }}{% endif %}{% if can_edit %} <form method="post" style="display:inline">{{ csrf() }}<input type="hidden" name="action" value="delete_receipt"><input type="hidden" name="receipt_id" value="{{ r.id }}"><input type="hidden" name="anchor" value="sources"><button class="linkish">{{ _("retirer") }}</button></form>{% endif %}</span>{% endfor %}
+{% if can_edit %}
+<div class="fin-actions">
+<details><summary class="btn small">{{ _("Enregistrer un montant reçu") }}</summary>
+<form method="post" class="grid3">{{ csrf() }}<input type="hidden" name="action" value="receipt"><input type="hidden" name="source_id" value="{{ src.id }}"><input type="hidden" name="anchor" value="sources">
+<label>{{ _("Montant reçu (FCFA)") }}<input name="amount" inputmode="numeric" required value="{{ x.remaining if x.remaining > 0 and src.kind != 'transferts' else src.amount }}"></label>
+<label>{{ _("Date") }}<input type="date" name="received_on" value="{{ today }}"></label>
+<label>{{ _("Note (facultatif)") }}<input name="note" maxlength="300"></label>
+<button class="btn small">{{ _("Enregistrer") }}</button></form></details>
+<details><summary class="btn ghost small">{{ _("Modifier ou supprimer") }}</summary>
+{% with src=src %}{% include "_fin_source_form.html" %}{% endwith %}
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="delete_source"><input type="hidden" name="source_id" value="{{ src.id }}"><button class="btn ghost small">{{ _("Supprimer cette source") }}</button></form>
+</details>
+</div>
+{% endif %}
+</details>
+{% else %}
+<div class="card muted">{{ _("Aucune source pour l'instant. Commencez par votre épargne, puis le crédit, l'aide de la famille ou vos transferts mensuels.") }}</div>
+{% endfor %}
+{% if can_edit %}
+<details class="card" {% if not sources %}open{% endif %}><summary><b>{{ _("Ajouter une source") }}</b></summary>
+{% with src=None %}{% include "_fin_source_form.html" %}{% endwith %}
+</details>
+{% endif %}
+
+<h2 id="couts">{{ _("Autres coûts") }}</h2>
+<div class="card">
+<span class="muted">{{ _("Ce qui n'est pas dans les étapes : terrain, notaire, permis, raccordements, imprévus.") }}</span>
+{% for c in costs %}<div class="row"><span>{{ c.label }}{% if c.due_on %} <span class="muted">· {{ d(c.due_on) }}</span>{% endif %}</span><span>{{ fcfa(c.amount) }} FCFA {% if c.paid %}<span class="tag green">{{ _("payé") }}</span>{% endif %}
+{% if can_edit %}<form method="post" style="display:inline">{{ csrf() }}<input type="hidden" name="cost_id" value="{{ c.id }}"><input type="hidden" name="anchor" value="couts"><button class="linkish" name="action" value="cost_paid">{{ _("non payé") if c.paid else _("marquer payé") }}</button> <button class="linkish" name="action" value="delete_cost">{{ _("retirer") }}</button></form>{% endif %}</span></div>{% endfor %}
+{% if not costs %}<span class="muted">{{ _("Aucun coût ajouté.") }}</span>{% endif %}
+{% if can_edit %}
+<details{% if not costs %} open{% endif %}><summary class="btn ghost small">{{ _("Ajouter un coût") }}</summary>
+<form method="post" class="grid3" style="margin-top:10px">{{ csrf() }}<input type="hidden" name="action" value="cost"><input type="hidden" name="anchor" value="couts">
+<label>{{ _("Libellé") }}<input name="label" list="cost-suggestions" required maxlength="120"></label>
+<datalist id="cost-suggestions">{% for x in suggestions %}<option value="{{ x }}">{% endfor %}</datalist>
+<label>{{ _("Montant (FCFA)") }}<input name="amount" inputmode="numeric" required></label>
+<label>{{ _("Date prévue") }}<input type="date" name="due_on"></label>
+<label class="check"><input type="checkbox" name="paid" value="1"> {{ _("Déjà payé") }}</label>
+<button class="btn small">{{ _("Ajouter") }}</button></form></details>
+{% endif %}
+</div>
+
+<h2 id="revenus">{{ _("Revenus et capacité de remboursement") }}</h2>
+<div class="card">
+{% if debt and debt.ratio is not none %}
+<div class="row"><b>{{ _("Taux d'endettement") }}</b><span class="big {{ 'fin-neg' if debt.over else '' }}">{{ debt.ratio }} %</span></div>
+<span class="muted">{{ _("Mensualités des crédits :") }} {{ fcfa(debt.loans) }} FCFA · {{ _("autres charges :") }} {{ fcfa(debt.charges) }} FCFA · {{ _("revenus :") }} {{ fcfa(debt.income) }} FCFA {{ _("par mois") }}</span>
+<span class="muted">{% if debt.over %}{{ _("Au-dessus du repère courant d'environ %(r)s %% des revenus : une banque risque de demander un apport plus élevé ou une durée plus longue.", r=DEBT_REF) }}{% else %}{{ _("Sous le repère courant d'environ %(r)s %% des revenus : marge mensuelle d'environ %(m)s FCFA.", r=DEBT_REF, m=fcfa(debt.room)) }}{% endif %} {{ _("Chaque banque applique sa propre règle.") }}</span>
+{% else %}<span class="muted">{{ _("Indiquez vos revenus pour calculer votre taux d'endettement, comme le fera la banque.") }}</span>{% endif %}
+{% if can_edit %}
+<details{% if not profile or not profile.monthly_income %} open{% endif %}><summary class="btn ghost small">{{ _("Mes revenus et charges") }}</summary>
+<form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="profile"><input type="hidden" name="anchor" value="revenus">
+<div class="grid3">
+<label>{{ _("Revenus nets par mois") }}<input name="monthly_income" inputmode="decimal" value="{{ profile.monthly_income|int if profile and profile.monthly_income else '' }}"></label>
+<label>{{ _("Devise") }}<select name="income_currency">{% for k, v in CURRENCIES.items() %}<option value="{{ k }}"{% if profile and profile.income_currency == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Taux de change en FCFA (sauf euro)") }}<input name="fx_rate" inputmode="decimal" value="{{ profile.fx_rate if profile and profile.fx_rate else '' }}" placeholder="{{ _("1 USD = … FCFA") }}"></label>
+</div>
+<div class="grid3">
+<label>{{ _("Autres charges mensuelles (crédits, loyer)") }}<input name="other_charges" inputmode="decimal" value="{{ profile.other_charges|int if profile and profile.other_charges else '' }}"></label>
+<label>{{ _("Employeur") }}<input name="employer" value="{{ (profile.employer if profile else '') or '' }}"></label>
+<label>{{ _("Pays de résidence") }}<input name="country" value="{{ (profile.country if profile else '') or '' }}"></label>
+</div>
+<label class="check"><input type="checkbox" name="diaspora" value="1"{% if profile and profile.diaspora %} checked{% endif %}> {{ _("Je vis hors de Côte d'Ivoire") }}</label>
+<span class="muted">{{ _("L'euro est converti à la parité fixe : 1 EUR = %(r)s FCFA.", r=EUR) }}</span>
+<button class="btn ghost small">{{ _("Enregistrer") }}</button></form></details>
+{% endif %}
+</div>
+<p class="muted">{{ _("Outil de suivi et de préparation : ChantierVrai ne donne pas d'avis sur l'obtention d'un crédit et ne remplace pas votre conseiller bancaire.") }}</p>
+{% endblock %}

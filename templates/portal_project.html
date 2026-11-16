@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "_macros.html" import proof_card, csrf, risk_pill with context %}
+{% block title %}{{ p.name }} {{ _("· Portail citoyen") }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('portal') }}">{{ _("← Tous les chantiers publics") }}</a>
+<h1>{{ p.name }}</h1>
+<div class="muted">{{ p.address }}</div>
+{% if p.description %}<div>{{ p.description }}</div>{% endif %}
+
+<div class="card">
+{% if p.autorite %}<div class="row"><span class="muted">{{ _("Autorité contractante") }}</span><b>{{ p.autorite }}</b></div>{% endif %}
+{% if p.attributaire %}<div class="row"><span class="muted">{{ _("Entreprise") }}</span><b>{{ p.attributaire }}</b></div>{% endif %}
+{% if p.marche_ref %}<div class="row"><span class="muted">{{ _("Marché n°") }}</span><b>{{ p.marche_ref }}</b></div>{% endif %}
+{% if p.ao_ref %}<div class="row"><span class="muted">{{ _("Appel d'offres") }}</span><b>{{ p.ao_ref }}</b></div>{% endif %}
+<div class="row"><span class="muted">{{ _("Montant") }}</span><b>{{ fcfa(p.montant_marche or s.total) }} FCFA</b></div>
+<div class="row"><span class="muted">{{ _("Payé après vérification") }}</span><b>{{ fcfa(s.paid) }} FCFA</b></div>
+{% if p.sigomap_url %}<a href="{{ p.sigomap_url }}" target="_blank" rel="noopener">{{ _("Voir le marché sur SIGOMAP") }}</a>{% endif %}
+</div>
+
+<div class="card">
+<div class="row"><b>{{ _("Avancement vérifié") }}</b><b>{{ s.verified_pct }} %</b></div>
+<div class="bar"><div style="width:{{ s.verified_pct }}%"></div></div>
+{% if pred %}<div class="row"><span>{{ _("Fin estimée le") }} {{ d(pred.predicted_end) }} {{ _("· prévue le") }} {{ d(pred.planned_end) }}</span>{{ risk_pill(pred) }}</div>{% endif %}
+{% for st in s.steps %}
+<div class="row"><span>{{ loop.index }}. {{ st.name }}</span><span class="pill{% if st.status == 'attente' %} grey{% elif st.status == 'declare' %} warn{% endif %}">{{ STATUS[st.status] }}</span></div>
+{% endfor %}
+</div>
+
+{% if insp %}
+<div class="card"><b>{{ _("Inspections indépendantes") }}</b>
+{% for i in insp %}<div class="row"><span>{{ i.step_name or _('Visite générale') }} · {{ d(i.done_at) }}</span><span class="pill{% if i.verdict == 'non_conforme' %} warn{% endif %}">{{ VERDICTS[i.verdict] }}</span></div>{% endfor %}
+</div>
+{% endif %}
+
+{% if docs %}
+<div class="card"><b>{{ _("Documents publics") }}</b>
+{% for doc in docs %}<a href="{{ url_for('portal_document', doc_id=doc.id) }}" target="_blank">{{ _(doc.category) }} · {{ doc.title }}</a>{% endfor %}
+</div>
+{% endif %}
+
+<h2>{{ _("Photos vérifiées") }}</h2>
+<p class="muted">{{ _("Chaque photo a été contrôlée : prise sur le terrain (GPS), récente, jamais envoyée avant.") }}</p>
+{% for pr in photos %}{{ proof_card(pr, p, public=True) }}{% else %}<div class="card muted">{{ _("Pas encore de photo.") }}</div>{% endfor %}
+
+<a class="btn report-fab" href="#signaler">{{ _("Signaler un problème") }}</a>
+<h2 id="signaler">{{ _("Signaler un problème") }}</h2>
+<form method="post" action="{{ url_for('portal_report', project_id=p.id) }}" enctype="multipart/form-data" class="card" id="sig-form">
+{{ csrf() }}
+<input type="hidden" name="lat" id="s-lat"><input type="hidden" name="lng" id="s-lng">
+<label>{{ _("Que se passe-t-il ?") }}<textarea name="text" required minlength="10" placeholder="{{ _("Chantier arrêté depuis 3 semaines, clôture tombée…") }}"></textarea></label>
+<label>{{ _("Photo (facultatif)") }}<input type="file" name="photo" accept="image/*" capture="environment"></label>
+<div class="grid2">
+<label>{{ _("Nom (facultatif)") }}<input name="name"></label>
+<label>{{ _("Téléphone (facultatif)") }}<input name="phone" inputmode="tel"></label>
+</div>
+<span class="muted" id="s-gps">{{ _("Votre position aide à vérifier le signalement. Elle n'est pas publiée.") }}</span>
+<button class="btn" type="submit">{{ _("Envoyer le signalement") }}</button>
+</form>
+{% if sigs %}
+<h2>{{ _("Signalements reçus") }}</h2>
+{% for sg in sigs %}
+<div class="card">
+<div class="row"><span class="muted">{{ d(sg.created_at) }}</span><span class="pill{% if sg.status in ('nouveau', 'en_cours') %} warn{% endif %}">{{ SIG_STATUS[sg.status] }}</span></div>
+<div>{{ sg.text }}</div>
+{% if sg.filename %}<img class="sat" src="{{ url_for('signalement_photo', sid=sg.id) }}" alt="{{ _("Photo du signalement") }}" loading="lazy">{% endif %}
+{% if sg.response %}<div class="report">{{ _("Réponse du maître d'ouvrage :") }} {{ sg.response }}</div>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+<div style="height:72px" aria-hidden="true"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var fab = document.querySelector('.report-fab'), form = document.getElementById('sig-form');
+  if (fab && form && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (es) { fab.classList.toggle('hidden', es[0].isIntersecting); }).observe(form);
+  }
+})();
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(function (q) {
+    document.getElementById('s-lat').value = q.coords.latitude;
+    document.getElementById('s-lng').value = q.coords.longitude;
+  }, function () {}, {enableHighAccuracy: true, timeout: 15000});
+}
+</script>
+{% endblock %}

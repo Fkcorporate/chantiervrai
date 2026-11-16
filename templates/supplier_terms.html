@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Conditions fournisseur · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Conditions fournisseur") }}</h1>
+<div class="card legal">
+<p>{{ _("Ces conditions complètent les conditions d'utilisation de ChantierVrai pour les fournisseurs de matériaux.") }}</p>
+<h2>{{ _("1. Commission") }}</h2>
+<p>{{ _("Pour chaque commande passée par ChantierVrai et réceptionnée sur le chantier, ChantierVrai facture au fournisseur une commission de") }} <b>{{ rate|round(1) }} %</b> {{ _("du montant réellement reçu (quantités comptées par le chef de chantier).") }}</p>
+<h2>{{ _("2. Paiement des commandes") }}</h2>
+<p>{{ _("Le client paie le fournisseur directement. ChantierVrai ne détient pas cet argent ; il enregistre le paiement déclaré par le client et la confirmation du fournisseur.") }}</p>
+<h2>{{ _("3. Facturation de la commission") }}</h2>
+<p>{{ _("La commission est facturée en début de mois pour les commandes reçues le mois précédent, payable sous 15 jours par Mobile Money ou virement. Le relevé détaillé est disponible sur demande.") }}</p>
+<h2>{{ _("4. Impayés") }}</h2>
+<p>{{ _("Après une relance restée sans effet 15 jours après l'échéance, le catalogue du fournisseur cesse d'être proposé aux chantiers jusqu'au paiement. Les commandes en cours sont honorées.") }}</p>
+<h2>{{ _("5. Engagements du fournisseur") }}</h2>
+<p>{{ _("Prix affichés à jour, livraison dans les délais acceptés, facture conforme aux quantités reçues, réponse aux signalements de livraison.") }}</p>
+<p class="muted">{{ company }} · {{ _("Document à faire valider par un avocat avant la mise en service.") }}</p>
+</div>
+{% if me and me.role == 'fournisseur' %}
+{% if me.supplier_terms_at %}<div class="card"><span class="tag">{{ _("Acceptées le") }} {{ d(me.supplier_terms_at) }}</span></div>
+{% else %}<form method="post" class="card">{{ csrf() }}<label class="check"><input type="checkbox" name="accept" value="1" required> {{ _("J'accepte les conditions fournisseur, dont la commission ChantierVrai.") }}</label><button class="btn">{{ _("Accepter") }}</button></form>{% endif %}
+{% endif %}
+{% endblock %}

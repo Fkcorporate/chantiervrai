@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Bon à payer") }} {{ due.ref }} · ChantierVrai{% endblock %}
+{% block content %}
+<a href="{{ due.back }}" class="muted noprint">{{ _("← Retour") }}</a>
+<div class="row"><h1>{{ _("Bon à payer") }}</h1><button class="btn ghost small" onclick="window.print()">{{ _("Imprimer") }}</button></div>
+
+<div class="card">
+<div class="row"><b>{{ due.ref }}</b>{% if due.done %}<span class="tag">{{ _("Payé et confirmé") }}</span>{% elif due.open %}<span class="tag amber">{{ _("À payer") }}</span>{% else %}<span class="tag grey">{{ _("Pas encore à payer") }}</span>{% endif %}</div>
+<div class="row"><span class="muted">{{ _("Chantier") }}</span><span>{{ p.name }}</span></div>
+<div class="row"><span class="muted">{{ _("Objet") }}</span><span>{{ due.label }}</span></div>
+<div class="row"><span class="muted">{{ _("Bénéficiaire") }}</span><span>{% if payee %}{{ payee.company or payee.name }}{% if payee.company %} ({{ payee.name }}){% endif %}{% else %}?{% endif %}</span></div>
+<div class="row"><span class="muted">{{ _("Numéro Mobile Money du bénéficiaire") }}</span><span>{{ payee.phone if payee and payee.phone else _("non renseigné : demandez-le-lui") }}</span></div>
+<div class="row"><span class="muted">{{ _("Montant dû") }}</span><span class="big">{{ fcfa(due.amount) }} FCFA</span></div>
+{% if due.confirmed or due.declared %}
+<div class="row"><span class="muted">{{ _("Reçu et confirmé") }}</span><span>{{ fcfa(due.confirmed) }} FCFA</span></div>
+<div class="row"><span class="muted">{{ _("Déclaré, à confirmer") }}</span><span>{{ fcfa(due.declared) }} FCFA</span></div>
+<div class="row"><span class="muted">{{ _("Reste à payer") }}</span><b>{{ fcfa(due.remaining) }} FCFA</b></div>
+{% endif %}
+{% if due.kind == 'etape' %}
+<div class="row"><span class="muted">{{ _("Preuves vérifiées") }}</span><span>{{ proofs_ok }}</span></div>
+{% for a in approvals %}<div class="row"><span class="muted">{{ _("Approuvé par") }}</span><span>{{ a.name }} · {{ dt(a.created_at) }}</span></div>{% endfor %}
+{% endif %}
+<div class="row"><span class="muted">{{ _("Code de contrôle") }}</span><span>{{ due.code }}</span></div>
+<span class="muted">{{ _("ChantierVrai ne détient pas cet argent. Le payeur règle directement le bénéficiaire, puis déclare le paiement ; le bénéficiaire confirme la réception.") }}</span>
+</div>
+
+<h2>{{ _("Paiements enregistrés") }}</h2>
+<div class="card">
+{% for r in due.records %}
+<div class="row"><span>{{ d(r.paid_on) }} · {{ fcfa(r.amount) }} FCFA · {{ PAY_METHODS[r.method] }}{% if r.reference %} · {{ _("réf.") }} {{ r.reference }}{% endif %}{% if r.receipt %} · <a href="{{ url_for('payment_receipt', rid=r.id) }}" target="_blank">{{ _("reçu") }}</a>{% endif %}</span>
+<span class="tag{% if r.status == 'declare' %} amber{% elif r.status == 'conteste' %} bad{% endif %}">{{ PAY_REC_STATUS[r.status] }}</span></div>
+{% if r.contest_note %}<span class="muted">{{ _("Motif :") }} {{ r.contest_note }}</span>{% endif %}
+{% else %}<span class="muted">{{ _("Aucun paiement déclaré pour l'instant.") }}</span>{% endfor %}
+</div>
+
+{% if access == 'payer' and due.open and due.remaining > 0 %}
+<form method="post" enctype="multipart/form-data" class="card noprint">{{ csrf() }}
+<b>{{ _("Déclarer un paiement") }}</b>
+<span class="muted">{{ _("Payez d'abord le bénéficiaire avec votre application Mobile Money ou votre banque. Vous pouvez payer en plusieurs fois.") }}</span>
+<div class="grid2">
+<label>{{ _("Montant payé (FCFA)") }}<input name="amount" inputmode="numeric" value="{{ due.remaining }}" required></label>
+<label>{{ _("Moyen de paiement") }}<select name="method">{% for k, v in PAY_METHODS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Référence de la transaction") }}<input name="reference" placeholder="{{ _("Ex. Wave TX123456, n° de virement") }}"></label>
+<label>{{ _("Date du paiement") }}<input type="date" name="paid_on" value="{{ today }}"></label>
+</div>
+<label>{{ _("Reçu ou capture d'écran (PDF ou photo)") }}<input type="file" name="receipt" accept="image/*,.pdf"></label>
+<label>{{ _("Note (facultatif)") }}<input name="note"></label>
+<button class="btn">{{ _("Déclarer le paiement") }}</button>
+<span class="muted">{{ _("Référence ou reçu obligatoire : c'est ce que le bénéficiaire vérifie avant de confirmer.") }}</span>
+</form>
+{% elif access == 'payee' and due.declared %}
+<a class="btn noprint" href="{{ url_for('payments_received') }}">{{ _("Confirmer la réception") }}</a>
+{% endif %}
+{% endblock %}

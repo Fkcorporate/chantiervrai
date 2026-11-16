@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Contrôle qualité") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
+<h1>{{ _("Contrôle qualité des ouvrages") }}</h1>
+<p class="muted">{{ _("Pour chaque ouvrage (escalier, carrelage, douche…), le chef prend des photos guidées et saisit quelques mesures. ChantierVrai contrôle les mesures, analyse les photos et vous dit ce qui semble correct, ce qui est à vérifier et ce qui pose probablement problème.") }}</p>
+
+{% if can_start %}
+<form method="post" class="card stack">
+{{ csrf() }}
+<b>{{ _("Nouveau contrôle") }}</b>
+<label>{{ _("Ouvrage à contrôler") }}<select name="ouvrage" required>
+<option value="">{{ _("Choisir…") }}</option>
+{% if suggested %}<optgroup label="{{ _("Conseillé pour l'étape en cours") }}">{% for slug in suggested %}<option value="{{ slug }}">{{ names[slug] }}</option>{% endfor %}</optgroup>{% endif %}
+<optgroup label="{{ _("Tous les ouvrages") }}">{% for o in catalog %}<option value="{{ o.slug }}">{{ o.name }}</option>{% endfor %}</optgroup>
+</select></label>
+<div class="grid2">
+<label>{{ _("Étape") }}<select name="step_id">{% for st in steps %}<option value="{{ st.id }}"{% if current and st.id == current.id %} selected{% endif %}>{{ loop.index }}. {{ st.name }}</option>{% endfor %}</select></label>
+<label>{{ _("Précision (facultatif)") }}<input name="label" maxlength="80" placeholder="{{ _("Ex. escalier du R+1, douche de la chambre 2") }}"></label>
+</div>
+{% if zones %}<label>{{ _("Zone") }}<select name="zone_id"><option value="">{{ _("Tout le chantier") }}</option>{% for z, depth in zones %}<option value="{{ z.id }}">{{ '— ' * depth }}{{ z.name }}</option>{% endfor %}</select></label>{% endif %}
+<button class="btn">{{ _("Ouvrir le contrôle") }}</button>
+{% if role != 'chef' %}<span class="muted">{{ _("Le chef de chantier est prévenu et reçoit la liste des photos à prendre.") }}</span>{% endif %}
+</form>
+{% endif %}
+
+<div class="card">
+<b>{{ _("Analyse des photos par l'IA") }}</b>
+{% if not ai_on %}<span class="muted">{{ _("Non activée sur cette installation : les mesures sont contrôlées automatiquement et vous contrôlez les autres points sur les photos, avec un guide pour chacun.") }}</span>
+{% elif quota_limit is none %}<span class="muted">{{ _("Comprise sans limite.") }}</span>
+{% else %}<span class="muted">{{ _("%(u)s analyse(s) utilisée(s) sur %(l)s ce mois-ci. Au-delà, les mesures restent contrôlées.", u=quota_used, l=quota_limit) }}</span>{% endif %}
+</div>
+
+<h2>{{ _("Contrôles du chantier") }}</h2>
+{% for r in reviews %}
+<a class="card" href="{{ url_for('quality_page', rid=r.id) }}">
+<div class="row"><b>{{ names.get(r.ouvrage, r.ouvrage) }}{% if r.label %} · {{ r.label }}{% endif %}</b>
+<span class="pill{% if issues.get(r.id) %} warn{% endif %}">{% if r.status == 'pret' %}{% if r.score is not none %}{{ r.score }}/100{% else %}{{ _("Prêt") }}{% endif %}{% elif r.status == 'analyse' %}{{ _("Analyse en cours") }}{% elif r.status == 'clos' %}{{ _("Clos") }}{% elif r.status == 'erreur' %}{{ _("Erreur") }}{% else %}{{ _("Photos à prendre") }}{% endif %}</span></div>
+<span class="muted">{{ r.step_name or '' }} · {{ r.n_photos }} {{ pl(r.n_photos, "photo(s)") }} · {{ d(r.created_at) }}{% if r.previous_id %} · {{ _("contre-visite") }}{% endif %}</span>
+{% if issues.get(r.id) %}<span class="tag bad">{{ issues[r.id] }} {{ pl(issues[r.id], "problème(s) probable(s) non résolu(s)") }}</span>{% endif %}
+</a>
+{% else %}
+<p class="muted">{{ _("Aucun contrôle pour l'instant.") }}</p>
+{% endfor %}
+<p class="muted">{{ _("Une aide à la décision, pas un verdict : une photo ne mesure pas au millimètre et ne montre pas ce qui est caché. Pour les ouvrages de structure, l'inspection indépendante reste la garantie.") }}</p>
+{% endblock %}

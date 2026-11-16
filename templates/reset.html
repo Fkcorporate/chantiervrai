@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Nouveau mot de passe · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Nouveau mot de passe") }}</h1>
+<form method="post" class="card">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<label>{{ _("Nouveau mot de passe (8 caractères minimum)") }}<input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
+<label>{{ _("Confirmez") }}<input type="password" name="password2" minlength="8" required autocomplete="new-password"></label>
+<button class="btn" type="submit">{{ _("Changer le mot de passe") }}</button>
+</form>
+{% endblock %}

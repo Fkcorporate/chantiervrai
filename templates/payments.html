@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Registre des paiements") }} · {{ p.name }}{% endblock %}
+{% block wrapclass %} wide{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id, onglet='etapes') if role != 'admin' else url_for('admin') }}" class="muted noprint">{{ _("← Chantier") }}</a>
+<div class="row"><h1>{{ _("Registre des paiements") }}</h1><span class="row" style="gap:8px"><a class="btn ghost small" href="{{ url_for('payments_ledger', project_id=p.id, format='csv') }}">{{ _("Exporter en CSV") }}</a><button class="btn ghost small" onclick="window.print()">{{ _("Imprimer") }}</button></span></div>
+<p class="muted">{{ p.name }} · {{ _("chaque paiement est fait hors de ChantierVrai, déclaré par le payeur avec sa preuve, puis confirmé par le bénéficiaire.") }}</p>
+<div class="grid3">
+<div class="card"><span class="muted">{{ _("Dû au total") }}</span><span class="big">{{ fcfa(tot.amount) }}</span><span class="muted">FCFA</span></div>
+<div class="card green"><span class="muted">{{ _("Reçu et confirmé") }}</span><span class="big">{{ fcfa(tot.confirmed) }}</span><span class="muted">FCFA</span></div>
+<div class="card"><span class="muted">{{ _("Reste à payer ou à confirmer") }}</span><span class="big">{{ fcfa(tot.remaining) }}</span><span class="muted">FCFA{% if tot.contested %} · {{ tot.contested }} {{ pl(tot.contested, "contestation(s)") }}{% endif %}</span></div>
+</div>
+<div class="card table-wrap"><table>
+<thead><tr><th>{{ _("Bon à payer") }}</th><th>{{ _("Objet") }}</th><th>{{ _("Bénéficiaire") }}</th><th>{{ _("Dû") }}</th><th>{{ _("Paiements") }}</th><th>{{ _("État") }}</th></tr></thead><tbody>
+{% for dd in dues %}
+<tr><td style="white-space:nowrap"><a href="{{ url_for('pay_order', kind=dd.kind, ref_id=dd.ref_id) }}">{{ dd.ref }}</a></td>
+<td>{{ dd.label }}</td><td>{{ names[dd.payee_id] }}</td><td style="white-space:nowrap">{{ fcfa(dd.amount) }}</td>
+<td>{% for r in dd.records %}<div class="muted">{{ d(r.paid_on) }} · {{ fcfa(r.amount) }} · {{ PAY_METHODS[r.method] }}{% if r.reference %} · {{ r.reference }}{% endif %}{% if r.receipt %} · <a href="{{ url_for('payment_receipt', rid=r.id) }}" target="_blank">{{ _("reçu") }}</a>{% endif %} · {{ PAY_REC_STATUS[r.status] }}</div>{% else %}<span class="muted">—</span>{% endfor %}</td>
+<td>{% if dd.done %}<span class="tag">{{ _("Payé et confirmé") }}</span>{% elif dd.declared %}<span class="tag amber">{{ _("À confirmer") }}</span>{% else %}<span class="tag amber">{{ _("À payer") }}</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">{{ _("Aucun paiement pour l'instant : les bons à payer apparaissent quand une étape est validée.") }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

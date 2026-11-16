@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Capteurs et météo") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<h1>{{ _("Capteurs et météo") }}</h1>
+<p class="muted">{{ _("Humidité d'une dalle en cure, vibrations, fissuromètre, pluie et vent : chaque capteur envoie ses mesures, et le propriétaire, le chef et le contrôleur sont alertés dès qu'une valeur sort des seuils.") }}{% if meteo %} {{ _("La météo de la veille (Open-Meteo) est relevée chaque jour.") }}{% endif %}</p>
+
+<div class="cards">
+{% for sn in sensors %}{% set vals = series[sn.id] %}
+<div class="card{% if sn.alarm %} alert{% endif %}">
+<div class="row"><b>{{ sn.name }}</b>{% if sn.alarm %}<span class="tag bad">{{ _("Hors seuil") }}</span>{% endif %}</div>
+<span class="muted">{{ KINDS[sn.kind][0] }}{% if sn.min_value is not none or sn.max_value is not none %} · {{ _("seuils") }} {{ sn.min_value|qte if sn.min_value is not none else '–' }} / {{ sn.max_value|qte if sn.max_value is not none else '–' }} {{ sn.unit }}{% endif %}</span>
+<span class="big">{{ sn.last_value|qte if sn.last_value is not none else '–' }} <span style="font-size:16px">{{ sn.unit }}</span></span>
+{% if vals|length > 1 %}{% set lo = vals|min %}{% set hi = vals|max %}{% set span = (hi - lo) or 1 %}
+<svg viewBox="0 0 200 40" style="width:100%;height:40px" role="img" aria-label="{{ _("Dernières mesures") }}"><polyline fill="none" stroke="#0E5A3A" stroke-width="2" points="{% for v in vals %}{{ (loop.index0 * 200 / (vals|length - 1))|round(1) }},{{ (36 - (v - lo) * 32 / span)|round(1) }} {% endfor %}"/></svg>{% endif %}
+<span class="muted">{{ _("Dernière mesure") }} : {{ dt(sn.last_at) if sn.last_at else _("aucune") }}</span>
+{% if can_edit %}
+<details><summary>{{ _("Réglages et connexion") }}</summary>
+<span class="muted">{{ _("Adresse") }} : <code>{{ api_url }}</code></span>
+<span class="muted">{{ _("Clé du capteur (en-tête X-Sensor-Key)") }} : <code style="word-break:break-all">{{ sn.token }}</code></span>
+<span class="muted"><code>curl -X POST -H "X-Sensor-Key: {{ sn.token[:6] }}…" -H "Content-Type: application/json" -d '{"value": 12.5}' {{ api_url }}</code></span>
+<form method="post" class="grid2">{{ csrf() }}<input type="hidden" name="action" value="seuils"><input type="hidden" name="sensor_id" value="{{ sn.id }}">
+<label>{{ _("Minimum") }}<input name="min_value" inputmode="decimal" value="{{ sn.min_value|qte if sn.min_value is not none else '' }}"></label>
+<label>{{ _("Maximum") }}<input name="max_value" inputmode="decimal" value="{{ sn.max_value|qte if sn.max_value is not none else '' }}"></label>
+<button class="btn ghost small">{{ _("Enregistrer les seuils") }}</button></form>
+<form method="post" class="row" style="justify-content:flex-start;gap:8px">{{ csrf() }}<input type="hidden" name="action" value="mesure"><input type="hidden" name="sensor_id" value="{{ sn.id }}">
+<input name="value" inputmode="decimal" style="width:7em" placeholder="{{ _("Relevé") }}" aria-label="{{ _("Relevé manuel") }}"><button class="btn ghost small">{{ _("Ajouter un relevé manuel") }}</button></form>
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="sensor_id" value="{{ sn.id }}"><button class="btn ghost small" onclick="return confirm('{{ _("Supprimer ce capteur et ses mesures ?") }}')">{{ _("Supprimer") }}</button></form>
+</details>
+{% endif %}
+</div>
+{% else %}<div class="card muted">{{ _("Aucun capteur pour l'instant.") }}</div>{% endfor %}
+</div>
+
+{% if can_edit %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="add">
+<b>{{ _("Ajouter un capteur ou une station météo") }}</b>
+<div class="grid2">
+<label>{{ _("Type") }}<select name="kind">{% for k, v in KINDS.items() %}<option value="{{ k }}">{{ v[0] }}{% if v[1] %} ({{ v[1] }}){% endif %}</option>{% endfor %}</select></label>
+<label>{{ _("Nom") }}<input name="name" required maxlength="80" placeholder="{{ _("Fissuromètre façade nord") }}"></label>
+</div>
+<span class="muted">{{ _("Les seuils d'alerte habituels sont proposés selon le type ; vous pourrez les changer.") }}</span>
+<button class="btn ghost">{{ _("Ajouter") }}</button>
+</form>
+{% endif %}
+{% endblock %}

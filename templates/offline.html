@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Hors ligne · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Pas de connexion") }}</h1>
+<div class="card"><span>{{ _("Vous êtes hors ligne et cette page n'a pas encore été ouverte avec du réseau. Ouvrez une fois la page de votre chantier avec du réseau : ensuite, vous pourrez prendre des preuves même sans connexion, elles partiront au retour du réseau.") }}</span>
+<button class="btn" onclick="location.reload()">{{ _("Réessayer") }}</button></div>
+{% endblock %}

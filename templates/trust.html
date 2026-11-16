@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Indice de confiance") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<h1>{{ _("Indice de confiance du chantier") }}</h1>
+<div class="card">
+<div class="row"><span class="score {{ t.level }}">{{ t.score if t.score is not none else '–' }}<span style="font-size:22px;font-weight:600">/100</span></span></div>
+<b>{{ t.level_label }}</b>
+<span class="muted">{{ _("L'indice résume six critères mesurés par l'application. Il aide à voir où regarder ; ce n'est pas une certification technique, qui reste le travail d'un ingénieur ou d'un bureau de contrôle.") }}</span>
+</div>
+{% for c in t.criteria %}
+<div class="card">
+<div class="row"><b>{{ c.title }}</b><span>{% if c.score is not none %}<b>{{ c.score }}</b>/100{% else %}<span class="muted">{{ _("non compté") }}</span>{% endif %}</span></div>
+{% if c.score is not none %}<div class="meter {{ 'low' if c.score < 60 else 'medium' if c.score < 80 else '' }}"><div style="width:{{ c.score }}%"></div></div>{% endif %}
+<span>{{ c.why }}</span>
+{% if c.tip %}<span class="muted">{{ _("À faire :") }} {{ c.tip }}</span>{% endif %}
+<span class="muted">{{ _("Poids :") }} {{ c.weight }} %</span>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Connexion · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Connexion") }}</h1>
+<p class="muted">{{ _("Suivez votre chantier à distance, avec des preuves vérifiées.") }}</p>
+<form method="post" class="card">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<label>{{ _("E-mail") }}<input type="email" name="email" required autocomplete="email"></label>
+<label>{{ _("Mot de passe") }}<input type="password" name="password" required autocomplete="current-password"></label>
+<button class="btn" type="submit">{{ _("Se connecter") }}</button>
+<a href="{{ url_for('forgot_password') }}">{{ _("Mot de passe oublié ?") }}</a>
+</form>
+<p class="muted">{{ _("Pas encore de compte ?") }} <a href="{{ url_for('register') }}">{{ _("Créer un compte") }}</a></p>
+{% endblock %}

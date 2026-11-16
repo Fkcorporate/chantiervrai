@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_macros.html" import proof_card, csrf, capture_form with context %}
+{% block title %}{{ _("Inspection ·") }} {{ p.name }}{% endblock %}
+{% block content %}
+<h1>{{ p.name }}</h1>
+<div class="muted">{{ p.address }} {{ _("· Propriétaire :") }} {{ people[p.owner_id].name }}{% if people[p.owner_id].phone %} ({{ people[p.owner_id].phone }}){% endif %}</div>
+<a class="btn ghost" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination={{ p.lat }},{{ p.lng }}">{{ _("Itinéraire vers le terrain") }}</a>
+
+<div class="card">
+<div class="row"><b>{{ _("Avancement validé") }}</b><b>{{ s.verified_pct }} %</b></div>
+<div class="bar"><div style="width:{{ s.verified_pct }}%"></div></div>
+{% for st in s.steps %}{% set cs = checks_by_step.get(st.id) %}<a class="row" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><span>{{ loop.index }}. {{ st.name }}</span><span class="muted">{{ STATUS[st.status] }}{% if cs and cs.missing and st.status not in ('paye','versement') %} · <span class="tag amber">{{ cs.missing }} {{ pl(cs.missing, "contrôle(s) à faire") }}</span>{% endif %}</span></a>{% endfor %}
+</div>
+<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('project_sheet', project_id=p.id) }}">{{ _("Fiche du projet") }}</a><a class="btn ghost small" href="{{ url_for('bim', project_id=p.id) }}">{{ _("Maquette numérique") }}</a><a class="btn ghost small" href="{{ url_for('sensors_page', project_id=p.id) }}">{{ _("Capteurs et météo") }}</a><a class="btn ghost small" href="{{ url_for('project_stock', project_id=p.id) }}">{{ _("Stock et matériaux") }}</a><a class="btn ghost small" href="{{ url_for('quantities', project_id=p.id) }}">{{ _("Quantités à valider") }}</a><a class="btn ghost small" href="{{ url_for('panos', project_id=p.id) }}">{{ _("Visites 360°") }}</a><a class="btn ghost small" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Contrôle qualité") }}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a></div>
+<span class="muted">{{ _("Ouvrez une étape pour saisir vos contrôles : ferraillage, coffrage, validation avant bétonnage, essais du béton. Les contrôles obligatoires bloquent le paiement tant qu'ils ne sont pas conformes.") }}</span>
+
+{% for i in mine %}
+<div class="card{% if i.status == 'acceptee' %} green{% endif %}">
+<span class="muted">{{ _("Inspection") }} {{ INSP_STATUS[i.status]|lower }}{% if i.wanted_date %} {{ _("· le") }} {{ d(i.wanted_date) }}{% endif %}</span>
+<span class="big">{{ i.step_name or _('Visite générale') }}</span>
+{% if i.message %}<span>{{ i.message }}</span>{% endif %}
+{% if i.verdict %}<span>{{ _("Avis rendu :") }} {{ VERDICTS[i.verdict] }}</span>{% endif %}
+</div>
+{% if i.status == 'acceptee' %}
+{{ capture_form(url_for('inspection_proof', iid=i.id), _('Photos prises sur le terrain'),
+   _("Les mêmes contrôles s'appliquent : position GPS, date de prise de vue, doublons."), capture_token, True) }}
+<form method="post" action="{{ url_for('inspection_report', iid=i.id) }}" class="card">
+{{ csrf() }}
+<b>{{ _("Rapport d'inspection") }}</b>
+<label>{{ _("Avis") }}<select name="verdict" required><option value="">{{ _("Choisir…") }}</option>{% for k, v in VERDICTS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Constats et recommandations") }}<textarea name="report" rows="7" required placeholder="{{ _("Ferraillage conforme au plan, enrobage insuffisant côté nord…") }}"></textarea></label>
+<button class="btn" type="submit">{{ _("Envoyer le rapport au propriétaire") }}</button>
+</form>
+{% endif %}
+{% endfor %}
+
+<h2>{{ _("Preuves du chantier") }}</h2>
+{% for pr in proofs[:4] %}{{ proof_card(pr, p) }}{% else %}<div class="card muted">{{ _("Aucune preuve.") }}</div>{% endfor %}
+{% if proofs|length > 4 %}<details class="more"><summary class="btn ghost">{{ _("Voir les %(n)s preuves précédentes", n=(proofs[4:20])|length) }}</summary>
+<div class="stack">{% for pr in proofs[4:20] %}{{ proof_card(pr, p) }}{% endfor %}</div></details>{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ asset('chef.js') }}"></script>
+{% endblock %}

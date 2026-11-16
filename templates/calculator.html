@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Calculateur de matériaux") }}{% if p %} · {{ p.name }}{% endif %}{% endblock %}
+{% block content %}
+{% if p %}<a href="{{ url_for('project_stock', project_id=p.id) }}">← {{ _("Stock et matériaux") }} · {{ p.name }}</a>{% endif %}
+<h1>{{ _("Calculateur de matériaux") }}</h1>
+<p class="muted">{{ _("Quantités à acheter selon les dimensions, pertes comprises. Les dosages sont des valeurs courantes de chantier : la formulation du béton structurel, les dimensions des éléments porteurs et le ferraillage viennent des études techniques, validées par un ingénieur.") }}</p>
+
+<nav class="chips" aria-label="{{ _("Type de calcul") }}">
+{% for k, t in types.items() %}<a class="chip{% if k == kind %} on{% endif %}" href="?type={{ k }}"{% if k == kind %} aria-current="page"{% endif %}>{{ t.title }}</a>{% endfor %}
+</nav>
+
+<form method="get" class="card">
+<input type="hidden" name="type" value="{{ kind }}"><input type="hidden" name="go" value="1">
+<b>{{ types[kind].title }}</b><span class="muted">{{ types[kind].hint }}</span>
+<div class="grid2">
+{% for key, label, dflt, opts in types[kind].fields %}
+<label>{{ label }}{% if opts %}<select name="{{ key }}">{% for ok, ol in opts.items() %}<option value="{{ ok }}"{% if values[key] == ok %} selected{% endif %}>{{ ol }}</option>{% endfor %}</select>
+{% else %}<input name="{{ key }}" value="{{ values[key] }}" inputmode="decimal">{% endif %}</label>
+{% endfor %}
+</div>
+<button class="btn">{{ _("Calculer") }}</button>
+</form>
+
+{% if result %}
+<div class="card" id="resultat">
+<b>{{ _("À acheter") }}</b>
+{% if result.lines %}
+<div class="table-wrap"><table><thead><tr><th>{{ _("Matériau") }}</th><th>{{ _("Quantité") }}</th></tr></thead><tbody>
+{% for m, u, q in result.lines %}<tr><td>{{ _(m) }}</td><td><b>{{ q|qte }}</b> {{ _(u) }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<span class="muted">{{ _("Indiquez des dimensions supérieures à zéro.") }}</span>{% endif %}
+{% for label, v in result.details %}<div class="row"><span class="muted">{{ label }}</span><span>{{ v }}</span></div>{% endfor %}
+{% for n in result.notes %}<span class="muted">{{ n }}</span>{% endfor %}
+</div>
+{% if p and result.lines %}
+<form method="post" class="card">{{ csrf() }}
+<input type="hidden" name="type" value="{{ kind }}"><input type="hidden" name="go" value="1">
+{% for key, v in values.items() %}<input type="hidden" name="{{ key }}" value="{{ v }}">{% endfor %}
+<b>{{ _("Ajouter au prévu du chantier") }}</b>
+<span class="muted">{{ _("Ces quantités serviront à contrôler les factures, les livraisons et la consommation de l'étape.") }}</span>
+<label>{{ _("Étape") }}<select name="step_id">{% for st in steps %}<option value="{{ st.id }}"{% if current and st.id == current.id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select></label>
+<button class="btn ghost">{{ _("Ajouter au prévu") }}</button>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

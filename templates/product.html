@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ _("ChantierVrai : faites construire au pays, payez seulement ce qui est bâti") }}</title>
+<meta name="description" content="{{ _("Suivi de chantier à distance pour la diaspora et les maîtres d'ouvrage publics : photos vérifiées sur le terrain, argent versé étape par étape, inspecteurs indépendants.") }}">
+<meta property="og:title" content="ChantierVrai">
+<meta property="og:description" content="{{ _("Faites construire au pays. Payez seulement ce qui est bâti.") }}">
+<meta property="og:image" content="{{ url_for('static', filename='produit/ordinateur-' ~ lang ~ '.jpg', _external=True) }}">
+<meta name="theme-color" content="#0E5A3A">
+<link rel="manifest" href="{{ url_for('manifest') }}">
+<link rel="icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+<link rel="alternate" hreflang="fr" href="{{ url_for('product', lang='fr', _external=True) }}">
+<link rel="alternate" hreflang="en" href="{{ url_for('product', lang='en', _external=True) }}">
+<link rel="preload" href="{{ url_for('static', filename='fonts/InterDisplay-ExtraBold.woff') }}" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="{{ asset('produit.css') }}">
+</head>
+<body>
+<a class="skip" href="#contenu">{{ _("Aller au contenu") }}</a>
+<header class="bar">
+  <div class="in">
+    <a class="logo" href="{{ url_for('product') }}">ChantierVrai</a>
+    <nav aria-label="{{ _("Menu principal") }}">
+      <a href="#fonctionnement">{{ _("Comment ça marche") }}</a>
+      <a href="#chantiers-publics">{{ _("Chantiers publics") }}</a>
+      <a href="{{ url_for('portal') }}">{{ _("Portail citoyen") }}</a>
+      <a href="{{ url_for('academy') }}">{{ _("Académie du BTP") }}</a>
+      {% for code, name in LANGS.items() %}{% if code != lang %}<a href="?lang={{ code }}" hreflang="{{ code }}" lang="{{ code }}">{{ name }}</a>{% endif %}{% endfor %}
+    </nav>
+    <div class="acts">
+      {% if me %}<a class="b b-ghost" href="{{ url_for('home') }}">{{ _("Mes chantiers") }}</a>
+      {% else %}<a class="b b-ghost" href="{{ url_for('login') }}">{{ _("Se connecter") }}</a>
+      <a class="b" href="{{ url_for('register') }}">{{ _("Créer un compte") }}</a>{% endif %}
+    </div>
+  </div>
+</header>
+
+<main id="contenu">
+<section class="hero">
+  <div class="in">
+    <div class="pitch">
+      <h1>{{ _("Faites construire au pays. Payez seulement ce qui est bâti.") }}</h1>
+      <p class="lede">{{ _("Votre chef de chantier photographie l'avancement depuis le terrain. ChantierVrai vérifie chaque photo, et l'argent n'est versé qu'une fois l'étape validée par vous.") }}</p>
+      <div class="ctas">
+        <a class="b b-big" href="{{ url_for('register') }}">{{ _("Créer mon compte") }}</a>
+        <a class="b b-big b-ghost" href="#fonctionnement">{{ _("Voir comment ça marche") }}</a>
+      </div>
+      <p class="who">{{ _("Pour la diaspora qui fait construire en Côte d'Ivoire, et pour les maîtres d'ouvrage publics.") }}</p>
+    </div>
+
+    <figure class="proof" aria-label="{{ _("Exemple : une photo du chantier vérifiée par ChantierVrai") }}">
+      <div class="shot">
+        <img src="{{ url_for('static', filename='produit/photo-dalle.jpg') }}" width="640" height="480"
+             alt="{{ _("Photo de la dalle basse d'une villa en construction, envoyée par le chef de chantier") }}">
+        <p class="from"><b>{{ _("Dalle basse") }}</b><span>{{ _("Envoyée par Koffi, chef de chantier") }}</span></p>
+      </div>
+      <ul class="checks">
+        <li><span class="tick" aria-hidden="true"></span>{{ _("Prise sur votre terrain, à 12 m du point GPS") }}</li>
+        <li><span class="tick" aria-hidden="true"></span>{{ _("Photographiée il y a 2 minutes, avec la caméra de l'application") }}</li>
+        <li><span class="tick" aria-hidden="true"></span>{{ _("Jamais envoyée auparavant, même recadrée") }}</li>
+        <li><span class="tick" aria-hidden="true"></span>{{ _("Même chantier que les photos de la semaine dernière") }}</li>
+      </ul>
+      <p class="payout">{{ _("Vous validez la dalle : 3 500 000 FCFA sont versés à Koffi.") }}</p>
+    </figure>
+  </div>
+</section>
+
+<section class="problem">
+  <div class="in narrow">
+    <h2>{{ _("Une photo sur WhatsApp ne prouve rien") }}</h2>
+    <p>{{ _("Depuis Paris, Londres ou Montréal, on envoie l'argent par tranches et on reçoit des photos en retour. Rien ne dit qu'elles sont récentes, ni qu'elles montrent votre terrain. Beaucoup découvrent des mois plus tard que le chantier n'a pas avancé.") }}</p>
+    <p>{{ _("ChantierVrai contrôle chaque photo avant que vous ne payiez, et garde la trace de tout : preuves, paiements, procès-verbaux.") }}</p>
+  </div>
+</section>
+
+<section id="fonctionnement" class="how">
+  <div class="in">
+    <h2>{{ _("Comment ça marche") }}</h2>
+    <ol class="steps">
+      <li><h3>{{ _("Vous créez le chantier") }}</h3><p>{{ _("La position du terrain, les étapes et le montant de chaque étape. Vous invitez votre chef de chantier avec un code.") }}</p></li>
+      <li><h3>{{ _("Le chef photographie l'avancement") }}</h3><p>{{ _("Avec l'application, sur le terrain. Sans réseau, la photo attend et part toute seule plus tard.") }}</p></li>
+      <li><h3>{{ _("ChantierVrai vérifie") }}</h3><p>{{ _("Lieu, heure, doublons, ressemblance avec le chantier. Une photo douteuse est refusée et vous êtes prévenu.") }}</p></li>
+      <li><h3>{{ _("Vous validez, l'argent part") }}</h3><p>{{ _("L'argent déposé sur le séquestre est versé au chef de chantier, et le procès-verbal de réception est créé.") }}</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="checks-detail">
+  <div class="in split">
+    <div>
+      <h2>{{ _("Ce que nous vérifions sur chaque photo") }}</h2>
+      <dl class="rules">
+        <div><dt>{{ _("La position") }}</dt><dd>{{ _("La photo a été prise sur votre terrain, pas sur celui du voisin. Les applications de faux GPS sont détectées.") }}</dd></div>
+        <div><dt>{{ _("L'heure") }}</dt><dd>{{ _("Prise à l'instant, avec la caméra de l'application : impossible de ressortir une ancienne photo de la galerie.") }}</dd></div>
+        <div><dt>{{ _("L'empreinte") }}</dt><dd>{{ _("Une photo ne sert qu'une fois, même recadrée ou photographiée sur un écran.") }}</dd></div>
+        <div><dt>{{ _("Le contenu") }}</dt><dd>{{ _("L'analyse d'image vérifie que c'est le même chantier et que l'étape annoncée est visible.") }}</dd></div>
+        <div><dt>{{ _("Les factures") }}</dt><dd>{{ _("Ciment, fer, parpaings : les quantités achetées sont comparées au devis et aux étapes réalisées.") }}</dd></div>
+        <div><dt>{{ _("Le terrain vu du ciel") }}</dt><dd>{{ _("Une image satellite par mois montre si le terrain change vraiment.") }}</dd></div>
+      </dl>
+    </div>
+    <img class="phone" src="{{ url_for('static', filename='produit/tel-preuves-' ~ lang ~ '.jpg') }}" width="390" height="844" loading="lazy"
+         alt="{{ _("L'application sur téléphone : les preuves du chantier avec leurs contrôles") }}">
+  </div>
+</section>
+
+<section class="doubt">
+  <div class="in">
+    <h2>{{ _("Quand vous avez un doute") }}</h2>
+    <div class="trio">
+      <div><h3>{{ _("Un inspecteur sur place") }}</h3><p>{{ _("Réservez un professionnel indépendant, vérifié par notre équipe. Il prend ses propres photos contrôlées et vous envoie son rapport avant que vous payiez.") }}</p></div>
+      <div><h3>{{ _("L'argent reste bloqué") }}</h3><p>{{ _("Avec le séquestre, les fonds attendent la validation de chaque étape. Rien ne part sans votre accord.") }}</p></div>
+      <div><h3>{{ _("Une médiation en cas de litige") }}</h3><p>{{ _("Si vous n'êtes pas d'accord avec le chef de chantier, notre équipe tranche à partir des preuves enregistrées.") }}</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="achat-direct" class="direct">
+  <div class="in">
+    <h2>{{ _("Achetez les matériaux sans intermédiaire") }}</h2>
+    <p class="lead">{{ _("Le ciment surfacturé et les sacs jamais livrés sont la fraude la plus courante. Avec l'achat direct, l'argent va au fournisseur, et seulement pour ce qui arrive sur le terrain.") }}</p>
+    <div class="trio">
+      <div><h3>{{ _("Des fournisseurs vérifiés, des prix affichés") }}</h3><p>{{ _("Le chef de chantier propose une commande dans le catalogue d'une quincaillerie vérifiée. Vous voyez le prix et l'écart avec votre devis avant d'approuver.") }}</p></div>
+      <div><h3>{{ _("La livraison est photographiée sur place") }}</h3><p>{{ _("Le fournisseur prend la photo de livraison avec l'application, sur le terrain : même contrôle GPS et même horodatage que les preuves d'avancement.") }}</p></div>
+      <div><h3>{{ _("Payé pour ce qui est compté") }}</h3><p>{{ _("Le chef compte les sacs et les barres. Le fournisseur est payé depuis le séquestre pour ce qui est reçu ; le manquant reste à vous. La facture entre seule dans le contrôle des matériaux.") }}</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="chantiers-publics" class="public">
+  <div class="in split rev">
+    <img class="screen" src="{{ url_for('static', filename='produit/ordinateur-' ~ lang ~ '.jpg') }}" width="1440" height="900" loading="lazy"
+         alt="{{ _("Le tableau de bord d'un chantier sur ordinateur") }}">
+    <div>
+      <h2>{{ _("Pour les chantiers publics") }}</h2>
+      <p>{{ _("Mairies, ministères et agences suivent tous leurs chantiers au même endroit, avec les mêmes preuves vérifiées.") }}</p>
+      <ul class="plain">
+        <li>{{ _("La carte de tous les chantiers, avec les retards prévus") }}</li>
+        <li>{{ _("Les documents du marché : DAO, contrats, procès-verbaux") }}</li>
+        <li>{{ _("L'import des marchés depuis SIGOMAP") }}</li>
+        <li>{{ _("Un portail public où les habitants suivent l'avancement et signalent un problème") }}</li>
+      </ul>
+      <a class="b b-light" href="{{ url_for('portal') }}">{{ _("Visiter le portail citoyen") }}</a>
+    </div>
+  </div>
+</section>
+
+<section class="devices">
+  <div class="in split">
+    <div>
+      <h2>{{ _("Sur téléphone et sur ordinateur") }}</h2>
+      <p>{{ _("Le chef de chantier utilise l'application Android ou iPhone sur le terrain. Vous suivez depuis votre téléphone ou votre ordinateur, en français ou en anglais.") }}</p>
+      <p>{{ _("Chacun reçoit les alertes qui le concernent, dans sa langue : étape à valider, photo refusée, paiement envoyé, compte rendu de la semaine.") }}</p>
+      {% if store_android or store_ios %}
+      <div class="ctas">
+        {% if store_android %}<a class="b b-ghost" href="{{ store_android }}">{{ _("Télécharger sur Google Play") }}</a>{% endif %}
+        {% if store_ios %}<a class="b b-ghost" href="{{ store_ios }}">{{ _("Télécharger sur l'App Store") }}</a>{% endif %}
+      </div>
+      {% else %}
+      <p class="note">{{ _("Les applications Android et iPhone arrivent bientôt sur les stores. En attendant, ChantierVrai s'installe depuis le navigateur du téléphone.") }}</p>
+      {% endif %}
+    </div>
+    <img class="phone" src="{{ url_for('static', filename='produit/tel-proprio-' ~ lang ~ '.jpg') }}" width="390" height="844" loading="lazy"
+         alt="{{ _("L'application sur téléphone : l'avancement vérifié et l'argent bloqué") }}">
+  </div>
+</section>
+
+<section class="faq">
+  <div class="in narrow">
+    <h2>{{ _("Questions fréquentes") }}</h2>
+    <details><summary>{{ _("Mon chef de chantier n'a pas toujours de réseau sur le terrain.") }}</summary>
+      <p>{{ _("Ce n'est pas un problème : la photo est gardée sur son téléphone avec son heure et sa position, puis envoyée automatiquement au retour du réseau, jusqu'à 72 heures plus tard.") }}</p></details>
+    <details><summary>{{ _("Comment l'argent est-il bloqué ?") }}</summary>
+      <p>{{ _("Vous déposez les fonds par Mobile Money ou carte. Ils sont détenus par un établissement de paiement agréé et versés au chef de chantier à chaque étape que vous validez. Vous pouvez aussi payer vous-même et seulement noter la référence du paiement.") }}</p></details>
+    <details><summary>{{ _("Et si une photo est refusée à tort ?") }}</summary>
+      <p>{{ _("Le chef de chantier voit le motif tout de suite et reprend la photo. Le refus ne bloque jamais l'étape : c'est vous qui décidez.") }}</p></details>
+    <details><summary>{{ _("Qui voit les photos de mon chantier ?") }}</summary>
+      <p>{{ _("Seulement les personnes du chantier : vous, les co-propriétaires que vous invitez, le chef de chantier et l'inspecteur que vous réservez. Seuls les chantiers publics ont une page publique, avec les visages floutés.") }}</p></details>
+    <details><summary>{{ _("Est-ce que ça marche hors de Côte d'Ivoire ?") }}</summary>
+      <p>{{ _("Les contrôles fonctionnent partout. Le paiement par Mobile Money et l'import des marchés publics sont prévus pour la Côte d'Ivoire.") }}</p></details>
+  </div>
+</section>
+
+<section class="final">
+  <div class="in narrow">
+    <h2>{{ _("Commencez par un chantier") }}</h2>
+    <p>{{ _("Créez votre compte, ajoutez votre terrain et invitez votre chef de chantier. Les premières photos arrivent le jour même.") }}</p>
+    <div class="ctas">
+      <a class="b b-big" href="{{ url_for('register') }}">{{ _("Créer mon compte") }}</a>
+      {% if contact %}<a class="b b-big b-ghost" href="mailto:{{ contact }}?subject={{ _("Démonstration ChantierVrai")|urlencode }}">{{ _("Demander une démonstration") }}</a>{% endif %}
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="in">
+    <span class="logo">ChantierVrai</span>
+    <nav aria-label="{{ _("Liens") }}">
+      <a href="{{ url_for('portal') }}">{{ _("Portail citoyen") }}</a>
+      <a href="{{ url_for('terms') }}">{{ _("Conditions d'utilisation") }}</a>
+      <a href="{{ url_for('privacy') }}">{{ _("Confidentialité") }}</a>
+      {% if contact %}<a href="mailto:{{ contact }}">{{ contact }}</a>{% endif %}
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

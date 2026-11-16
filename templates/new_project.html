@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Nouveau chantier · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Créer un chantier") }}</h1>
+<p class="muted">{{ _("La position du terrain sert à vérifier chaque photo. Si vous n'êtes pas sur place : dans Google Maps, appui long sur le terrain, puis copiez les coordonnées.") }}</p>
+<form method="post" class="card">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<fieldset class="roles" style="border:0;padding:0;margin:0">
+<legend class="muted" style="margin-bottom:8px">{{ _("Type de chantier") }}</legend>
+<label><input type="radio" name="kind" value="prive" checked> {{ _("Maison ou bâtiment privé") }}</label>
+<label><input type="radio" name="kind" value="public"> {{ _("Grand chantier public") }}</label>
+</fieldset>
+<label>{{ _("Nom du chantier") }}<input name="name" required placeholder="{{ _("Villa R+1") }}"></label>
+<label>{{ _("Adresse") }}<input name="address" placeholder="{{ _("Bingerville, Abidjan") }}"></label>
+<div class="grid2">
+<label>{{ _("Latitude") }}<input name="lat" id="lat" required inputmode="decimal" placeholder="5.352100"></label>
+<label>{{ _("Longitude") }}<input name="lng" id="lng" required inputmode="decimal" placeholder="-3.889200"></label>
+</div>
+<button type="button" class="btn ghost" id="here">{{ _("Utiliser ma position actuelle") }}</button>
+<label>{{ _("Date de début") }}<input type="date" name="start_date" value="{{ today }}"></label>
+<div id="public-box" class="stack hidden">
+<label>{{ _("Montant du marché (FCFA)") }}<input id="market" inputmode="numeric" placeholder="850000000"></label>
+<button type="button" class="btn ghost" id="fill-public">{{ _("Remplir avec les étapes types d'un marché public") }}</button>
+</div>
+<label>{{ _("Paiement des étapes") }}
+<select name="pay_mode">
+<option value="suivi" selected>{{ _("Paiement suivi : je paie moi-même, le bénéficiaire confirme la réception") }}</option>
+<option value="manuel">{{ _("Simple : je paie moi-même et je note la référence") }}</option>
+{% if escrow_on %}<option value="sequestre">{{ _("Séquestre : je dépose l'argent, il est versé automatiquement à chaque validation") }}</option>{% endif %}
+</select></label>
+<b>{{ _("Règles du chantier") }}</b>
+<label class="check"><input type="checkbox" name="require_inspection" id="require-inspection" value="1"{% if default_inspection %} checked{% endif %}> {{ _("Inspection indépendante obligatoire avant de valider les étapes critiques (fondations, structure, dalle, toiture).") }} <span class="muted">{{ _("Recommandé.") }} {{ fcfa(insp_price) }} {{ _("FCFA TTC par visite, inspecteur attribué et payé par ChantierVrai.") }}</span></label>
+{% if auto_validate_on %}<label class="check"><input type="checkbox" name="auto_validate" value="1"> {{ _("J'accepte la validation automatique : si je ne valide ni ne refuse une étape déclarée terminée dans les %(n)s jours, elle est validée et le bon à payer est émis.", n=AUTO_VALIDATE_DAYS) }} <span class="muted">{{ _("Je suis relancé avant l'échéance et je peux refuser l'étape ou ouvrir un litige jusqu'au dernier jour. Les contrôles obligatoires et l'inspection exigée restent nécessaires.") }}</span></label>{% endif %}
+<h2>{{ _("Budget et étapes") }}</h2>
+<div class="grid2 budget">
+<label>{{ _("Budget total des travaux (FCFA)") }}<input id="budget" inputmode="numeric" placeholder="{{ fcfa(default_total) }}"></label>
+<button type="button" class="btn ghost" id="split">{{ _("Répartir sur les étapes types") }}</button>
+</div>
+<span class="muted">{{ _("Chaque étape est payée quand elle est terminée et vérifiée. Vous pouvez ajuster les montants et les noms ci-dessous.") }}</span>
+<div class="steprow head"><span>{{ _("Étape") }}</span><span>{{ _("Montant") }}</span><span>{{ _("Jours") }}</span></div>
+{% for i in range(8) %}
+{% set st = default_steps[i] if i < default_steps|length else ('', '', '') %}
+<div class="steprow">
+<input name="step_name_{{ i }}" value="{{ st[0] }}" aria-label="Étape {{ i + 1 }}">
+<input name="step_amount_{{ i }}" value="{{ st[1] }}" inputmode="numeric" aria-label="Montant de l'étape {{ i + 1 }} en FCFA">
+<input name="step_days_{{ i }}" value="{{ st[2] }}" inputmode="numeric" aria-label="Durée prévue de l'étape {{ i + 1 }} en jours">
+</div>
+{% endfor %}
+<span class="muted">{{ _("Videz le nom d'une étape pour la supprimer. Les durées servent à prévoir les retards.") }}</span>
+<details><summary>{{ _("Options avancées") }}</summary>
+<div class="stack">
+<label>{{ _("Rayon accepté autour du terrain (mètres)") }}<input name="radius" id="radius" inputmode="numeric" value="100"></label>
+<label class="check"><input type="checkbox" name="require_app_capture" value="1" checked> {{ _("Exiger que les photos soient prises avec la caméra de l'application (aucune photo de la galerie)") }}</label>
+<label>{{ _("Description (facultatif)") }}<textarea name="description"></textarea></label>
+</div></details>
+<button class="btn" type="submit">{{ _("Créer le chantier") }}</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+var PUBLIC_STEPS = {{ public_steps|tojson }};
+var DEFAULT_STEPS = {{ default_steps|tojson }};
+var DEFAULT_TOTAL = {{ default_total }};
+document.getElementById('split').addEventListener('click', function () {
+  var total = parseInt((document.getElementById('budget').value || '0').replace(/\D/g, ''), 10) || 0;
+  if (!total) { document.getElementById('budget').focus(); return; }
+  var left = total;
+  for (var i = 0; i < 8; i++) {
+    var s = DEFAULT_STEPS[i];
+    var amount = s ? (i === DEFAULT_STEPS.length - 1 ? left : Math.round(total * s[1] / DEFAULT_TOTAL / 1000) * 1000) : '';
+    if (s) left -= amount;
+    document.querySelector('[name=step_name_' + i + ']').value = s ? s[0] : '';
+    document.querySelector('[name=step_amount_' + i + ']').value = amount;
+    document.querySelector('[name=step_days_' + i + ']').value = s ? s[2] : '';
+  }
+});
+document.getElementById('here').addEventListener('click', function () {
+  var b = this;
+  if (!navigator.geolocation) { b.textContent = {{ _("Localisation non disponible")|tojson }}; return; }
+  b.textContent = {{ _("Recherche de la position…")|tojson }};
+  navigator.geolocation.getCurrentPosition(function (p) {
+    document.getElementById('lat').value = p.coords.latitude.toFixed(6);
+    document.getElementById('lng').value = p.coords.longitude.toFixed(6);
+    b.textContent = {{ _("Position enregistrée (précision %(n)s m)", n="__N__")|tojson }}.replace('__N__', Math.round(p.coords.accuracy));
+  }, function () { b.textContent = {{ _("Position refusée : saisissez-la à la main")|tojson }}; },
+  { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+});
+document.querySelectorAll('input[name=kind]').forEach(function (r) {
+  r.addEventListener('change', function () {
+    var pub = document.querySelector('input[name=kind]:checked').value === 'public';
+    document.getElementById('public-box').classList.toggle('hidden', !pub);
+    if (pub && document.getElementById('radius').value === '100') document.getElementById('radius').value = '300';
+    if (pub) document.getElementById('require-inspection').checked = true;
+  });
+});
+document.getElementById('fill-public').addEventListener('click', function () {
+  var total = parseInt((document.getElementById('market').value || '0').replace(/\D/g, ''), 10) || 0;
+  for (var i = 0; i < 8; i++) {
+    var s = PUBLIC_STEPS[i];
+    document.querySelector('[name=step_name_' + i + ']').value = s ? s[0] : '';
+    document.querySelector('[name=step_amount_' + i + ']').value = s ? Math.round(total * s[1]) : '';
+    document.querySelector('[name=step_days_' + i + ']').value = s ? s[2] : '';
+  }
+});
+</script>
+{% endblock %}

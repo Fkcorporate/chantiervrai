@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Terrain") }} · {{ p.name }}{% endblock %}
+{% block content %}
+{% set riskcls = {0: 'green', 1: 'blue', 2: 'amber', 3: 'bad', 4: 'bad'} %}
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}">← {{ p.name }}</a>
+<h1>{{ _("Terrain : vérifier avant de construire") }}</h1>
+<p class="muted">{{ _("Double vente, faux titre, bornes déplacées : la plupart des litiges fonciers se voient avant le premier franc versé. Ce guide vous dit ce que vaut votre document, ce qu'il faut vérifier et auprès de qui.") }}</p>
+
+<div class="card{% if level is not none and level >= 3 %} alert{% endif %}" id="risque">
+<div class="row"><b>{{ _("Niveau de risque") }}</b>{% if level is not none %}<span class="tag {{ riskcls[level] }}">{{ RISK[level] }}</span>{% else %}<span class="tag grey">{{ _("Indiquez votre document") }}</span>{% endif %}</div>
+{% if f.doc_type %}<span><b>{{ DOCS[f.doc_type][0] }}</b> — {{ DOCS[f.doc_type][1] }}</span>{% endif %}
+{% for fl in flags %}<span class="tag bad">{{ fl }}</span>{% endfor %}
+{% if level is not none and level >= 3 %}<span class="muted">{{ _("Ne versez plus d'argent pour la construction tant que les vérifications ci-dessous ne sont pas faites.") }}</span>{% endif %}
+</div>
+
+<h2 id="document">{{ _("Votre document") }}</h2>
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="save"><input type="hidden" name="anchor" value="document">
+<label>{{ _("Document que vous détenez pour ce terrain") }}<select name="doc_type"><option value="">{{ _("Choisir…") }}</option>{% for k, v in DOCS.items() %}<option value="{{ k }}"{% if f.doc_type == k %} selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></label>
+<div class="grid3">
+<label>{{ _("Numéro du titre ou de l'arrêté") }}<input name="title_ref" value="{{ f.title_ref or '' }}" maxlength="80"></label>
+<label>{{ _("Titulaire inscrit sur le document") }}<input name="holder_name" value="{{ f.holder_name or '' }}" maxlength="120"></label>
+<label>{{ _("Nom du vendeur") }}<input name="seller_name" value="{{ f.seller_name or '' }}" maxlength="120"></label>
+</div>
+<label>{{ _("Surface indiquée sur le document (m²)") }}<input name="area_declared" inputmode="decimal" value="{{ f.area_declared|int if f.area_declared else '' }}"></label>
+<label>{{ _("Coordonnées des bornes relevées par le géomètre (une borne par ligne : latitude, longitude)") }}<textarea name="bornes" rows="4" placeholder="5.35215, -3.88925">{{ f.bornes or '' }}</textarea></label>
+{% if poly|length >= 3 %}<span class="muted">{{ poly|length }} {{ _("bornes") }} · {{ _("surface mesurée :") }} {{ area }} m² · {% if inside %}<span class="tag green">{{ _("le chantier est à l'intérieur des bornes") }}</span>{% else %}<span class="tag bad">{{ _("le chantier est hors des bornes") }}</span>{% endif %}</span>{% endif %}
+<button class="btn ghost small">{{ _("Enregistrer") }}</button>
+</form>
+
+<h2 id="verifications">{{ _("Vérifications à faire") }}</h2>
+<div class="card">
+{% for c in checks %}
+<div class="row"><span><b>{{ c.label }}</b><br><span class="muted">{{ c.who }}</span>{% if c.doc and by_kind.get(c.doc) %}<br><span class="tag blue">{{ by_kind[c.doc]|length }} {{ pl(by_kind[c.doc]|length, "pièce(s) jointe(s)") }}</span>{% endif %}</span>
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="check"><input type="hidden" name="check" value="{{ c.id }}"><input type="hidden" name="anchor" value="verifications">
+{% if c.done %}<button class="tag green" name="done" value="0" title="{{ _("Marquer à faire") }}">✓ {{ _("Fait") }}</button>{% else %}<button class="btn ghost small" name="done" value="1">{{ _("Marquer fait") }}</button>{% endif %}</form></div>
+{% endfor %}
+</div>
+
+<h2 id="pieces">{{ _("Pièces du terrain") }}</h2>
+<div class="card">
+{% for d_ in docs %}<div class="row"><a href="{{ url_for('financing_doc', doc_id=d_.id) }}" target="_blank">{{ DOC_LABELS.get(d_.kind, d_.kind) }} · {{ d_.original_name }}</a><form method="post">{{ csrf() }}<input type="hidden" name="action" value="delete_doc"><input type="hidden" name="doc_id" value="{{ d_.id }}"><input type="hidden" name="anchor" value="pieces"><button class="linkish">{{ _("retirer") }}</button></form></div>{% else %}<span class="muted">{{ _("Aucune pièce.") }}</span>{% endfor %}
+<form method="post" enctype="multipart/form-data" class="grid3">{{ csrf() }}<input type="hidden" name="action" value="upload"><input type="hidden" name="anchor" value="pieces">
+<label>{{ _("Pièce") }}<select name="kind">{% for k, v in DOC_LABELS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Fichier") }}<input type="file" name="file" required></label>
+<button class="btn ghost small">{{ _("Ajouter") }}</button></form>
+<span class="muted">{{ _("Pièces privées. Le document du terrain est repris dans votre dossier de crédit.") }}</span>
+</div>
+
+<h2 id="pro">{{ _("Faire vérifier par un professionnel") }}</h2>
+<div class="card">
+<span class="muted">{{ _("L'équipe ChantierVrai vous met en relation avec un notaire ou un géomètre partenaire pour vérifier le titre, l'état foncier et le bornage. Le devis vous est envoyé avant tout engagement.") }}</span>
+{% for r in requests %}<div class="row"><span>{{ _("Demande du") }} {{ d(r.created_at) }}{% if r.result %} — {{ r.result }}{% endif %}</span><span class="tag {{ 'green' if r.status == 'faite' else 'blue' }}">{{ _("Terminée") if r.status == 'faite' else _("Prise en charge") if r.status == 'en_cours' else _("Envoyée") }}</span></div>{% endfor %}
+{% if not requests or requests[0].status == 'faite' %}
+<form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="request"><input type="hidden" name="anchor" value="pro">
+<label>{{ _("Votre question (facultatif)") }}<textarea name="message" maxlength="1000" placeholder="{{ _("Ex. le vendeur est un héritier, je veux vérifier que la famille est d'accord") }}"></textarea></label>
+<button class="btn small">{{ _("Demander une vérification") }}</button></form>
+{% endif %}
+</div>
+<p class="muted">{{ _("Guide indicatif : ChantierVrai ne certifie aucun titre et ne remplace ni le notaire, ni le géomètre, ni la conservation foncière.") }}</p>
+{% endblock %}

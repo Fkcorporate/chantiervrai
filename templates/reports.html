@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Fil d'actualité ·") }} {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<h1>{{ _("Fil d'actualité") }}</h1>
+<p class="muted">{{ _("Un compte rendu est créé automatiquement chaque semaine et envoyé par WhatsApp, SMS ou e-mail selon vos réglages.") }}</p>
+<form method="post">{{ csrf() }}<button class="btn ghost">{{ _("Générer le compte rendu maintenant") }}</button></form>
+<h2>{{ _("Comptes rendus") }}</h2>
+{% for r, c in items %}
+<a class="card" href="{{ url_for('report', project_id=p.id, report_id=r.id) }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ _("Semaine du") }} {{ d(c.period_start) }}</b><span class="pill">{{ c.verified_pct }} %</span></div>
+{% for line in c.summary %}<span>{{ line }}</span>{% endfor %}
+{% if c.alerts %}<span class="muted">{{ c.alerts|length }} {{ pl(c.alerts|length, "alerte(s)") }}</span>{% endif %}
+</a>
+{% else %}<div class="card muted">{{ _("Aucun compte rendu pour l'instant.") }}</div>{% endfor %}
+<h2>{{ _("Historique complet") }}</h2>
+<div class="card log">
+{% for a in activity %}<div><span>{{ dt(a.created_at) }}</span><span>{{ a.author or '' }} : {{ a.text|tr }}</span></div>
+{% else %}<span class="muted">{{ _("Rien pour l'instant.") }}</span>{% endfor %}
+</div>
+{% endblock %}

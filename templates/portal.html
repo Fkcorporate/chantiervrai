@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Portail citoyen · ChantierVrai") }}{% endblock %}
+{% block wrapclass %} wide{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">{% endblock %}
+{% block content %}
+<h1>{{ _("Portail citoyen des chantiers publics") }}</h1>
+<p class="muted">{{ _("Suivez l'avancement réel des chantiers financés par l'argent public : photos vérifiées sur place, budget, retards, procès-verbaux. Signalez un problème en un clic.") }}</p>
+<form method="get" class="row">
+<input name="q" value="{{ q }}" placeholder="{{ _("Rechercher : commune, entreprise, n° de marché…") }}" aria-label="{{ _("Rechercher un chantier") }}">
+<button class="btn small">{{ _("Rechercher") }}</button>
+</form>
+{% include "_map_body.html" %}
+{% endblock %}
+{% block scripts %}{% include "_map_script.html" %}{% endblock %}

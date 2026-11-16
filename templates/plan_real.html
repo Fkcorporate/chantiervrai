@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, capture_form with context %}
+{% block title %}{{ _("Plan et réalité") }} · {{ p.name }}{% endblock %}
+{% block content %}
+{% set cls = {'ok': 'green', 'ecart': 'bad', 'a_verifier': 'amber', 'a_faire': 'grey'} %}
+{% set lbl = {'ok': _("Conforme au plan"), 'ecart': _("Écart avec le plan"), 'a_verifier': _("À vérifier : la photo ne confirme pas"), 'a_faire': _("À compter")} %}
+<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<h1>{{ _("Plan et réalité") }}</h1>
+<p class="muted">{{ _("On compte sur place ce que prévoit le plan : fenêtres, portes, pièces, poteaux… Le chef photographie chaque élément et indique le nombre ; la photo est comptée par l'IA quand elle est activée. Un écart est signalé tout de suite.") }}</p>
+
+{% for it in items %}
+<div class="card" id="e{{ it.id }}">
+<div class="row"><b>{{ it.label|tr }}{% if it.level %} · {{ it.level }}{% endif %}</b><span class="tag {{ cls.get(it.status, 'grey') }}">{{ lbl.get(it.status, it.status) }}</span></div>
+<div class="grid3">
+<span><span class="muted">{{ _("Prévu au plan") }}</span><br><b>{{ it.expected|qte }}</b>{% if it.source == 'plan_ia' %} <span class="tag grey">{{ _("lu par l'IA") }}</span>{% endif %}</span>
+<span><span class="muted">{{ _("Compté sur place") }}</span><br><b>{{ it.declared|qte if it.declared is not none else '—' }}</b></span>
+<span><span class="muted">{{ _("Compté sur la photo") }}</span><br><b>{{ it.ai_count|qte if it.ai_count is not none else '—' }}</b>{% if it.ai_conf %} <span class="muted">({{ (it.ai_conf * 100)|round|int }} %)</span>{% endif %}</span>
+</div>
+{% if it.ai_note %}<span class="muted">{{ it.ai_note }}</span>{% endif %}
+{% if it.note %}<span class="muted">{{ _("Note du chef :") }} {{ it.note }}</span>{% endif %}
+{% if photos.get(it.id) %}<div class="tags">{% for ph in photos[it.id] %}<a href="{{ url_for('proof_photo', proof_id=ph.id) }}" target="_blank"><img src="{{ url_for('proof_photo', proof_id=ph.id) }}" alt="{{ it.label|tr }}" style="width:96px;height:72px;object-fit:cover;border-radius:6px{% if not ph.ok %};opacity:.4{% endif %}"></a>{% endfor %}</div>{% endif %}
+{% if can_count %}
+<form method="post" class="grid3">{{ csrf() }}<input type="hidden" name="action" value="declare"><input type="hidden" name="item_id" value="{{ it.id }}"><input type="hidden" name="anchor" value="e{{ it.id }}">
+<label>{{ _("Nombre compté sur place") }}<input name="count" inputmode="decimal" required value="{{ it.declared|qte if it.declared is not none else '' }}"></label>
+<label>{{ _("Remarque (facultatif)") }}<input name="note" maxlength="300" value="{{ it.note or '' }}"></label>
+<button class="btn ghost small">{{ _("Enregistrer") }}</button></form>
+{% endif %}
+{% if can_edit %}<form method="post">{{ csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="item_id" value="{{ it.id }}"><button class="linkish">{{ _("retirer cet élément") }}</button></form>{% endif %}
+</div>
+{% else %}
+<div class="card muted">{{ _("Aucun élément pour l'instant.") }}{% if can_edit %} {{ _("Ajoutez-les depuis la lecture du plan ou à la main.") }}{% endif %}</div>
+{% endfor %}
+
+{% if can_count and items %}
+{% call capture_form(url_for('plan_real_photo', project_id=p.id), _('Photographier un élément'), _("Cadrez tout l'élément (toute la façade pour les fenêtres, tout le niveau pour les poteaux). Plusieurs photos si besoin."), capture_token, zones=zones) %}
+<label>{{ _("Élément photographié") }}<select name="item_id" required>{% for it in items %}<option value="{{ it.id }}"{% if it.status == 'a_faire' and loop.first %} selected{% endif %}>{{ it.label|tr }}{% if it.level %} · {{ it.level }}{% endif %}</option>{% endfor %}</select></label>
+{% endcall %}
+{% endif %}
+
+{% if can_edit %}
+<h2>{{ _("Éléments à contrôler") }}</h2>
+{% if reading %}<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="from_plan">
+<b>{{ _("Depuis la lecture du plan") }}</b><span class="muted">{{ _("Plan lu le") }} {{ d(reading.created_at) }} : {{ _("fenêtres, portes et pièces.") }}</span>
+<button class="btn ghost small">{{ _("Ajouter ces éléments") }}</button></form>{% else %}
+<div class="card"><span class="muted">{{ _("Aucun plan lu pour ce chantier.") }} <a href="{{ url_for('plan_reading', project_id=p.id) }}">{{ _("Lire un plan avec l'IA") }}</a></span></div>{% endif %}
+<form method="post" class="card grid3">{{ csrf() }}<input type="hidden" name="action" value="add">
+<label>{{ _("Élément") }}<input name="label" required maxlength="100" placeholder="{{ _("Ex. poteaux, fenêtres façade nord") }}"></label>
+<label>{{ _("Nombre prévu au plan") }}<input name="expected" inputmode="decimal" required></label>
+<label>{{ _("Niveau ou zone (facultatif)") }}<input name="level" maxlength="60" placeholder="{{ _("Ex. rez-de-chaussée") }}"></label>
+<button class="btn ghost small">{{ _("Ajouter") }}</button></form>
+<span class="muted">{{ _("Les poteaux et éléments de structure se lisent sur le plan de structure du bureau d'études : saisissez-les à la main.") }}</span>
+{% endif %}
+{% if not ai_on %}<p class="muted">{{ _("Comptage des photos par l'IA non activé : la comparaison se fait entre le plan et le nombre compté par le chef.") }}</p>{% endif %}
+{% endblock %}

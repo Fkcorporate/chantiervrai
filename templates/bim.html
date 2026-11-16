@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Maquette numérique") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<h1>{{ _("Maquette numérique") }}</h1>
+<p class="muted">{{ _("La maquette IFC de l'architecte ou du bureau d'études, niveau par niveau, face à l'avancement vérifié du chantier. Chaque nouvelle version est comparée à la précédente pour repérer les modifications.") }}</p>
+
+{% if cur %}
+<div class="cols2">
+<div class="card">
+<div class="row"><b>{{ cur.building or cur.project or p.name }}</b><span class="pill">{{ _("version") }} {{ models[0].version }}</span></div>
+<span class="muted">{{ cur.storeys|length }} {{ pl(cur.storeys|length, "niveau(x)") }} · {{ cur.totals.values()|sum }} {{ _("éléments") }}{% if cur.volume %} · {{ cur.volume|qte }} m³ {{ _("de béton modélisé") }}{% endif %} · {{ cur.schema }}</span>
+<svg viewBox="0 0 320 {{ 40 + rows|length * 46 }}" role="img" aria-label="{{ _("Coupe du bâtiment par niveau") }}" style="width:100%;max-width:420px;margin:8px auto;display:block">
+<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#DDEFE4"/><line x1="0" y1="0" x2="0" y2="8" stroke="#0E5A3A" stroke-width="3"/></pattern></defs>
+{% for r in rows|reverse %}{% set y = 20 + loop.index0 * 46 %}
+{% set fill = {'done': '#0E5A3A', 'declared': '#D98E04', 'doing': 'url(#hatch)', 'todo': '#ECE9E1', 'none': '#F6F4EF'}[r.state] %}
+<rect x="{{ 70 if r.s.name|lower in ('toiture', 'roof') else 40 }}" y="{{ y }}" width="{{ 180 if r.s.name|lower in ('toiture', 'roof') else 240 }}" height="40" rx="3" fill="{{ fill }}" stroke="#2B2B2B" stroke-width="1.2" {% if r.state == 'none' %}stroke-dasharray="4 3"{% endif %}/>
+<text x="160" y="{{ y + 25 }}" text-anchor="middle" font-size="13" font-weight="600" fill="{{ '#fff' if r.state in ('done',) else '#1E1E1E' }}">{{ r.s.name }}</text>
+{% if r.s.elevation is not none %}<text x="34" y="{{ y + 25 }}" text-anchor="end" font-size="11" fill="#6B6A63">{{ '%+.1f'|format(r.s.elevation) }} m</text>{% endif %}
+{% endfor %}
+<line x1="20" y1="{{ 20 + rows|length * 46 }}" x2="300" y2="{{ 20 + rows|length * 46 }}" stroke="#6B6A63" stroke-width="2"/>
+</svg>
+<div class="row" style="flex-wrap:wrap;gap:10px;justify-content:flex-start;font-size:14px">
+<span><span class="dot" style="display:inline-block;vertical-align:middle"></span> {{ _("Construit et payé") }}</span>
+<span><span class="dot warn" style="display:inline-block;vertical-align:middle"></span> {{ _("À valider") }}</span>
+<span><span class="dot none" style="display:inline-block;vertical-align:middle"></span> {{ _("À venir ou non relié") }}</span>
+</div>
+<span class="muted">{{ built }} {{ pl(built, "niveau(x) construit(s) sur") }} {{ rows|length }}</span>
+</div>
+
+<div class="card table-wrap">
+<b>{{ _("Éléments par niveau") }}</b>
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="link">
+<table><thead><tr><th>{{ _("Niveau") }}</th><th>{{ _("Éléments") }}</th><th>{{ _("Étape du chantier") }}</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><b>{{ r.s.name }}</b>{% if r.s.volume %}<br><span class="muted">{{ r.s.volume|qte }} m³</span>{% endif %}</td>
+<td>{% for k, v in r.s.counts.items() %}{{ v }} {{ _(k)|lower }}{% if not loop.last %}, {% endif %}{% else %}<span class="muted">–</span>{% endfor %}</td>
+<td>{% if role == 'owner' %}<select name="storey_{{ r.s.name }}" aria-label="{{ _("Étape liée à") }} {{ r.s.name }}"><option value="">–</option>{% for st in steps %}<option value="{{ st.id }}"{% if r.step and r.step.id == st.id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select>{% elif r.step %}<a href="{{ url_for('step_page', project_id=p.id, step_id=r.step.id) }}">{{ r.step.name }}</a> <span class="muted">{{ STATUS[r.step.status] }}</span>{% else %}<span class="muted">–</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+{% if role == 'owner' %}<button class="btn ghost small">{{ _("Enregistrer les liens") }}</button>{% endif %}
+</form>
+</div>
+</div>
+
+{% if changes %}
+<div class="card">
+<b>{{ _("Modifications par rapport à la version") }} {{ models[1].version }}</b>
+{% for kind, storey, label, delta in changes %}
+<div class="row"><span>{{ storey }}</span><span>{% if kind == 'storey_added' %}<span class="tag amber">{{ _("niveau ajouté") }}</span>{% elif kind == 'storey_removed' %}<span class="tag bad">{{ _("niveau supprimé") }}</span>{% else %}{{ '%+d'|format(delta) }} {{ _(label)|lower }}{% endif %}</span></div>
+{% endfor %}
+<span class="muted">{{ _("Une modification en cours de chantier change le coût et le délai : demandez l'avenant correspondant.") }}</span>
+</div>
+{% elif models|length > 1 %}<div class="card"><span class="muted">{{ _("Aucune modification entre les deux dernières versions.") }}</span></div>{% endif %}
+{% endif %}
+
+<div class="card">
+<b>{{ _("Vue 3D") }}</b>
+{% if plans_3d %}<span class="muted">{{ _("Modèle 3D disponible dans les vues du chantier.") }}</span>{% if role == 'owner' %}<a href="{{ url_for('project', project_id=p.id, onglet='vues', _anchor='m3d') }}">{{ _("Ouvrir la vue 3D") }}</a>{% endif %}
+{% else %}<span class="muted">{{ _("Pour tourner autour du bâtiment, exportez aussi la maquette en GLB (Revit, ArchiCAD, SketchUp ou Blender le font) et ajoutez-la dans Vues › Drone et 3D.") }}</span>{% endif %}
+</div>
+
+{% if can_edit %}
+<form method="post" enctype="multipart/form-data" class="card">{{ csrf() }}<input type="hidden" name="action" value="upload">
+<b>{{ _("Ajouter une version de la maquette") }}</b>
+<input type="file" name="file" accept=".ifc" required>
+<label>{{ _("Ce qui change") }}<input name="note" maxlength="300" placeholder="{{ _("Ajout d'une terrasse au 1er étage") }}"></label>
+<button class="btn">{{ _("Envoyer la maquette IFC") }}</button>
+</form>
+{% endif %}
+
+{% if models %}
+<h2>{{ _("Historique des versions") }}</h2>
+<div class="card">
+{% for m in models %}<div class="row"><span>{{ _("Version") }} {{ m.version }} · {{ m.author }} · {{ d(m.created_at) }}{% if m.note %}<br><span class="muted">{{ m.note }}</span>{% endif %}</span><a href="{{ url_for('bim_file', model_id=m.id) }}">{{ _("Télécharger") }}</a></div>{% endfor %}
+</div>
+{% elif not can_edit %}<div class="card muted">{{ _("Pas encore de maquette pour ce chantier.") }}</div>{% endif %}
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Pilotage") }}{% endblock %}
+{% block content %}
+<div class="row pl-head">
+<div><h1>{{ _("Pilotage de l'activité") }}</h1>
+<span class="muted">{{ _("Les chiffres de ChantierVrai, mis à jour à chaque ouverture de la page.") }}</span></div>
+<a class="btn ghost small" href="{{ url_for('admin') }}">{{ _("Administration") }}</a>
+</div>
+
+<nav class="chips anchors pl-period" aria-label="{{ _("Période") }}">
+{% for k, lab in [("30", _("30 jours")), ("90", _("3 mois")), ("365", _("12 mois"))] %}
+<a class="chip{% if period == k %} on{% endif %}" href="{{ url_for('pilotage', periode=k) }}"{% if period == k %} aria-current="true"{% endif %}>{{ lab }}</a>
+{% endfor %}
+</nav>
+
+<section class="pl-tiles" aria-label="{{ _("Chiffres clés") }}">
+{% for t in tiles %}
+<div class="card pl-tile">
+<span class="pl-label">{{ _(t.label) }}</span>
+<span class="pl-value">{{ compact(t.cur) if t.money else fcfa(t.cur) }}{% if t.unit %} <small>{{ _(t.unit) }}</small>{% endif %}</span>
+<span class="pl-delta">
+{% if t.prev is none %}{{ _("aujourd'hui") }}
+{% elif t.new %}<b>{{ _("nouveau") }}</b> · {{ _("rien sur la période précédente") }}
+{% elif t.delta is none %}{{ _("stable, à zéro") }}
+{% else %}<b class="{{ 'up' if t.delta > 0 else 'down' if t.delta < 0 else '' }}">{{ '▲' if t.delta > 0 else '▼' if t.delta < 0 else '=' }} {{ t.delta|abs }} %</b> {{ _("par rapport aux %(n)s jours précédents", n=days) }}{% endif %}
+</span>
+<span class="muted pl-hint">{{ _(t.hint, n=t.hint_n) if t.hint_n is defined else _(t.hint) }}</span>
+</div>
+{% endfor %}
+</section>
+
+<h2>{{ _("Évolution sur 12 mois") }}</h2>
+<div class="pl-charts">
+{% for c in charts %}
+<section class="card pl-chart" aria-labelledby="ch-{{ c.id }}">
+<div class="row"><b id="ch-{{ c.id }}">{{ c.title }}</b>{% if c.unit %}<span class="muted">{{ _(c.unit) }}</span>{% endif %}</div>
+{% set last = c.g.bars[-1] %}
+<div class="pl-plot" role="img" aria-label="{{ c.title }} : {{ _("dernier mois") }} {{ fcfa(last.v) }}">
+<span class="pl-max muted">{{ compact(c.g.top) if c.money else fcfa(c.g.top) }}</span>
+<div class="pl-cols">
+{% set n = c.g.bars|length %}{% set ns = namespace(max_i=-1) %}
+{% for b in c.g.bars %}{% if ns.max_i < 0 and b.v == c.g.top and b.v > 0 %}{% set ns.max_i = loop.index0 %}{% endif %}{% endfor %}
+{% for b in c.g.bars %}{% set i = loop.index0 %}
+<div class="pl-col{% if loop.last %} now{% endif %}" tabindex="0"
+     data-tip="{{ full[i] }}{% if loop.last %} ({{ _("en cours") }}){% endif %} : {{ fcfa(b.v) }}{% if c.unit %} {{ _(c.unit) }}{% endif %}{% for name, vals in c.detail %}|{{ name }} : {{ fcfa(vals[i]) }}{% endfor %}">
+<div class="pl-bar" style="height:{{ (100 * b.v / c.g.top)|round(1) if b.v > 0 else 0 }}%{% if b.v > 0 %};min-height:3px{% endif %}">
+{% if loop.last or (i == ns.max_i and i < n - 2) %}<span class="pl-vlabel">{{ compact(b.v) if c.money else fcfa(b.v) }}</span>{% endif %}
+</div>
+</div>
+{% endfor %}
+</div>
+<div class="pl-x" aria-hidden="true">{% for b in c.g.bars %}<span>{{ b.label }}</span>{% endfor %}</div>
+</div>
+<details class="pl-table"><summary class="linkish">{{ _("Voir les chiffres") }}</summary>
+<div class="table-wrap"><table><thead><tr><th>{{ _("Mois") }}</th><th>{{ _("Total") }}</th>{% for name, _v in c.detail %}<th>{{ name }}</th>{% endfor %}</tr></thead>
+<tbody>{% for b in c.g.bars|reverse %}{% set i = 11 - loop.index0 %}<tr><td>{{ full[i] }}</td><td>{{ fcfa(b.v) }}</td>{% for name, vals in c.detail %}<td>{{ fcfa(vals[i]) }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+</details>
+</section>
+{% endfor %}
+</div>
+
+<div class="pl-two">
+<section class="card" aria-labelledby="fun-h">
+<b id="fun-h">{{ _("Du compte au client payant") }}</b>
+<span class="muted">{{ _("Propriétaires et professionnels inscrits depuis le début, et la part qui franchit chaque étape.") }}</span>
+<ol class="pl-funnel">
+{% for f in funnel %}
+<li><div class="row"><span>{{ _(f.label) }}</span><span><b>{{ fcfa(f.n) }}</b>{% if f.step is not none %} <span class="muted">· {{ f.step }} % {{ _("de l'étape d'avant") }}</span>{% endif %}</span></div>
+<div class="pl-fbar"><div style="width:{{ f.pct }}%"></div></div></li>
+{% endfor %}
+</ol>
+{% if funnel_period[0].n %}<span class="muted">{{ _("Sur la période choisie :") }} {{ fcfa(funnel_period[0].n) }} {{ pl(funnel_period[0].n, "compte(s) créé(s)") }}, {{ fcfa(funnel_period[3].n) }} {{ pl(funnel_period[3].n, "avec une étape payée") }}.</span>{% endif %}
+</section>
+
+<section class="card" aria-labelledby="top-h">
+<b id="top-h">{{ _("Chantiers où le plus d'argent a été suivi") }}</b>
+<span class="muted">{{ _("Étapes payées sur la période choisie.") }}</span>
+{% for p in top %}
+<a class="row pl-rowlink" href="{{ url_for('project', project_id=p.id) }}"><span>{{ p.name }}</span><span><b>{{ fcfa(p.paid) }}</b> FCFA <span class="muted">· {{ p.n }} {{ pl(p.n, "étape(s)") }}</span></span></a>
+{% else %}<span class="muted">{{ _("Aucune étape payée sur la période.") }}</span>{% endfor %}
+</section>
+</div>
+
+<section class="card" aria-labelledby="watch-h">
+<b id="watch-h">{{ _("À surveiller") }}</b>
+<div class="pl-watch">
+<div><span class="pl-wtitle">{{ _("Chantiers sans preuve depuis 14 jours") }} <span class="pill{% if watch.silent %} warn{% endif %}">{{ watch.silent|length }}</span></span>
+{% for p in watch.silent %}<a class="row pl-rowlink" href="{{ url_for('project', project_id=p.id) }}"><span>{{ p.name }}</span><span class="muted">{% if p.last %}{{ _("dernière :") }} {{ dt(p.last) }}{% else %}{{ _("aucune preuve") }}{% endif %}</span></a>
+{% else %}<span class="muted">{{ _("Aucun.") }}</span>{% endfor %}</div>
+<div><span class="pl-wtitle">{{ _("Étapes à valider depuis plus de 7 jours") }} <span class="pill{% if watch.waiting %} warn{% endif %}">{{ watch.waiting|length }}</span></span>
+{% for w in watch.waiting %}<a class="row pl-rowlink" href="{{ url_for('project', project_id=w.id) }}"><span>{{ w.name }} · {{ w.step }}</span><span class="muted">{{ dt(w.declared_at) }}</span></a>
+{% else %}<span class="muted">{{ _("Aucune.") }}</span>{% endfor %}</div>
+<div><span class="pl-wtitle">{{ _("Factures en retard de paiement") }} <span class="pill{% if watch.unpaid %} warn{% endif %}">{{ watch.unpaid|length }}</span></span>
+{% for i in watch.unpaid %}<a class="row pl-rowlink" href="{{ url_for('admin') }}#abonnements"><span>{{ i.number }} · {{ i.name }}</span><span><b>{{ fcfa(i.amount) }}</b> <span class="muted">· {{ _("échue le") }} {{ i.due_date }}</span></span></a>
+{% else %}<span class="muted">{{ _("Aucune.") }}</span>{% endfor %}</div>
+<div><span class="pl-wtitle">{{ _("Litiges ouverts") }} <span class="pill{% if watch.disputes %} warn{% endif %}">{{ watch.disputes }}</span></span>
+{% if watch.disputes %}<a class="row pl-rowlink" href="{{ url_for('admin') }}#litiges"><span>{{ _("Voir les litiges") }}</span><span class="chev" aria-hidden="true">›</span></a>{% else %}<span class="muted">{{ _("Aucun.") }}</span>{% endif %}</div>
+</div>
+</section>
+
+<div class="pl-tip" id="pl-tip" role="tooltip" hidden></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var tip = document.getElementById('pl-tip');
+  function show(col) {
+    var parts = col.dataset.tip.split('|');
+    tip.innerHTML = '';
+    parts.forEach(function (p, i) { var e = document.createElement(i ? 'span' : 'b'); e.textContent = p; tip.appendChild(e); });
+    tip.hidden = false;
+    var r = col.getBoundingClientRect(), w = tip.offsetWidth;
+    var left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2 + window.scrollX, window.scrollX + document.documentElement.clientWidth - w - 8));
+    tip.style.left = left + 'px';
+    tip.style.top = (r.top + window.scrollY - tip.offsetHeight - 8) + 'px';
+    document.querySelectorAll('.pl-col.is-hover').forEach(function (c) { c.classList.remove('is-hover'); });
+    col.classList.add('is-hover');
+  }
+  function hide() { tip.hidden = true; document.querySelectorAll('.pl-col.is-hover').forEach(function (c) { c.classList.remove('is-hover'); }); }
+  document.querySelectorAll('.pl-col').forEach(function (c) {
+    c.addEventListener('mouseenter', function () { show(c); });
+    c.addEventListener('focus', function () { show(c); });
+    c.addEventListener('click', function () { show(c); });
+    c.addEventListener('mouseleave', hide);
+    c.addEventListener('blur', hide);
+  });
+  window.addEventListener('scroll', hide, { passive: true });
+})();
+</script>
+{% endblock %}

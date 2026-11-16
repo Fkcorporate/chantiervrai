@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Avancement par zone") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<h1>{{ _("Avancement par zone") }}</h1>
+<p class="muted">{{ _("Découpez le chantier en bâtiments, étages et zones. Chaque photo, visite 360° et quantité posée se rattache à une zone : on voit où le chantier avance et où il est à l'arrêt.") }}</p>
+<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+<a class="btn ghost small" href="{{ url_for('quantities', project_id=p.id) }}">{{ _("Quantités installées") }}</a>
+<a class="btn ghost small" href="{{ url_for('panos', project_id=p.id) }}">{{ _("Visites 360°") }}</a>
+<a class="btn ghost small" href="{{ url_for('physical_report', project_id=p.id) }}">{{ _("Rapport d'avancement physique") }}</a>
+</div>
+
+<div class="card table-wrap">
+{% if rows %}
+<table><thead><tr><th>{{ _("Zone") }}</th><th>{{ _("Avancement posé") }}</th><th>{{ _("Photos") }}</th><th>{{ _("Dernière visite 360°") }}</th>{% if role in ('owner', 'chef') %}<th></th>{% endif %}</tr></thead><tbody>
+{% for r in rows %}
+<tr><td style="padding-left:{{ 8 + r.depth * 22 }}px"><b>{{ r.z.name }}</b> <span class="muted">{{ ZONE_KINDS[r.z.kind] }}{% if r.z.storey %} · {{ _("maquette") }}{% endif %}</span></td>
+<td>{% if r.pct is not none %}<div class="meter {{ 'low' if r.pct < 30 else 'medium' if r.pct < 80 else '' }}" style="min-width:90px"><div style="width:{{ r.pct }}%"></div></div><span class="muted">{{ r.pct }} %{% if r.pending %} · {{ r.pending }} {{ _("à valider") }}{% endif %}</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+<td>{{ r.proofs }}{% if r.last_proof %}<br><span class="muted">{{ d(r.last_proof) }}</span>{% endif %}</td>
+<td>{% if r.last_pano %}<a href="{{ url_for('panos', project_id=p.id, zone=r.z.id) }}">{{ d(r.last_pano) }}</a>{% else %}<span class="muted">–</span>{% endif %}</td>
+{% if role in ('owner', 'chef') %}<td><form method="post" onsubmit="return confirm('{{ _("Supprimer cette zone ? Les photos restent, sans zone.") }}')">{{ csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="zone_id" value="{{ r.z.id }}"><button class="btn ghost small" aria-label="{{ _("Supprimer") }} {{ r.z.name }}">×</button></form></td>{% endif %}</tr>
+{% endfor %}
+</tbody></table>
+{% else %}<span class="muted">{{ _("Pas encore de zones. Créez-les à la main ou depuis la maquette numérique.") }}</span>{% endif %}
+</div>
+
+{% if role in ('owner', 'chef') %}
+<div class="cols2">
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="add">
+<b>{{ _("Ajouter une zone") }}</b>
+<div class="grid2">
+<label>{{ _("Nom") }}<input name="name" required maxlength="80" placeholder="{{ _("Étage 1 – aile nord") }}"></label>
+<label>{{ _("Type") }}<select name="kind">{% for k, v in ZONE_KINDS.items() %}<option value="{{ k }}"{% if k == 'zone' %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+</div>
+<label>{{ _("Dans") }}<select name="parent_id"><option value="">–</option>{% for r in rows %}<option value="{{ r.z.id }}">{{ '— ' * r.depth }}{{ r.z.name }}</option>{% endfor %}</select></label>
+<button class="btn ghost">{{ _("Ajouter") }}</button>
+</form>
+{% if has_bim %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="from_bim">
+<b>{{ _("Créer les étages depuis la maquette") }}</b>
+<span class="muted">{{ _("Un étage par niveau de la maquette IFC, relié à ses éléments : les quantités prévues pourront en être importées.") }}</span>
+<button class="btn ghost">{{ _("Créer depuis la maquette") }}</button>
+</form>
+{% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_macros.html" import proof_card, csrf, capture_form with context %}
+{% block title %}{{ _("Commande") }} {{ o.ref }}{% endblock %}
+{% block content %}
+{% if role == 'fournisseur' %}<a href="{{ url_for('home') }}">{{ _("← Mes commandes") }}</a>{% elif role == 'admin' %}<a href="{{ url_for('admin') }}">{{ _("← Administration") }}</a>{% else %}<a href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else 'factures', _anchor='commandes') }}">← {{ p.name }}</a>{% endif %}
+<h1>{{ _("Commande") }} {{ o.ref }}</h1>
+<div class="row"><span class="muted">{{ p.name }} · {{ _("étape") }} « {{ step.name }} » · {{ supplier.name }}</span>
+<span class="pill{% if o.status in ('proposee','envoyee','livree','a_payer') %} warn{% endif %}">{{ ORDER_STATUS[o.status] }}</span></div>
+{% if role == 'fournisseur' %}<div class="card"><b>{{ _("Lieu de livraison") }}</b><span>{{ p.address or p.name }}</span><a class="btn ghost small" href="https://www.google.com/maps/dir/?api=1&destination={{ p.lat }},{{ p.lng }}" target="_blank" rel="noopener">{{ _("Itinéraire") }}</a>{% if o.note %}<span class="muted">{{ o.note }}</span>{% endif %}</div>{% elif o.note %}<div class="card"><span class="muted">{{ o.note }}</span></div>{% endif %}
+{% if o.problem %}<div class="card alert"><b>{{ _("Problème signalé") if o.status == 'litige' else _("Motif") }}</b><span>{{ o.problem }}</span></div>{% endif %}
+
+<div class="card table-wrap">
+<table><thead><tr><th>{{ _("Produit") }}</th><th>{{ _("Commandé") }}</th><th>{{ _("Reçu") }}</th><th>{{ _("Montant") }}</th></tr></thead><tbody>
+{% for ln in lines %}<tr{% if ln.qty_received is not none and ln.qty_received < ln.qty %} class="bad"{% endif %}><td>{{ ln.name }}</td><td>{{ ln.qty|qte }} {{ ln.unit }}</td><td>{{ ln.qty_received|qte }}</td><td>{{ fcfa(ln.qty * ln.unit_price) }}</td></tr>{% endfor %}
+</tbody></table>
+<div class="row"><span class="muted">{{ _("Total commandé") }}</span><b>{{ fcfa(o.total) }} FCFA</b></div>
+{% if o.received_total is not none %}
+<div class="row"><span class="muted">{{ _("Reçu et payé au fournisseur") if o.status == 'receptionnee' else _("Reçu, à payer") }}</span><b>{{ fcfa(o.received_total) }} FCFA</b></div>
+{% if role in ('fournisseur', 'admin') %}<div class="row"><span class="muted">{{ _("Commission ChantierVrai") }}</span><span>{{ fcfa(o.commission) }} FCFA</span></div>{% endif %}
+{% endif %}
+<span class="muted">{{ _('Argent réservé sur le séquestre') if o.pay_mode == 'sequestre' else (_('Paiement suivi : le propriétaire paie, vous confirmez la réception') if o.pay_mode == 'suivi' else _('Paiement manuel par le propriétaire')) }}{% if o.delivery_date %} · {{ _("livraison prévue le") }} {{ d(o.delivery_date) }}{% endif %}</span>
+</div>
+
+{% if role == 'owner' and o.status == 'proposee' %}
+<form method="post" class="card">{{ csrf() }}<b>{{ _("Le chef de chantier propose cette commande") }}</b>
+<span class="muted">{{ _("En approuvant, le montant est réservé et la commande part chez le fournisseur.") }}</span>
+<div class="grid2"><button class="btn" name="action" value="approve">{{ _("Approuver et envoyer") }}</button><button class="btn ghost" name="action" value="cancel">{{ _("Refuser") }}</button></div>
+</form>
+{% endif %}
+
+{% if role == 'fournisseur' and o.status == 'envoyee' %}
+<form method="post" class="card">{{ csrf() }}<b>{{ _("Pouvez-vous livrer ?") }}</b>
+<label>{{ _("Date de livraison") }}<input type="date" name="delivery_date" required></label>
+<button class="btn" name="action" value="accept">{{ _("Accepter la commande") }}</button>
+</form>
+<form method="post" class="card">{{ csrf() }}<label>{{ _("Motif du refus") }}<input name="motif" placeholder="{{ _("Rupture de stock, zone trop éloignée…") }}"></label>
+<button class="btn ghost" name="action" value="refuse">{{ _("Refuser") }}</button></form>
+{% endif %}
+
+{% if role == 'fournisseur' and o.status in ('acceptee', 'livree') %}
+{{ capture_form(url_for('order_delivery', oid=o.id), _("Photo de livraison sur le terrain"), _("Photographiez les matériaux déchargés sur le chantier : la position GPS prouve la livraison. Le chef compte ensuite et vous êtes payé."), capture_token, required=True) }}
+{% endif %}
+
+<div class="card" id="comptage"><b>{{ _("Comptage de la livraison") }}</b>
+<span class="muted">{{ _("Trois chiffres comparés : la commande, le comptage de la photo et ce que le chef déclare reçu. Un écart suspend le paiement du fournisseur jusqu'à la décision du propriétaire.") }}</span>
+<div class="table-wrap"><table><thead><tr><th>{{ _("Produit") }}</th><th>{{ _("Commandé") }}</th><th>{{ _("Compté sur la photo") }}</th><th>{{ _("Déclaré reçu") }}</th></tr></thead><tbody>
+{% for ln in lines %}{% set c = counts.get(ln.id) %}<tr{% if count_status[ln.id] in ('ecart', 'a_verifier') %} class="bad"{% endif %}><td>{{ ln.name }}</td><td>{{ ln.qty|qte }} {{ ln.unit }}</td><td>{% if c and c.ai_count is not none %}{{ c.ai_count|qte }}{% if c.ai_conf %} <span class="muted">({{ (c.ai_conf * 100)|round|int }} %)</span>{% endif %}{% else %}—{% endif %}</td><td>{{ ln.qty_received|qte if ln.qty_received is not none else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% for ln_id, c in counts.items() %}{% if c.remark and (ln_id == 0 or c.method) %}<span class="muted">{{ c.method }}{% if c.method and c.remark %} — {% endif %}{{ c.remark }}</span>{% endif %}{% endfor %}
+{% if not count_on %}<span class="muted">{{ _("Comptage des photos par l'IA non activé : la comparaison se fait entre la commande et le chef.") }}</span>{% endif %}
+</div>
+{% if role in ('chef', 'owner') and o.status in ('livree', 'litige') %}
+<details class="card"><summary><b>{{ _("Comment photographier pour le comptage") }}</b></summary>{% for name, gd in count_guides %}<span><b>{{ name }}</b> : {{ gd }}</span>{% endfor %}</details>
+{{ capture_form(url_for('order_count_photo', oid=o.id), _("Photo de comptage"), _("Matériaux rangés comme indiqué ci-dessus, sur le chantier."), capture_token) }}
+{% endif %}
+{% if role in ('chef', 'owner') and o.status in ('livree', 'litige') %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="receive">
+<b>{{ _("Confirmer ce qui est arrivé") }}</b>
+<span class="muted">{{ _("Comptez les sacs, barres et voyages. Le fournisseur est payé seulement pour ce que vous confirmez ; le reste revient au séquestre.") }}</span>
+{% for ln in lines %}{% set c = counts.get(ln.id) %}<label>{{ ln.name }} ({{ _("commandé :") }} {{ ln.qty|qte }} {{ ln.unit }}{% if c and c.ai_count is not none %} · {{ _("compté sur la photo :") }} {{ c.ai_count|qte }}{% endif %})<input name="qty_{{ ln.id }}" value="{{ ln.qty|qte }}" inputmode="decimal"></label>{% endfor %}
+{% if role == 'owner' and o.status == 'litige' and o.problem and 'comptage' in o.problem %}<label class="check"><input type="checkbox" name="confirm_gap" value="1"> {{ _("Je confirme ces quantités malgré l'écart avec la photo") }}</label>{% endif %}
+<button class="btn">{{ _("Confirmer la réception") }}</button>
+</form>
+{% endif %}
+{% if role in ('chef', 'owner') and o.status in ('acceptee', 'livree') %}
+<details class="card"><summary><b>{{ _("Signaler un problème") }}</b></summary>
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="problem">
+<label>{{ _("Ce qui ne va pas") }}<textarea name="text" required minlength="10" placeholder="{{ _("Ciment livré en 32,5 au lieu de 42,5 ; 10 sacs abîmés") }}"></textarea></label>
+<button class="btn ghost">{{ _("Signaler et suspendre le paiement") }}</button></form></details>
+{% endif %}
+{% if o.pay_mode == 'suivi' and o.status in ('a_payer', 'receptionnee') %}
+<a class="card row" href="{{ url_for('pay_order', kind='commande', ref_id=o.id) }}" style="text-decoration:none;color:inherit"><b>{{ _("Bon à payer") }}</b><span class="tag{% if o.status == 'a_payer' %} amber{% endif %}">{{ _("Payé et confirmé") if o.status == 'receptionnee' else (_("Déclarez le paiement") if role == 'owner' else _("Paiement à faire ou à confirmer")) }}</span></a>
+{% endif %}
+{% if role == 'owner' and o.status == 'a_payer' and o.pay_mode != 'suivi' %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="paid">
+<b>{{ _("Payer le fournisseur") }}</b><span class="muted">{{ fcfa(o.received_total) }} {{ _("FCFA vers") }} {{ supplier.phone or _('numéro inconnu') }}</span>
+<label>{{ _("Référence du paiement") }}<input name="pay_ref"></label>
+<button class="btn">{{ _("Marquer payée") }}</button></form>
+{% endif %}
+{% if role in ('owner', 'admin') and o.status in ('envoyee', 'acceptee', 'litige') %}
+<form method="post">{{ csrf() }}<button class="btn ghost small" name="action" value="cancel">{{ _("Annuler la commande et libérer l'argent") }}</button></form>
+{% endif %}
+
+{% if photos %}<h2>{{ _("Photos de livraison") }}</h2>{% for pr in photos %}{{ proof_card(pr, p) }}{% endfor %}{% endif %}
+{% endblock %}
+{% block scripts %}{% if capture_token %}<script src="{{ asset('chef.js') }}"></script>{% endif %}{% endblock %}

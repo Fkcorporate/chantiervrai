@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Alertes · ChantierVrai") }}{% endblock %}
+{% block content %}
+<div class="row"><h1>{{ _("Alertes") }}</h1>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ _("Tout marquer lu") }}</button></form></div>
+{% set labels = {'app': _('Application'), 'whatsapp': 'WhatsApp', 'sms': 'SMS', 'email': 'E-mail'} %}
+{% set st = {'envoye': _('envoyé'), 'simule': _('simulé'), 'echec': _('échec'), 'en_attente': _('en attente')} %}
+{% for n in rows %}
+<div class="card{% if n.channel == 'app' and not n.is_read %} unread{% endif %}">
+<div class="row"><b>{{ n.title|tr }}</b><span class="pill{% if n.status == 'echec' %} warn{% elif n.channel != 'app' %} grey{% endif %}">{{ labels[n.channel] }}{% if n.channel != 'app' %} · {{ st[n.status] }}{% endif %}</span></div>
+<div>{{ n.body|tr }}</div>
+<div class="row"><span class="muted">{{ dt(n.created_at) }}{% if n.detail %} · {{ n.detail }}{% endif %}</span>{% if n.link and n.channel == 'app' %}<a href="{{ n.link }}">{{ _("Ouvrir") }}</a>{% endif %}</div>
+</div>
+{% else %}
+<div class="card muted">{{ _("Aucune alerte.") }}</div>
+{% endfor %}
+{% endblock %}

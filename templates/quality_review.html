@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, capture_form with context %}
+{% block title %}{{ o.name }} · {{ _("Contrôle qualité") }}{% endblock %}
+{% block content %}
+{% set tagcls = {'ok': 'green', 'a_verifier': 'amber', 'probleme': 'bad', 'non_visible': 'grey', 'a_controler': 'blue'} %}
+<a class="noprint" href="{{ url_for('quality_list', project_id=p.id) }}">← {{ _("Contrôles qualité") }} · {{ p.name }}</a>
+<h1>{{ o.name }}{% if r.label %} · {{ r.label }}{% endif %}</h1>
+<div class="muted">{{ p.name }}{% if step %} · {{ _("étape") }} {{ step.name }}{% endif %}{% if zone %} · {{ zone.name }}{% endif %} · {{ _("ouvert le") }} {{ d(r.created_at) }}{% if r.analysed_at %} · {{ _("analysé le") }} {{ dt(r.analysed_at) }}{% endif %}</div>
+{% if prev %}<div class="card"><span>{{ _("Contre-visite du") }} <a href="{{ url_for('quality_page', rid=prev.id) }}">{{ _("contrôle précédent") }}</a> : {{ _("les points signalés sont recontrôlés.") }}</span></div>{% endif %}
+{% if nxt %}<div class="card alert"><span>{{ _("Une contre-visite a été ouverte : c'est elle qui compte désormais.") }} <a href="{{ url_for('quality_page', rid=nxt.id) }}">{{ _("Voir la contre-visite") }}</a></span></div>{% endif %}
+
+{% if r.status == 'analyse' %}
+<div class="card"><b>{{ _("Analyse en cours…") }}</b><span class="muted">{{ _("Actualisez la page dans une minute.") }}</span></div>
+{% elif r.status == 'erreur' %}
+<div class="card alert"><b>{{ _("L'analyse n'a pas abouti") }}</b><span class="muted">{{ r.error }}</span></div>
+{% endif %}
+
+{% if points %}
+<div class="card{% if extras.counts and extras.counts.probleme %} alert{% endif %}" id="resultat">
+<div class="row"><b>{{ _("Résultat") }}</b>{% if score is not none %}<span class="big">{{ score }}/100</span>{% endif %}</div>
+<span>{{ r.summary }}</span>
+<div class="tags">
+{% for k in ('probleme', 'a_verifier', 'a_controler', 'ok', 'non_visible') %}{% set n = points|selectattr('effective', 'equalto', k)|rejectattr('accepted')|list|length %}{% if n %}<span class="tag {{ tagcls[k] }}">{{ n }} · {{ QSTATUS[k] }}</span>{% endif %}{% endfor %}
+{% set na = points|selectattr('accepted')|list|length %}{% if na %}<span class="tag grey">{{ na }} · {{ _("accepté(s) par vous") }}</span>{% endif %}
+</div>
+<span class="muted">{{ _("Note sur %(n)s point(s) jugé(s), pondérée par la gravité.", n=judged) }} {% if r.mode == 'ia' %}{{ _("Photos analysées par l'IA, mesures contrôlées par des règles fixes.") }}{% else %}{{ _("Mesures contrôlées par des règles fixes ; les autres points sont à contrôler vous-même sur les photos.") }}{% endif %}{% if r.error and r.status == 'pret' %} {{ _("L'IA n'a pas répondu : seules les mesures ont été contrôlées.") }}{% endif %}</span>
+{% if r.same_place == 0 %}<span class="tag bad">{{ _("Les photos ne semblent pas montrer le même ouvrage : demandez des explications au chef.") }}</span>{% endif %}
+{% if r.inspect %}<div class="help-tip"><b>{{ _("Inspection conseillée") }}</b> {{ _("Un point de sécurité ou de solidité pose probablement problème, ou une mesure ne correspond pas à la photo de l'instrument. Faites vérifier sur place avant de payer.") }}{% if is_owner %} <a href="{{ url_for('project', project_id=p.id, onglet='dossier', _anchor='inspections') }}">{{ _("Commander une inspection") }}</a>{% endif %}</div>{% endif %}
+{% if new_photos and r.status == 'pret' %}<span class="tag amber">{{ _("De nouvelles photos sont arrivées depuis l'analyse : relancez-la.") }}</span>{% endif %}
+{% if extras.more %}<div><b>{{ _("Photos qui permettraient de conclure") }}</b><ul class="help-steps">{% for m in extras.more %}<li>{{ m }}</li>{% endfor %}</ul></div>{% endif %}
+</div>
+
+<h2 id="points">{{ _("Points contrôlés") }}</h2>
+{% for pt in points %}
+<div class="card qpoint q-{{ 'accepte' if pt.accepted else pt.effective }}" id="q{{ pt.id }}">
+<div class="row"><b>{{ pt.num }}. {{ pt.label }}</b><span class="tag {{ 'grey' if pt.accepted else tagcls.get(pt.effective, 'grey') }}">{{ _("Accepté par le propriétaire") if pt.accepted else QSTATUS.get(pt.effective, pt.effective) }}</span></div>
+<div class="tags"><span class="tag grey">{{ QSEV.get(pt.severity, pt.severity) }}</span>{% if pt.expert_status %}<span class="tag blue">{{ QSOURCE.expert }}</span>{% elif pt.owner_status in ('ok', 'probleme', 'a_verifier') %}<span class="tag blue">{{ QSOURCE.proprio }}</span>{% elif pt.source and pt.effective != 'a_controler' %}<span class="tag grey">{{ QSOURCE.get(pt.source, pt.source) }}{% if pt.confidence %} · {{ (pt.confidence * 100)|round|int }} %{% endif %}</span>{% endif %}
+{% if pt.fixed == 'corrige' %}<span class="tag green">{{ _("Corrigé depuis le contrôle précédent") }}</span>{% elif pt.fixed == 'pas_corrige' %}<span class="tag bad">{{ _("Pas corrigé depuis le contrôle précédent") }}</span>{% endif %}</div>
+{% if pt.explanation %}<span>{{ pt.explanation }}</span>{% endif %}
+{% if pt.advice %}<span><b>{{ _("Que faire :") }}</b> {{ pt.advice }}</span>{% endif %}
+{% if pt.effective in ('a_controler', 'non_visible') and pt.look %}<span class="muted"><b>{{ _("Comment le vérifier :") }}</b> {{ pt.look }}</span>{% endif %}
+{% if pt.question %}<span class="muted"><b>{{ _("Question à poser au chef :") }}</b> {{ pt.question }}</span>{% endif %}
+{% if pt.proof_id %}<a href="{{ url_for('quality_annotated', rid=r.id, proof_id=pt.proof_id) }}" target="_blank"><img class="qshot" src="{{ url_for('quality_annotated', rid=r.id, proof_id=pt.proof_id) }}" alt="{{ _("Photo du point %(n)s", n=pt.num) }}" loading="lazy"></a>{% endif %}
+{% if pt.expert_status %}<span><b>{{ _("Avis du professionnel :") }}</b> {{ QSTATUS[pt.expert_status] }}{% if pt.expert_note %} — {{ pt.expert_note }}{% endif %}</span>{% endif %}
+{% if pt.owner_note %}<span class="muted"><b>{{ _("Votre note :") }}</b> {{ pt.owner_note }}</span>{% endif %}
+{% if r.status == 'pret' and not nxt %}
+{% if is_owner %}
+<details class="noprint"><summary>{{ _("Donner mon avis, accepter ou poser une question") }}</summary>
+<form method="post" action="{{ url_for('quality_point', rid=r.id, qid=pt.id) }}" class="stack">{{ csrf() }}
+<label>{{ _("Note ou question (facultatif)") }}<input name="note" maxlength="800" placeholder="{{ pt.question or '' }}"></label>
+<div class="row" style="justify-content:flex-start;gap:6px;flex-wrap:wrap">
+<input type="hidden" name="status" value="">
+<button class="btn ghost small" name="action" value="ask">{{ _("Demander au chef (photo ou réponse)") }}</button>
+{% if not pt.accepted %}<button class="btn ghost small" name="action" value="accept">{{ _("Accepter tel quel") }}</button>{% endif %}
+{% if pt.owner_status %}<button class="btn ghost small" name="action" value="reset">{{ _("Annuler mon avis") }}</button>{% endif %}
+</div></form>
+<form method="post" action="{{ url_for('quality_point', rid=r.id, qid=pt.id) }}" class="row" style="justify-content:flex-start;gap:6px;flex-wrap:wrap">{{ csrf() }}<input type="hidden" name="action" value="owner_check">
+<span class="muted">{{ _("J'ai regardé la photo :") }}</span>
+<button class="btn ghost small" name="status" value="ok">{{ QSTATUS.ok }}</button><button class="btn ghost small" name="status" value="a_verifier">{{ QSTATUS.a_verifier }}</button><button class="btn ghost small" name="status" value="probleme">{{ QSTATUS.probleme }}</button>
+</form>
+</details>
+{% endif %}
+{% if expert %}
+<details class="noprint"><summary>{{ _("Donner mon avis de professionnel") }}</summary>
+<form method="post" action="{{ url_for('quality_point', rid=r.id, qid=pt.id) }}" class="stack">{{ csrf() }}<input type="hidden" name="action" value="expert">
+<div class="grid3">{% for k in ('ok', 'a_verifier', 'probleme') %}<label><input type="radio" name="status" value="{{ k }}" required{% if pt.expert_status == k %} checked{% endif %}> {{ QSTATUS[k] }}</label>{% endfor %}</div>
+<label>{{ _("Explication pour le propriétaire") }}<textarea name="note" maxlength="800">{{ pt.expert_note or '' }}</textarea></label>
+<button class="btn small">{{ _("Enregistrer mon avis") }}</button></form>
+</details>
+{% endif %}
+{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if extras.readings %}
+<div class="card"><b>{{ _("Mesures lues sur les photos des instruments") }}</b>
+{% for rd in extras.readings %}<span>{% if rd.coherent is sameas false %}<span class="tag bad">{{ _("Ne correspond pas") }}</span>{% elif rd.coherent %}<span class="tag green">{{ _("Correspond") }}</span>{% endif %} {{ rd.measure }} : {{ rd.value }}{% if rd.comment %} — {{ rd.comment }}{% endif %}</span>{% endfor %}
+</div>
+{% endif %}
+
+<h2 id="prises">{{ _("Photos guidées") }}</h2>
+<p class="muted">{{ _("Quand :") }} {{ o.moment }}</p>
+<div class="card">
+{% for s in o.shots %}
+<div class="row"><span><b>{{ s.label }}</b>{% if s.instrument %} <span class="tag blue">{{ _("instrument dans le cadre") }}</span>{% endif %}{% if not s.required %} <span class="tag grey">{{ _("facultative") }}</span>{% endif %}<br><span class="muted">{{ s.hint }}</span></span>
+<span class="tag {{ 'green' if done.get(s.id) else ('amber' if s.required else 'grey') }}">{{ done.get(s.id, 0) }} {{ pl(done.get(s.id, 0), "photo(s)") }}</span></div>
+{% endfor %}
+{% if missing %}<span class="muted">{{ _("Il manque %(n)s photo(s) obligatoire(s) pour une analyse complète.", n=missing|length) }}</span>{% endif %}
+</div>
+
+{% if shooter and r.status != 'clos' %}
+{% call capture_form(url_for('quality_photo', rid=r.id), _('Prendre une photo guidée'), _("Photo prise sur place : position, date et doublons sont contrôlés comme pour toute preuve."), capture_token) %}
+<label>{{ _("Photo à prendre") }}<select name="shot" required>{% set empty = o.shots|rejectattr('id', 'in', done.keys()|list)|list %}{% set first = (preselect or (missing[0].id if missing else (empty[0].id if empty else o.shots[0].id))) %}{% for s in o.shots %}<option value="{{ s.id }}"{% if s.id == first %} selected{% endif %}>{{ s.label }}{% if done.get(s.id) %} ✓{% endif %}</option>{% endfor %}<option value="autre"{% if first == 'autre' %} selected{% endif %}>{{ _("Autre photo utile") }}</option></select></label>
+{% endcall %}
+{% endif %}
+
+{% if photos %}
+<div class="qgrid">
+{% for ph in photos %}
+<figure class="qfig">
+{% if ph.ok %}<a href="{{ url_for('quality_annotated', rid=r.id, proof_id=ph.proof_id) }}" target="_blank"><img src="{{ url_for('quality_annotated', rid=r.id, proof_id=ph.proof_id) }}" alt="{{ ph.shot_label }}" loading="lazy"></a>{% endif %}
+<figcaption><b>{{ ph.shot_label }}</b><span class="muted">{{ dt(ph.taken) }}</span>
+{% if not ph.ok %}<span class="tag bad">{{ _("Refusée") }} : {{ ph.reasons_txt }}</span>{% endif %}
+{% for i in ph.issues %}<span class="tag amber">{{ i }}</span>{% endfor %}
+{% for u in extras.unusable or [] %}{% if u.proof_id == ph.proof_id %}<span class="tag amber">{{ _("Inutilisable selon l'IA") }} : {{ u.reason }}</span>{% endif %}{% endfor %}
+</figcaption></figure>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if o.measures %}
+<h2 id="mesures">{{ _("Mesures") }}</h2>
+<p class="muted">{{ _("Les mesures sont contrôlées par des règles fixes, sans IA. Photographiez l'instrument (mètre, niveau, règle) : la valeur lue sur la photo est comparée à la valeur saisie.") }}</p>
+{% if (shooter or expert) and r.status != 'clos' %}
+<form method="post" action="{{ url_for('quality_measures', rid=r.id) }}" class="card stack">{{ csrf() }}
+{% for m in o.measures %}
+{% if m.rule == 'choice' %}
+<label>{{ m.label }}<select name="{{ m.id }}"><option value="">—</option>{% for k, lbl, st in m.choices %}<option value="{{ k }}"{% if values.get(m.id) == k %} selected{% endif %}>{{ lbl }}</option>{% endfor %}</select></label>
+{% else %}
+<label>{{ m.label }}<input name="{{ m.id }}" value="{{ values.get(m.id, '') }}" inputmode="decimal" placeholder="{{ m.hint }}"></label>
+{% if m.rule == 'min_ref' %}<label>{{ m.ref|capitalize }}<input name="{{ m.id }}_ref" value="{{ values.get(m.id ~ '_ref', '') }}" inputmode="decimal"></label>{% endif %}
+{% endif %}
+{% endfor %}
+<button class="btn ghost">{{ _("Enregistrer les mesures") }}</button>
+</form>
+{% endif %}
+<div class="card">
+{% for m in o.measures %}{% set v = values.get(m.id) %}
+<div class="row"><span>{{ m.label }}{% if m.hint %}<br><span class="muted">{{ m.hint }}</span>{% endif %}</span><span>{% if v %}{% if m.rule == 'choice' %}{% for k, lbl, st in m.choices %}{% if k == v %}{{ lbl }}{% endif %}{% endfor %}{% else %}<b>{{ v }}</b> {{ m.unit }}{% endif %}{% else %}<span class="muted">{{ _("non saisie") }}</span>{% endif %}</span></div>
+{% endfor %}
+{% for k, res in live_rules.items() %}<span><span class="tag {{ tagcls.get(res[0], 'grey') }}">{{ QSTATUS[res[0]] }}</span> {{ res[1] }}</span>{% endfor %}
+</div>
+{% endif %}
+
+<h2 id="echanges">{{ _("Échanges") }}</h2>
+<div class="card">
+{% for m in messages %}<div><b>{{ m.author }}</b> <span class="muted">{{ dt(m.created_at) }}{% if m.point_id %} · {{ _("point") }} {% for pt in points %}{% if pt.id == m.point_id %}{{ pt.num }}{% endif %}{% endfor %}{% endif %}</span><br>{{ m.body }}</div>{% else %}<span class="muted">{{ _("Aucun message.") }}</span>{% endfor %}
+{% if is_owner or shooter or expert %}
+<form method="post" action="{{ url_for('quality_message', rid=r.id) }}" class="stack noprint">{{ csrf() }}
+<label>{{ _("Message") }}<textarea name="body" maxlength="1500" required></textarea></label>
+{% if points %}<label>{{ _("À propos du point") }}<select name="point_id"><option value="">—</option>{% for pt in points %}<option value="{{ pt.id }}">{{ pt.num }}. {{ pt.label }}</option>{% endfor %}</select></label>{% endif %}
+<button class="btn ghost small">{{ _("Envoyer") }}</button></form>
+{% endif %}
+</div>
+
+<div class="row noprint" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+{% if r.status in ('photos', 'pret', 'erreur') and (is_owner or shooter or expert) %}
+<form method="post" action="{{ url_for('quality_analyse', rid=r.id) }}">{{ csrf() }}<button class="btn">{{ _("Relancer l'analyse") if r.analysed_at else _("Lancer l'analyse") }}</button></form>
+{% endif %}
+{% if r.status == 'pret' and not nxt and (is_owner or role == 'chef') and points|selectattr('effective', 'in', ['probleme', 'a_verifier'])|rejectattr('accepted')|list %}
+<form method="post" action="{{ url_for('quality_followup', rid=r.id) }}">{{ csrf() }}<button class="btn ghost">{{ _("Demander une contre-visite après correction") }}</button></form>
+{% endif %}
+{% if points %}<button class="btn ghost" type="button" onclick="window.print()">{{ _("Imprimer la fiche") }}</button>{% endif %}
+{% if is_owner and r.status not in ('clos', 'analyse') %}<form method="post" action="{{ url_for('quality_close', rid=r.id) }}">{{ csrf() }}<button class="btn ghost">{{ _("Clore ce contrôle") }}</button></form>{% endif %}
+</div>
+{% if ai_on and not ai_allowed and r.status != 'clos' %}<p class="muted">{{ _("Analyses par l'IA du mois épuisées pour cette offre (%(u)s sur %(l)s) : les mesures restent contrôlées.", u=quota_used, l=quota_limit) }}</p>{% endif %}
+<p class="muted">{{ _("Une aide à la décision, pas un verdict. Les valeurs indiquées sont des repères courants : les plans, les normes locales et le bureau d'études priment. Une photo ne mesure pas au millimètre et ne montre pas ce qui est caché.") }}</p>
+{% endblock %}

@@ -1,0 +1,20 @@
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function () {
+  var pts = {{ points|tojson }};
+  var colors = {'faible': '#0E5A3A', 'terminé': '#0E5A3A', 'moyen': '#D9A21F', 'élevé': '#B4501F', 'inconnu': '#8A8F8C'};
+  var map = L.map('map').setView([7.54, -5.55], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'}).addTo(map);
+  var esc = function (s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+  var bounds = [];
+  pts.forEach(function (q) {
+    var m = L.circleMarker([q.lat, q.lng], {radius: 9, weight: 2, color: '#fff', fillColor: colors[q.risk] || '#8A8F8C', fillOpacity: 0.95}).addTo(map);
+    m.bindPopup('<b>' + esc(q.name) + '</b><br>' + esc(q.current) + '<br>Avancement vérifié : ' + q.pct + ' %' +
+      (q.delay !== null && q.risk !== 'terminé' ? '<br>Écart prévu : ' + q.delay + ' j' : '') +
+      (q.to_validate ? '<br><b>Étape à valider</b>' : '') + '<br><a href="' + q.url + '">Ouvrir</a>');
+    bounds.push([q.lat, q.lng]);
+  });
+  if (bounds.length === 1) map.setView(bounds[0], 15);
+  else if (bounds.length > 1) map.fitBounds(bounds, {padding: [30, 30]});
+})();
+</script>

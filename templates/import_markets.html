@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Importer des marchés · ChantierVrai") }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('home') }}">{{ _("← Mes chantiers") }}</a>
+<h1>{{ _("Importer des marchés publics") }}</h1>
+<p class="muted">{{ _("SIGOMAP, le système ivoirien de gestion des marchés publics, ne propose pas d'accès direct pour les applications. Exportez la liste de vos marchés (Excel enregistré en CSV), puis importez-la ici. Chaque marché devient un chantier suivi, avec les étapes types d'un marché public et une page sur le portail citoyen.") }}</p>
+{% if result %}
+<div class="card green"><b>{{ result.created }} {{ pl(result.created, "chantier(s) créé(s),") }} {{ result.updated }} {{ _("mis à jour") }}</b></div>
+{% for msg in result.skipped %}<div class="card alert"><span>{{ msg }}</span></div>{% endfor %}
+{% endif %}
+<form method="post" enctype="multipart/form-data" class="card">
+{{ csrf() }}
+<label>{{ _("Fichier CSV (séparateur ; ou ,)") }}<input type="file" name="file" accept=".csv,text/csv" required></label>
+<button class="btn" type="submit">{{ _("Importer") }}</button>
+</form>
+<div class="card">
+<b>{{ _("Colonnes reconnues") }}</b>
+<span class="muted">{{ _("Les noms peuvent varier, avec ou sans accents. Un marché déjà importé (même n°) est mis à jour. Latitude et longitude sont obligatoires pour créer un chantier.") }}</span>
+{% set labels = {'marche_ref': _('N° du marché'), 'name': _('Objet'), 'autorite': _('Autorité contractante'), 'attributaire': _('Attributaire'), 'montant_marche': _('Montant'), 'ao_ref': _('Appel d\'offres'), 'address': _('Localité'), 'lat': 'Latitude', 'lng': 'Longitude', 'start_date': _('Date de démarrage'), 'sigomap_url': _('Lien SIGOMAP')} %}
+{% for key, names in columns.items() %}<div class="row"><b>{{ labels[key] }}</b><span class="muted">{{ names[:3]|join(', ') }}</span></div>{% endfor %}
+</div>
+<a class="btn ghost" href="{{ url_for('static', filename='modele_import_marches.csv') }}" download>{{ _("Télécharger un modèle de fichier") }}</a>
+{% endblock %}

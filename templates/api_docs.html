@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Documentation de l'API") }} · ChantierVrai{% endblock %}
+{% block content %}
+<h1>{{ _("Documentation de l'API") }}</h1>
+<p class="muted">{{ _("L'API donne accès en lecture aux chantiers, étapes, preuves, paiements, stock, avancement par zone et anomalies, et permet d'importer des quantités prévues. Les réponses sont en JSON.") }}</p>
+<div class="card"><b>{{ _("Authentification") }}</b>
+<span>{{ _("Créez une clé dans Compte › API et webhooks, puis envoyez-la dans l'en-tête :") }}</span>
+<pre style="white-space:pre-wrap"><code>Authorization: Bearer cvk_…</code></pre>
+<span class="muted">{{ _("Une clé est limitée aux chantiers dont vous êtes propriétaire, ou à un seul chantier. Une clé en lecture seule ne peut rien modifier.") }}</span>
+<pre style="white-space:pre-wrap"><code>curl -H "Authorization: Bearer cvk_…" {{ base }}/chantiers</code></pre>
+</div>
+<div class="card table-wrap"><b>{{ _("Points d'accès") }}</b>
+<table><thead><tr><th>{{ _("Méthode") }}</th><th>{{ _("Adresse") }}</th><th>{{ _("Contenu") }}</th></tr></thead><tbody>
+{% for m, path, what in [
+  ("GET", "/chantiers", _("Vos chantiers : montant, payé, avancement vérifié, fin prévue et estimée, retard, indice de confiance")),
+  ("GET", "/chantiers/{id}", _("Un chantier")),
+  ("GET", "/chantiers/{id}/etapes", _("Étapes, statut, paiement et contrôles techniques")),
+  ("GET", "/chantiers/{id}/preuves?depuis=2026-11-01", _("Preuves photo : position, distance au terrain, acceptée ou refusée, lien vers la photo")),
+  ("GET", "/chantiers/{id}/paiements", _("Bons à payer, paiements déclarés et confirmés ; mouvements du séquestre s'il est utilisé")),
+  ("GET", "/chantiers/{id}/stock", _("Stock par matériau : prévu, acheté, livré, utilisé, disponible, alertes")),
+  ("GET", "/chantiers/{id}/avancement", _("Avancement par zone et quantités installées")),
+  ("GET", "/chantiers/{id}/anomalies", _("Anomalies et alertes en cours")),
+  ("POST", "/chantiers/{id}/quantites-prevues", _("Importer des quantités prévues (clé en écriture)")),
+] %}<tr><td><code>{{ m }}</code></td><td><code>{{ path }}</code></td><td>{{ what }}</td></tr>{% endfor %}
+</tbody></table>
+<span class="muted">{{ _("Adresse de base :") }} <code>{{ base }}</code></span>
+</div>
+<div class="card"><b>{{ _("Importer des quantités prévues") }}</b>
+<pre style="white-space:pre-wrap"><code>POST {{ base }}/chantiers/12/quantites-prevues
+{"quantites": [{"ouvrage": "Carrelage chambres", "unite": "m²", "quantite": 48, "zone": "Étage 1"}]}</code></pre>
+<span class="muted">{{ _("Unités acceptées :") }} {{ units|join(', ') }}. {{ _("La zone se désigne par son nom, l'étape par son identifiant (etape_id).") }}</span>
+</div>
+<div class="card"><b>{{ _("Webhooks") }}</b>
+<span>{{ _("ChantierVrai envoie un POST JSON à votre adresse à chaque événement choisi :") }}</span>
+{% for k, v in EVENTS.items() %}<span><code>{{ k }}</code> {{ v }}</span>{% endfor %}
+<pre style="white-space:pre-wrap"><code>{"event": "etape.payee", "chantier_id": 12, "date": "2026-11-14T10:00:00+00:00",
+ "data": {"etape_id": 57, "etape": "Dalle basse", "montant": 2500000, "mode": "sequestre"}}</code></pre>
+<span>{{ _("Vérifiez la signature avant de traiter l'événement :") }}</span>
+<pre style="white-space:pre-wrap"><code>import hmac, hashlib
+signe = request.headers["X-ChantierVrai-Timestamp"] + "." + corps_brut
+attendu = "sha256=" + hmac.new(secret.encode(), signe.encode(), hashlib.sha256).hexdigest()
+assert hmac.compare_digest(attendu, request.headers["X-ChantierVrai-Signature"])</code></pre>
+<span class="muted">{{ _("Répondez par un code 2xx. Sinon l'envoi est retenté 6 fois (1 min, 5 min, 30 min, 2 h, 6 h, 12 h). Après 30 échecs de suite, le webhook est mis en pause.") }}</span>
+</div>
+{% endblock %}

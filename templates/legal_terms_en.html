@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Terms of use · ChantierVrai{% endblock %}
+{% block content %}
+<h1>Terms of use</h1>
+<div class="card legal">
+<p class="muted">Template to be reviewed by a lawyer before launch. The French version prevails. Text in square brackets must be completed.</p>
+<h2>1. Purpose</h2>
+<p>ChantierVrai, published by {{ company }}, is a remote construction monitoring service. It lets an owner or project owner follow building works through checked photo and video evidence, approve stages and, if they wish, have payments released after approval.</p>
+<h2>2. Accounts</h2>
+<p>Each user creates a personal account with accurate information and keeps their password secret. Two-factor authentication is recommended for accounts that handle payments. {{ company }} may suspend an account in case of fraud, impersonation or use contrary to these terms.</p>
+<h2>3. Evidence and checks</h2>
+<p>Automatic checks (GPS location, time the photo was taken, duplicates, similarity, artificial intelligence analysis) greatly reduce the risk of fraud but do not remove it. They support the decision. The decision to approve a stage and to pay belongs to the owner alone, who may call on an independent inspector.</p>
+<p>The site foreman undertakes to send only photos and videos taken on the site concerned, at the time of sending. Any attempt at fraud leads to suspension of the account.</p>
+<h2>4. Payments and escrow</h2>
+<p>ChantierVrai does not hold users' funds. With tracked payment, the payer pays the recipient directly (Mobile Money, bank transfer, cash with receipt); ChantierVrai records the payment order, the payer's declaration with its reference or receipt, and the recipient's confirmation or dispute. This information is a record between the parties; it does not mean ChantierVrai has received any money. In simple mode, the owner only notes the reference. In both modes, payments are made outside ChantierVrai, under the sole responsibility of the parties. Where offered, in escrow mode, funds are held by [name of the licensed payment partner] and paid to the site foreman after each stage is approved. Applicable fees: [to be completed].</p>
+<h2>5. Independent inspections</h2>
+<p>The independent inspection is a service sold by {{ company }} at a fixed price. {{ company }} assigns a verified inspector with no link to the site and pays them directly. The inspector's report engages their professional liability. The owner may make the inspection mandatory before approving critical stages (foundations, structure, slab, roof); it is always mandatory on a public site.</p>
+<h2>6. Automatic approval (option)</h2>
+<p>When {{ company }} offers it, the owner may accept, site by site, that a stage declared finished is approved automatically if they neither approve nor reject it within the period stated when accepting. They receive at least three reminders before the deadline, showing the approval date. Until that date, they may reject the stage with a reason or open a dispute. Automatic approval never happens if a mandatory check is missing, if the required inspection is not done or not compliant, or if a dispute is open. It issues the payment order: it records that the stage is due, while {{ company }} neither holds nor pays any money. The owner may withdraw the option when no stage is awaiting their answer; the site foreman is informed.</p>
+<h2>6a. Disputes between users</h2>
+<p>If there is a disagreement about a stage, a payment or an order, either party may open a dispute in the app. The parties have 5 days to agree; failing that, or at the request of a party, {{ company }} mediation issues a written, reasoned decision within 10 days, based only on the recorded evidence (verified evidence, acceptance reports, inspection reports, payments, history, messages). Each party may file a single appeal within 7 days; the decision on appeal is final within the app. Mediation does not replace legal remedies.</p>
+<h2>7. Citizen portal</h2>
+<p>For public projects published by their project owner, progress, approved photos and some documents are visible to everyone. Reports must be accurate and respectful; {{ company }} may remove any abusive message.</p>
+<h2>8. Liability</h2>
+<p>{{ company }} provides a monitoring tool. It is neither a builder nor a project manager and does not guarantee the quality of the works. Its liability is limited to [to be completed].</p>
+<h2>9. Contact and governing law</h2>
+<p>Contact: {{ contact }}. These terms are governed by [Ivorian law / to be specified].</p>
+</div>
+{% endblock %}

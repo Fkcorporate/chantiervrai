@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Aide") }} · {{ gd.title }} · ChantierVrai{% endblock %}
+{% block content %}
+<h1>{{ _("Guide d'utilisation") }}</h1>
+<nav class="chips" aria-label="{{ _("Choisir un profil") }}">
+{% for x in guides %}<a class="chip{% if x.slug == gd.slug %} on{% endif %}" href="{{ url_for('help_page', slug=x.slug) }}"{% if x.slug == gd.slug %} aria-current="page"{% endif %}>{{ x.title }}</a>{% endfor %}
+</nav>
+
+<div class="card">
+<h2 style="margin:0">{{ gd.title }}</h2>
+<span class="muted">{{ gd.who }}</span>
+<p style="margin:.4em 0 0">{{ gd.intro }}</p>
+</div>
+
+<div class="card">
+<b>{{ _("Sommaire") }}</b> <span class="muted">{{ _("Les premières sections sont ouvertes ; touchez un titre pour ouvrir les autres.") }}</span>
+<ol class="help-toc">{% for s in gd.sections %}<li><a href="#s{{ loop.index }}">{{ s.title.split('. ', 1)[-1] }}</a></li>{% endfor %}</ol>
+</div>
+
+{% for s in gd.sections %}
+<details class="card help-sec" id="s{{ loop.index }}"{% if loop.index <= 5 %} open{% endif %}>
+<summary><h3 style="margin:0;display:inline">{{ s.title }}</h3></summary>
+<ol class="help-steps">{% for st in s.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+{% if s.tip %}<div class="help-tip"><b>{{ _("Bon à savoir") }}</b> {{ s.tip }}</div>{% endif %}
+{% if s.img in shots %}<img class="help-shot" src="{{ url_for('static', filename='aide/' ~ s.img ~ '.png') }}" alt="{{ s.title }}" loading="lazy">{% endif %}
+</details>
+{% endfor %}
+
+<h2>{{ _("Questions fréquentes") }}</h2>
+<div class="card">
+{% for q, a in faq %}<details><summary><b>{{ q }}</b></summary><p class="muted" style="margin:.3em 0 .6em">{{ a }}</p></details>{% endfor %}
+</div>
+<p class="muted">{{ _("Pour apprendre à construire et à contrôler un chantier, voyez aussi l'") }}<a href="{{ url_for('academy') }}">{{ _("Académie du BTP") }}</a>.</p>
+{% endblock %}

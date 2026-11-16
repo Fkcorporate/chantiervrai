@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Rapport d'avancement physique") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a class="noprint" href="{{ url_for('quantities', project_id=p.id) }}">← {{ _("Quantités installées") }}</a>
+<h1>{{ _("Rapport d'avancement physique") }}</h1>
+<div class="row"><span class="muted">{{ p.name }} · {{ _("arrêté le") }} {{ d(today) }}</span><span class="noprint row" style="gap:8px"><a class="btn ghost small" href="{{ url_for('physical_report', project_id=p.id, fmt='csv') }}">CSV</a><button class="btn ghost small" onclick="window.print()">{{ _("Imprimer") }}</button></span></div>
+<div class="grid3">
+<div class="card"><span class="muted">{{ _("Avancement physique (quantités validées)") }}</span><span class="big">{{ overall if overall is not none else '–' }} %</span></div>
+<div class="card"><span class="muted">{{ _("Avancement financier (étapes payées)") }}</span><span class="big">{{ ((s.paid * 100 / s.total)|round|int) if s.total else 0 }} %</span></div>
+<div class="card"><span class="muted">{{ _("Planning") }}</span><span class="big">{% if pred %}{{ pred.delay if pred.delay > 0 else 0 }} j{% else %}–{% endif %}</span><span class="muted">{{ _("de retard prévu") }}{% if pred %} · {{ _("fin estimée") }} {{ d(pred.predicted_end) }}{% endif %}</span></div>
+</div>
+<h2>{{ _("Par zone") }}</h2>
+<div class="card table-wrap"><table><thead><tr><th>{{ _("Zone") }}</th><th>{{ _("Avancement") }}</th><th>{{ _("Photos") }}</th><th>{{ _("Dernière visite 360°") }}</th></tr></thead><tbody>
+{% for z in zones %}<tr><td style="padding-left:{{ 8 + z.depth * 22 }}px">{{ z.z.name }}</td><td>{{ (z.pct ~ ' %') if z.pct is not none else '–' }}</td><td>{{ z.proofs }}</td><td>{{ d(z.last_pano) if z.last_pano else '–' }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">{{ _("Aucune zone.") }}</td></tr>{% endfor %}
+</tbody></table></div>
+<h2>{{ _("Ouvrages") }}</h2>
+<div class="card table-wrap"><table><thead><tr><th>{{ _("Zone") }}</th><th>{{ _("Ouvrage") }}</th><th>{{ _("Prévu") }}</th><th>{{ _("Posé et validé") }}</th><th>{{ _("À valider") }}</th><th>%</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.zone }}</td><td>{{ r.label }}{% if r.step %}<br><span class="muted">{{ r.step }}</span>{% endif %}</td><td>{{ r.planned|qte }} {{ r.unit }}</td><td>{{ r.done|qte }}</td><td>{{ r.pending|qte if r.pending else '–' }}</td><td><b>{{ r.pct }}</b></td></tr>
+{% else %}<tr><td colspan="6" class="muted">{{ _("Aucun ouvrage prévu.") }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">{{ _("Seules les quantités validées par le propriétaire ou le contrôleur, avec une photo vérifiée, sont comptées comme posées.") }}</p>
+{% endblock %}

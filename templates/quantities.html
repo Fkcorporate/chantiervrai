@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Quantités installées") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('zones_page', project_id=p.id) }}">← {{ _("Avancement par zone") }}</a>
+<h1>{{ _("Quantités installées") }}</h1>
+<p class="muted">{{ _("Ce qui est réellement posé, zone par zone, face à ce qui est prévu dans la maquette ou le devis. Le chef déclare avec une photo vérifiée, le propriétaire ou le contrôleur valide : seules les quantités validées comptent.") }}</p>
+<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('physical_report', project_id=p.id) }}">{{ _("Rapport d'avancement physique") }}</a><a class="btn ghost small" href="{{ url_for('physical_report', project_id=p.id, fmt='csv') }}">{{ _("Télécharger en CSV") }}</a></div>
+
+{% if pending and can_validate %}
+<h2>{{ _("À valider") }}</h2>
+{% for w in pending %}
+<div class="card">
+<div class="row"><b>{{ w.qty|qte }} {{ w.unit }} · {{ w.label }}</b><span class="muted">{{ zone_label(by_id[w.zone_id], by_id) if w.zone_id in by_id else '' }}</span></div>
+<span class="muted">{{ w.author }} · {{ dt(w.created_at) }}{% if w.note %} · {{ w.note }}{% endif %}</span>
+{% if w.proof_id %}<a href="{{ url_for('proof_photo', proof_id=w.proof_id) }}" target="_blank"><img src="{{ url_for('proof_thumb', proof_id=w.proof_id) }}" alt="{{ _("Photo de l'ouvrage posé") }}" style="max-width:220px;border-radius:8px"></a>{% endif %}
+<form method="post" class="row" style="justify-content:flex-start;gap:8px">{{ csrf() }}<input type="hidden" name="progress_id" value="{{ w.id }}">
+<button class="btn small" name="action" value="validate">{{ _("Valider") }}</button><button class="btn ghost small" name="action" value="refuse">{{ _("Refuser") }}</button></form>
+</div>
+{% endfor %}
+{% endif %}
+
+{% for r in rows if r['items'] %}
+<div class="card">
+<div class="row"><b>{{ r.label }}</b><span>{{ r.pct }} %</span></div>
+{% for i in r['items'] %}{% set pct = ((i.done / i.qty_planned * 100) if i.qty_planned else 0)|round|int %}
+<div class="row"><span>{{ i.label }} <span class="muted">{{ i.done|qte }} / {{ i.qty_planned|qte }} {{ i.unit }}{% if i.pending %} · {{ i.pending|qte }} {{ _("à valider") }}{% endif %}{% if i.source == 'bim' %} · {{ _("maquette") }}{% elif i.source == 'api' %} · API{% endif %}</span></span>
+<span style="min-width:110px"><div class="meter {{ 'low' if pct < 30 else 'medium' if pct < 80 else '' }}"><div style="width:{{ [pct, 100]|min }}%"></div></div></span></div>
+{% if is_chef %}
+<details><summary>{{ _("Déclarer une quantité posée") }}</summary>
+<form method="post" class="grid2">{{ csrf() }}<input type="hidden" name="action" value="declare"><input type="hidden" name="item_id" value="{{ i.id }}">
+<label>{{ _("Quantité posée") }} ({{ i.unit }})<input name="qty" inputmode="decimal" required></label>
+<label>{{ _("Photo vérifiée qui le montre") }}<select name="proof_id" required>{% for pr in recent_proofs %}<option value="{{ pr.id }}"{% if pr.zone_id == r.z.id %} selected{% endif %}>{{ dt(pr.created_at) }}{% if pr.note %} · {{ pr.note[:40] }}{% endif %}</option>{% else %}<option value="">{{ _("Envoyez d'abord une photo") }}</option>{% endfor %}</select></label>
+<label>{{ _("Note") }}<input name="note" maxlength="300"></label>
+<button class="btn ghost small">{{ _("Déclarer") }}</button>
+</form></details>
+{% endif %}
+{% endfor %}
+</div>
+{% endfor %}
+{% if unzoned %}<div class="card"><b>{{ _("Sans zone") }}</b>{% for i in unzoned %}<div class="row"><span>{{ i.label }}</span><span class="muted">{{ i.done|qte }} / {{ i.qty_planned|qte }} {{ i.unit }}</span></div>{% endfor %}</div>{% endif %}
+
+{% if role == 'owner' or is_chef %}
+<div class="cols2">
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="add">
+<b>{{ _("Ajouter un ouvrage prévu") }}</b>
+<label>{{ _("Ouvrage") }}<input name="label" required maxlength="120" placeholder="{{ _("Carrelage des chambres") }}"></label>
+<div class="grid2">
+<label>{{ _("Quantité prévue") }}<input name="qty_planned" inputmode="decimal" required></label>
+<label>{{ _("Unité") }}<select name="unit">{% for u in units %}<option value="{{ u }}">{{ u }}</option>{% endfor %}</select></label>
+<label>{{ _("Zone") }}<select name="zone_id"><option value="">–</option>{% for z, depth in zones %}<option value="{{ z.id }}">{{ '— ' * depth }}{{ z.name }}</option>{% endfor %}</select></label>
+<label>{{ _("Étape") }}<select name="step_id"><option value="">–</option>{% for st in steps %}<option value="{{ st.id }}">{{ st.name }}</option>{% endfor %}</select></label>
+</div>
+<button class="btn ghost">{{ _("Ajouter") }}</button>
+</form>
+{% if role == 'owner' and has_bim %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="from_bim">
+<b>{{ _("Importer depuis la maquette") }}</b>
+<span class="muted">{{ _("Pour chaque étage relié à la maquette : nombre de poteaux, poutres, dalles, murs, fenêtres… prévus. À relancer après une nouvelle version.") }}</span>
+<button class="btn ghost">{{ _("Importer les quantités prévues") }}</button>
+</form>
+{% endif %}
+</div>
+{% endif %}
+{% endblock %}

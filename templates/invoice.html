@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Facture ·") }} {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else 'factures', _anchor='materiaux' if role == 'owner' else None) }}">{{ _("← Retour") }}</a>
+<h1>{{ _("Facture n°") }}{{ inv.id }}</h1>
+{% set labels = {'a_saisir': _('Lignes à saisir'), 'lecture_ia': _('Lecture par l\'IA en cours…'), 'a_verifier': _('À vérifier'), 'validee': _('Vérifiée par le propriétaire'), 'doublon': _('Doublon probable')} %}
+<div class="row"><span class="pill{% if inv.status in ('doublon','a_saisir') %} warn{% endif %}">{{ labels[inv.status] }}</span>{% if inv.detail %}<span class="muted">{{ inv.detail }}</span>{% endif %}</div>
+{% if inv.media_type == 'application/pdf' %}
+<a class="btn ghost" href="{{ url_for('invoice_file', invoice_id=inv.id) }}" target="_blank">{{ _("Ouvrir le PDF") }}</a>
+{% else %}
+<a href="{{ url_for('invoice_file', invoice_id=inv.id) }}" target="_blank"><img class="sat" src="{{ url_for('invoice_file', invoice_id=inv.id) }}" alt="{{ _("Facture") }}"></a>
+{% endif %}
+
+<form method="post" class="card">
+{{ csrf() }}
+<input type="hidden" name="action" value="header">
+<div class="grid2">
+<label>{{ _("Fournisseur") }}<input name="supplier" value="{{ inv.supplier or '' }}"></label>
+<label>{{ _("N° de facture") }}<input name="number" value="{{ inv.number or '' }}"></label>
+<label>{{ _("Date") }}<input type="date" name="inv_date" value="{{ inv.inv_date or '' }}"></label>
+<label>{{ _("Total (FCFA)") }}<input name="total" value="{{ inv.total|int if inv.total else '' }}" inputmode="numeric"></label>
+</div>
+<label>{{ _("Étape") }}<select name="step_id"><option value="">{{ _("Aucune") }}</option>{% for st in steps %}<option value="{{ st.id }}"{% if st.id == inv.step_id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select></label>
+<button class="btn ghost" type="submit">{{ _("Enregistrer") }}</button>
+</form>
+
+<div class="card table-wrap">
+<b>{{ _("Lignes") }}</b>
+{% if lines %}
+<table><thead><tr><th>{{ _("Matériau") }}</th><th>{{ _("Quantité") }}</th><th>{{ _("Prix unit.") }}</th><th>{{ _("Total") }}</th><th></th></tr></thead><tbody>
+{% for ln in lines %}
+<tr><td>{{ _(ln.material) }}{% if ln.raw_label and ln.raw_label != ln.material %}<br><span class="muted">{{ ln.raw_label }}</span>{% endif %}</td>
+<td>{{ ln.qty }} {{ ln.unit or '' }}</td><td>{{ fcfa(ln.unit_price) }}</td><td>{{ fcfa((ln.qty or 0) * (ln.unit_price or 0)) }}</td>
+<td><form method="post">{{ csrf() }}<input type="hidden" name="action" value="delete_line"><input type="hidden" name="line_id" value="{{ ln.id }}"><button class="btn ghost small" aria-label="{{ _("Supprimer la ligne") }}">×</button></form></td></tr>
+{% endfor %}
+</tbody></table>
+<div class="row"><span class="muted">{{ _("Total des lignes") }}</span><b>{{ fcfa(computed) }} FCFA</b></div>
+{% if inv.total and (computed - inv.total)|abs > inv.total * 0.02 %}<div class="flash error">{{ _("Le total des lignes ne correspond pas au total de la facture (") }}{{ fcfa(inv.total) }} {{ _("FCFA).") }}</div>{% endif %}
+{% else %}<span class="muted">{{ _("Aucune ligne.") }}</span>{% endif %}
+<form method="post" class="stack">
+{{ csrf() }}
+<input type="hidden" name="action" value="line">
+<div class="grid2">
+<label>{{ _("Matériau") }}<select name="material">{% for m in MATERIALS %}<option value="{{ m }}">{{ _(m) }}</option>{% endfor %}</select></label>
+<label>{{ _("Ou libellé exact") }}<input name="material_other" placeholder="{{ _("Ciment CPJ 42,5") }}"></label>
+</div>
+<div class="grid3">
+<label>{{ _("Quantité") }}<input name="qty" inputmode="decimal" required></label>
+<label>{{ _("Unité") }}<input name="unit" placeholder="{{ _("sacs") }}"></label>
+<label>{{ _("Prix unit.") }}<input name="unit_price" inputmode="numeric" required></label>
+</div>
+<button class="btn ghost" type="submit">{{ _("Ajouter la ligne") }}</button>
+</form>
+</div>
+{% if role == 'owner' and inv.status != 'validee' and lines %}
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="approve"><button class="btn">{{ _("Marquer la facture comme vérifiée") }}</button></form>
+{% endif %}
+{% if inv.status == 'lecture_ia' %}<script>setTimeout(function () { location.reload(); }, 5000);</script>{% endif %}
+{% endblock %}

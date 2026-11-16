@@ -1,0 +1,112 @@
+{% macro proof_card(pr, p, public=False, publishable=False) %}
+<div class="card proof{% if not pr.ok %} bad{% endif %}" id="preuve-{{ pr.id }}">
+{% if pr.kind == 'video' %}
+{% if public %}{% if pr.thumb %}<img src="{{ url_for('portal_photo', proof_id=pr.id) }}" alt="{{ _("Image extraite de la vidéo") }}" loading="lazy">{% endif %}
+{% else %}<video controls preload="none" playsinline{% if pr.thumb %} poster="{{ url_for('proof_thumb', proof_id=pr.id) }}"{% endif %} src="{{ url_for('proof_photo', proof_id=pr.id) }}"></video>{% endif %}
+{% else %}
+{% if public %}<img src="{{ url_for('portal_photo', proof_id=pr.id) }}" alt="Preuve : {{ pr.note or pr.step_name }}" loading="lazy">
+{% else %}<a href="{{ url_for('proof_photo', proof_id=pr.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('proof_thumb', proof_id=pr.id) }}" alt="Preuve : {{ pr.note or pr.step_name }}" loading="lazy"></a>{% endif %}
+{% endif %}
+<div class="row"><b>{{ pr.step_name }}</b><span class="pill{% if not pr.ok %} warn{% endif %}">{{ (_('Vidéo ') if pr.kind == 'video' else '') ~ (_('vérifiée') if pr.ok else _('refusée')) }}</span></div>
+{% if pr.note %}<div>{{ pr.note }}</div>{% endif %}
+{% if not public %}
+<div class="tags">
+{% if pr.source == 'inspecteur' %}<span class="tag blue">{{ _("Inspecteur indépendant") }}</span>{% elif pr.source == 'fournisseur' %}<span class="tag blue">{{ _("Livraison du fournisseur") }}</span>{% endif %}
+{% if pr.capture == 'native' %}<span class="tag">{{ _("Application mobile") }}</span>{% if pr.attestation == 'verifiee' %}<span class="tag">{{ _("Appareil certifié") }}</span>{% elif pr.attestation == 'refusee' %}<span class="tag bad">{{ _("Appareil non reconnu") }}</span>{% endif %}{% elif pr.capture == 'app' %}<span class="tag">{{ _("Caméra de l'application") }}</span>{% elif pr.capture == 'whatsapp' %}<span class="tag amber" title="{{ _("Position partagée dans WhatsApp, date de réception") }}">{{ _("Reçue par WhatsApp") }}</span>{% elif pr.capture == 'fichier' and pr.kind == 'photo' %}<span class="tag grey">{{ _("Photo importée") }}</span>{% endif %}
+{% if pr.delayed_minutes %}<span class="tag amber">{{ _("Envoyée sans réseau, %(h)s h après la prise", h=(pr.delayed_minutes / 60)|round(1)) }}</span>{% endif %}
+{% if pr.is_published %}<span class="tag blue">{{ _("Publiée sur le portail") }}</span>{% endif %}
+{% if pr.distance is not none %}
+<span class="tag{% if pr.distance > p.radius %} bad{% endif %}">{{ _("GPS du fichier : à %(n)s m", n=pr.distance) if pr.photo_lat is not none else _("GPS du téléphone : à %(n)s m", n=pr.distance) }}</span>
+{% endif %}
+{% if pr.duration %}<span class="tag grey">{{ pr.duration|round|int }} s</span>{% endif %}
+{% if pr.reasons %}{% for r in pr.reasons|reasons %}<span class="tag bad">{{ r }}</span>{% endfor %}
+{% elif pr.suspect %}<span class="tag amber">{{ _("À vérifier : ressemble beaucoup à une preuve déjà envoyée") }}</span>{% if pr.sim_ref %}<a class="tag amber" href="{{ url_for('proof_photo', proof_id=pr.sim_ref) }}" target="_blank">{{ _("Voir la photo comparée") }}</a>{% endif %}
+{% else %}<span class="tag">{{ _("Prise à l'instant") }}</span><span class="tag">{{ _("Jamais envoyée avant") }}</span>{% endif %}
+{% if pr.sim_color is not none %}<span class="tag {{ 'bad' if pr.sim_color < 0.35 else 'grey' }}">{{ _("Ressemblance avec le chantier :") }} {{ (pr.sim_color * 100)|round|int }} %</span>{% endif %}
+<span class="tag grey">{{ _("Empreinte") }} {{ pr.sha256[:12] }}</span>
+</div>
+{% if pr.ai_status == 'ok' %}
+<div class="ai{% if pr.ai_same_site == 0 or pr.ai_construction == 0 %} bad{% endif %}">
+<b>{{ _("Analyse IA") }}</b>
+{% if pr.ai_construction == 0 %}<span>{{ _("Ce n'est pas une photo de chantier.") }}</span>{% endif %}
+{% if pr.ai_same_site == 0 %}<span>{{ _("Ce ne semble pas être le même chantier que les photos précédentes.") }}</span>{% elif pr.ai_same_site == 1 %}<span>{{ _("Même chantier que les photos précédentes.") }}</span>{% endif %}
+{% if pr.ai_step %}<span>{{ _("Étape visible :") }} {{ pr.ai_step }} ({{ ((pr.ai_conf or 0) * 100)|round|int }} %){% if pr.ai_step != pr.step_name %} {{ _("– déclarée :") }} {{ pr.step_name }}{% endif %}</span>{% endif %}
+{% if pr.ai_note %}<span class="muted">{{ pr.ai_note }}</span>{% endif %}
+</div>
+{% elif pr.ai_status == 'en_cours' %}<div class="muted">{{ _("Analyse IA en cours…") }}</div>
+{% elif pr.ai_status == 'erreur' %}<div class="muted">{{ _("Analyse IA indisponible.") }}</div>{% endif %}
+<div class="muted">{{ dt(pr.created_at) }} · {{ pr.author }}</div>
+{% if publishable and pr.ok %}
+<form method="post" action="{{ url_for('publish_proof', proof_id=pr.id) }}">{{ csrf() }}<button class="btn ghost small">{{ _('Retirer du portail') if pr.is_published else _('Publier sur le portail (visages floutés)') }}</button></form>
+{% endif %}
+{% else %}
+<div class="muted">{{ dt(pr.created_at) }}</div>
+{% endif %}
+</div>
+{% endmacro %}
+
+{% macro icon(name) %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{% if name == 'home' %}<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>
+{% elif name == 'cam' %}<path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/>
+{% elif name == 'steps' %}<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/>
+{% elif name == 'sat' %}<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3 3 3 15 0 18"/><path d="M12 3c-3 3-3 15 0 18"/>
+{% elif name == 'folder' %}<path d="M3 6h6l2 2h10v12H3z"/>
+{% elif name == 'bill' %}<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6"/><path d="M9 12h6"/>
+{% elif name == 'check' %}<path d="M4 12l5 5L20 6"/>
+{% endif %}</svg>{% endmacro %}
+
+{% macro tabs(p, items, current) %}
+<nav class="tabs" aria-label="{{ _("Sections du chantier") }}"><div>
+{% for key, label, ic in items %}
+<a href="{{ url_for('project', project_id=p.id, onglet=key) }}" class="{{ 'on' if key == current }}"{% if key == current %} aria-current="page"{% endif %}>{{ icon(ic) }}{{ label }}</a>
+{% endfor %}
+</div></nav>
+{% endmacro %}
+
+{% macro csrf() %}<input type="hidden" name="csrf" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro risk_pill(pred) %}
+{% if pred %}
+{% if pred.done %}<span class="pill">{{ _("Terminé") }}</span>
+{% elif pred.delay > 30 %}<span class="pill warn">{{ _("Retard prévu") }} {{ pred.delay }} {{ _("j") }}</span>
+{% elif pred.delay > 7 %}<span class="pill amber">{{ _("Retard prévu") }} {{ pred.delay }} {{ _("j") }}</span>
+{% else %}<span class="pill">{{ _("Dans les temps") }}</span>{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro capture_form(action, title, hint, token, required=False, zones=None) %}
+<form method="post" enctype="multipart/form-data" action="{{ action }}" class="card" id="proof-form" data-required="{{ 1 if required else 0 }}">
+{{ csrf() }}
+<input type="hidden" name="lat" id="f-lat"><input type="hidden" name="lng" id="f-lng"><input type="hidden" name="acc" id="f-acc">
+<input type="hidden" name="tz_offset" id="f-tz"><input type="hidden" name="last_modified" id="f-lm"><input type="hidden" name="client_now" id="f-now">
+<input type="hidden" name="capture" id="f-capture" value="fichier"><input type="hidden" name="captured_at" id="f-captured">
+<input type="hidden" name="capture_token" value="{{ token }}"><input type="hidden" name="offline" id="f-offline" value="0">
+<b>{{ title }}</b>
+<div class="perm-guide hidden" id="perm-guide" aria-live="polite">
+<b>{{ _("Avant votre première photo") }}</b>
+<span class="muted">{{ _("Le téléphone va vous demander deux autorisations : acceptez-les. Elles prouvent que la photo est prise sur le terrain, aujourd'hui.") }}</span>
+<div class="perm-row" id="perm-geo"><span>{{ _("1. Votre position") }}</span><span class="tag grey">{{ _("À autoriser") }}</span></div>
+<div class="perm-row" id="perm-cam"><span>{{ _("2. La caméra") }}</span><span class="tag grey">{{ _("À autoriser") }}</span></div>
+<span class="perm-help hidden" id="perm-help"></span>
+</div>
+<span class="muted" id="gps-status">{{ _("Recherche de votre position…") }}</span>
+<span class="muted hidden" id="queue-status"></span>
+<input type="file" name="photo" id="photo" accept="image/*" capture="environment" class="hidden">
+<div class="shoot-row">
+<button type="button" class="btn orange btn-big" id="shoot"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>{{ _("Prendre une photo") }}</button>
+<button type="button" class="btn ghost" id="film">{{ _("Filmer (90 s max)") }}</button>
+</div>
+{% if not required %}<button type="button" class="linkish" id="import">{{ _("Pas de caméra ? Importer depuis l'appareil photo") }}</button>{% endif %}
+<div id="camera" class="camera hidden" role="dialog" aria-label="{{ _("Caméra") }}">
+<video id="cam-video" autoplay playsinline muted></video>
+<div class="grid2"><button type="button" class="btn" id="cam-snap">{{ _("Capturer") }}</button><button type="button" class="btn ghost" id="cam-close">{{ _("Annuler") }}</button></div>
+</div>
+<img id="preview" alt="{{ _("Aperçu de la photo") }}">
+<video id="preview-video" controls playsinline class="hidden"></video>
+{% if caller is defined %}{{ caller() }}{% endif %}
+{% if zones %}<label>{{ _("Zone") }}<select name="zone_id"><option value="">{{ _("Tout le chantier") }}</option>{% for z, depth in zones %}<option value="{{ z.id }}">{{ '— ' * depth }}{{ z.name }}</option>{% endfor %}</select></label>{% endif %}
+<label>{{ _("Description") }}<textarea name="note" placeholder="{{ _("Ex. façade nord, murs à 2,5 m") }}"></textarea></label>
+<button class="btn" type="submit" id="send" disabled>{{ _("Envoyer la preuve") }}</button>
+<span class="muted">{{ hint }} {{ _("Sans réseau, la photo est gardée sur le téléphone et envoyée automatiquement au retour du réseau (72 h maximum).") }}</span>
+</form>
+{% endmacro %}

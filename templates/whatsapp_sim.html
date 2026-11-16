@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("WhatsApp du chantier") }}{% endblock %}
+{% block content %}
+<h1>{{ _("WhatsApp du chantier") }}</h1>
+{% if not configured %}<div class="card"><b>{{ _("Simulateur")}}</b><span class="muted">{{ _("WhatsApp n'est pas encore branché sur cette installation. Ce simulateur suit exactement les mêmes règles que le vrai fil : photos, position, notes vocales, commandes.") }}</span></div>{% endif %}
+{% if admin_sim %}<form method="get" class="card row" style="gap:8px;justify-content:flex-start"><label>{{ _("Numéro simulé") }}<input name="phone" value="{{ phone or '' }}" placeholder="+2250700000000"></label><button class="btn ghost small">{{ _("Afficher") }}</button></form>{% endif %}
+<div class="card wa-thread" id="fil">
+{% for m in msgs %}<div class="wa-msg {{ 'wa-in' if m.direction == 'in' else 'wa-out' }}"><span>{% if m.kind == 'position' %}📍 {{ _("Position partagée") }}{% elif m.kind == 'media' %}📎 {{ m.body }}{% else %}{{ m.body }}{% endif %}</span><small class="muted">{{ dt(m.created_at) }}</small></div>
+{% else %}<span class="muted">{{ _("Aucun message. Écrivez AIDE pour commencer.") }}</span>{% endfor %}
+</div>
+<form method="post" enctype="multipart/form-data" class="card stack" id="wa-form">{{ csrf() }}
+{% if admin_sim %}<input type="hidden" name="phone" value="{{ phone or '' }}">{% endif %}
+<label>{{ _("Message") }}<input name="text" placeholder="{{ _("Ex. AIDE, ETAPE, TERMINE, PAIEMENTS") }}"></label>
+<div class="grid2">
+<label>{{ _("Photo") }}<input type="file" name="photo" accept="image/*"></label>
+<label>{{ _("Note vocale") }}<input type="file" name="audio" accept="audio/*"></label>
+</div>
+<label class="check"><input type="checkbox" name="share" value="1" id="wa-share"> {{ _("Partager ma position") }}</label>
+<div class="grid2"><label>{{ _("Latitude") }}<input name="lat" id="wa-lat" inputmode="decimal"></label><label>{{ _("Longitude") }}<input name="lng" id="wa-lng" inputmode="decimal"></label></div>
+<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+<button type="button" class="btn ghost small" id="wa-here">{{ _("Utiliser ma position actuelle") }}</button>
+{% for pr in projects %}<button type="button" class="btn ghost small" data-lat="{{ pr.lat }}" data-lng="{{ pr.lng }}" onclick="document.getElementById('wa-lat').value=this.dataset.lat;document.getElementById('wa-lng').value=this.dataset.lng;document.getElementById('wa-share').checked=true">{{ _("Position du terrain :") }} {{ pr.name }}</button>{% endfor %}
+</div>
+<button class="btn">{{ _("Envoyer") }}</button>
+</form>
+<p class="muted">{{ _("Les photos reçues par WhatsApp n'ont plus leur position ni leur date : la position est celle partagée dans le fil (30 minutes au plus d'écart), la date celle de réception. Elles sont marquées « Reçue par WhatsApp » pour le propriétaire.") }}</p>
+<script>
+document.getElementById('wa-here').addEventListener('click', function () {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    document.getElementById('wa-lat').value = pos.coords.latitude.toFixed(6);
+    document.getElementById('wa-lng').value = pos.coords.longitude.toFixed(6);
+    document.getElementById('wa-share').checked = true;
+  });
+});
+var fil = document.getElementById('fil'); fil.scrollTop = fil.scrollHeight;
+</script>
+{% endblock %}

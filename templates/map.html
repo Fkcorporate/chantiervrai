@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Portail citoyen') if public else _('Carte des chantiers') }} {{ _("· ChantierVrai") }}{% endblock %}
+{% block wrapclass %} wide{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">{% endblock %}
+{% block content %}
+<h1>{{ _("Carte des chantiers") }}</h1>
+{% include "_map_body.html" %}
+{% endblock %}
+{% block scripts %}{% include "_map_script.html" %}{% endblock %}

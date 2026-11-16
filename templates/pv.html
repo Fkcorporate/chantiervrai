@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PV de réception – {{ st.name }} – {{ p.name }}</title>
+<style>
+body{font-family:Georgia,"Times New Roman",serif;color:#1B1F1D;max-width:760px;margin:30px auto;padding:0 20px;line-height:1.5}
+h1{font-size:22px;text-align:center;margin-bottom:4px}
+.sub{text-align:center;color:#5B625E;margin-top:0}
+table{width:100%;border-collapse:collapse;margin:16px 0}
+td{border:1px solid #CFCAC0;padding:8px 10px;vertical-align:top}
+td:first-child{width:38%;color:#3C433F;background:#F5F3EE}
+.sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:40px}
+.sign div{border-top:1px solid #1B1F1D;padding-top:6px;min-height:80px}
+.foot{font-size:12px;color:#5B625E;margin-top:30px}
+@media print{button{display:none}}
+</style>
+</head>
+<body>
+<button onclick="window.print()">Imprimer ou enregistrer en PDF</button>
+<h1>Procès-verbal de réception d'étape</h1>
+<p class="sub">{{ p.name }}{% if p.marche_ref %} · Marché n°{{ p.marche_ref }}{% endif %}</p>
+<table>
+<tr><td>Chantier</td><td>{{ p.name }}<br>{{ p.address or '' }}<br>GPS {{ '%.6f'|format(p.lat) }}, {{ '%.6f'|format(p.lng) }}</td></tr>
+{% if p.autorite %}<tr><td>Autorité contractante</td><td>{{ p.autorite }}</td></tr>{% endif %}
+{% if p.attributaire %}<tr><td>Attributaire</td><td>{{ p.attributaire }}</td></tr>{% endif %}
+<tr><td>Maître d'ouvrage / propriétaire</td><td>{{ people[p.owner_id].name }}</td></tr>
+<tr><td>Chef de chantier</td><td>{{ people[p.chef_id].name if p.chef_id in people else '—' }}</td></tr>
+<tr><td>Étape réceptionnée</td><td><b>{{ st.position + 1 }}. {{ st.name }}</b></td></tr>
+<tr><td>Montant de l'étape</td><td>{{ fcfa(st.amount) }} FCFA</td></tr>
+<tr><td>Déclarée terminée le</td><td>{{ dt(st.declared_at) }}</td></tr>
+<tr><td>Validée le</td><td>{{ dt(st.paid_at) or dt(generated) }}</td></tr>
+<tr><td>Référence du paiement</td><td>{{ st.pay_ref or '—' }}</td></tr>
+<tr><td>Preuves vérifiées</td><td>{{ proofs|length }} photo(s) ou vidéo(s) contrôlée(s) : position GPS sur le terrain, prise de vue récente, aucun doublon.
+{% for pr in proofs[:10] %}<br>• {{ dt(pr.created_at) }} · empreinte {{ pr.sha256[:16] }}{% if pr.distance is not none %} · à {{ pr.distance }} m{% endif %}{% endfor %}</td></tr>
+{% if insp %}<tr><td>Inspection indépendante</td><td>{{ insp.inspector_name }}, le {{ dt(insp.done_at) }} : <b>{{ VERDICTS[insp.verdict] }}</b><br>{{ insp.report }}</td></tr>{% endif %}
+</table>
+<p>Les parties constatent l'achèvement de l'étape ci-dessus, sur la base des preuves vérifiées enregistrées dans ChantierVrai{% if insp %} et du rapport d'inspection indépendante{% endif %}.</p>
+<div class="sign"><div>Le maître d'ouvrage<br>{{ people[p.owner_id].name }}</div><div>Le chef de chantier / l'entreprise<br>{{ people[p.chef_id].name if p.chef_id in people else '' }}</div></div>
+<p class="foot">Document généré automatiquement par ChantierVrai le {{ dt(generated) }}. Les empreintes SHA-256 permettent de vérifier que les photos n'ont pas été modifiées.</p>
+</body>
+</html>

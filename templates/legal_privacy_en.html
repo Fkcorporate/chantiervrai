@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Privacy · ChantierVrai{% endblock %}
+{% block content %}
+<h1>Privacy policy</h1>
+<div class="card legal">
+<p class="muted">Template to be reviewed by a lawyer before launch. The French version prevails. In Côte d'Ivoire, personal data processing is governed by Law No. 2013-450 of 19 June 2013 and by ARTCI; a prior declaration or authorisation may be required. If users live in the European Union or the United Kingdom, the GDPR / UK GDPR also applies.</p>
+<h2>Data controller</h2>
+<p>{{ company }} · {{ contact }}</p>
+<h2>Data collected</h2>
+<ul>
+<li>Account: name, email, phone, role, language, notification preferences.</li>
+<li>Evidence: photos, videos, time taken, GPS location where the photo was taken and of the phone when sending, file fingerprint.</li>
+<li>Site: address and location of the plot, stages, amounts, invoices, documents, inspection reports.</li>
+<li>Payments: amounts, transaction references. Card or Mobile Money details are processed by the payment partner, not by ChantierVrai.</li>
+<li>Security: IP address of sign-in attempts (kept for 24 hours).</li>
+</ul>
+<h2>Use of your location</h2>
+<p>Your location is only read when you take or send evidence, to check that it was taken on the site. There is no continuous tracking.</p>
+<h2>Recipients</h2>
+<p>Members of the site (owners, site foreman, booked inspector); our technical providers: hosting, message delivery, payment partner and, if enabled, image analysis by artificial intelligence. For published public projects, photos approved by the project owner are public, with faces blurred.</p>
+<h2>Retention</h2>
+<p>For the duration of the project, then [10 years] for evidence and acceptance reports (proof of works and payments). Account data is erased when the account is deleted.</p>
+<h2>Your rights</h2>
+<p>Access and portability: download your data from “My account › Security and data”. Erasure: delete your account from the same page. Rectification and objection: write to {{ contact }}.</p>
+</div>
+{% endblock %}

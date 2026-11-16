@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Code de connexion · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Double authentification") }}</h1>
+<form method="post" class="card">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<label>{{ _("Code à 6 chiffres de votre application d'authentification") }}<input name="code" inputmode="numeric" autocomplete="one-time-code" required autofocus maxlength="10"></label>
+<button class="btn" type="submit">{{ _("Valider") }}</button>
+<span class="muted">{{ _("Téléphone perdu ? Saisissez l'un de vos codes de secours à 8 chiffres.") }}</span>
+</form>
+{% endblock %}

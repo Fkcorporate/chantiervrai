@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}ChantierVrai{% endblock %}</title>
+<meta name="theme-color" content="#0E5A3A">
+<link rel="manifest" href="{{ url_for('manifest') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ChantierVrai">
+<link rel="stylesheet" href="{{ asset('style.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="wrap{% block wrapclass %}{% endblock %}">
+<header>
+<a class="brand" href="{{ url_for('home') }}">ChantierVrai</a>
+{% if me %}
+<nav class="top" aria-label="{{ _("Menu principal") }}">
+{% set ep = request.endpoint or '' %}
+<a href="{{ url_for('home') }}"{% if ep in ('home', 'project', 'new_project', 'reports', 'report', 'invoice', 'dispute') %} class="on" aria-current="page"{% endif %}>{{ _("Chantiers") }}</a>
+{% if me.role in ('proprio', 'pro') %}<a class="sec" href="{{ url_for('map_view') }}"{% if ep == 'map_view' %} class="on" aria-current="page"{% endif %}>{{ _("Carte") }}</a>{% endif %}
+{% if me.role != 'fournisseur' %}<a class="sec" href="{{ url_for('academy') }}"{% if ep in ('academy', 'academy_course', 'calculator_public') %} class="on" aria-current="page"{% endif %}>{{ _("Académie") }}</a>{% endif %}
+{% if me.role in ('proprio', 'pro', 'chef') %}<a class="sec" href="{{ url_for('assistant') }}"{% if ep == 'assistant' %} class="on" aria-current="page"{% endif %}>{{ _("Assistant") }}</a>{% endif %}
+{% if me.role == 'proprio' %}<a class="sec" href="{{ url_for('contractors') }}"{% if ep in ('contractors', 'contractor') %} class="on" aria-current="page"{% endif %}>{{ _("Entrepreneurs") }}</a>{% endif %}
+{% if me.role in ('chef', 'fournisseur', 'inspecteur', 'pro') %}<a href="{{ url_for('payments_received') }}"{% if ep == 'payments_received' %} class="on" aria-current="page"{% endif %}>{{ _("Paiements") }}</a>{% endif %}
+<a href="{{ url_for('help_page') }}"{% if ep == 'help_page' %} class="on" aria-current="page"{% endif %}>{{ _("Aide") }}</a>
+<a href="{{ url_for('notifications') }}"{% if ep == 'notifications' %} class="on" aria-current="page"{% endif %}>{{ _("Alertes") }}{% if unread %} <span class="badge">{{ unread }}</span>{% endif %}</a>
+<a href="{{ url_for('account') }}"{% if ep in ('account', 'security') %} class="on" aria-current="page"{% endif %}>{{ _("Compte") }}</a>
+{% if me.is_admin %}<a href="{{ url_for('admin') }}"{% if ep == 'admin' %} class="on" aria-current="page"{% endif %}>Admin</a>{% endif %}
+<button type="button" class="nav-more" aria-expanded="false" onclick="var n=this.parentNode;var o=n.classList.toggle('open');this.setAttribute('aria-expanded',o);this.textContent=o?this.dataset.less:this.dataset.more" data-more="{{ _("Plus") }} ▾" data-less="{{ _("Moins") }} ▴">{{ _("Plus") }} ▾</button>
+</nav>
+<form method="post" action="{{ url_for('logout') }}" class="side-logout">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<span class="muted">{{ me.name }}</span>
+<button class="btn ghost small" type="submit">{{ _("Déconnexion") }}</button>
+</form>
+{% else %}
+<nav class="top" aria-label="{{ _("Menu principal") }}">
+<a href="{{ url_for('portal') }}">{{ _("Portail citoyen") }}</a>
+<a href="{{ url_for('academy') }}">{{ _("Académie") }}</a>
+<a href="{{ url_for('help_page') }}">{{ _("Aide") }}</a>
+<a href="{{ url_for('login') }}">{{ _("Connexion") }}</a>
+</nav>
+{% endif %}
+</header>
+<main>
+{% for cat, msg in get_flashed_messages(with_categories=true) %}
+<div class="flash {{ cat }}" role="status">{{ msg }}</div>
+{% endfor %}
+{% if sub_banner %}<a class="card alert row" href="{{ url_for('subscription') }}" style="text-decoration:none"><span>{{ sub_banner[1] }}</span><span class="btn small">{{ _("Voir mon abonnement") }}</span></a>{% endif %}
+{% block content %}{% endblock %}
+{% if me %}
+<form method="post" action="{{ url_for('logout') }}" class="logout">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<button class="btn ghost small" type="submit">{{ me.name }} {{ _("· Déconnexion") }}</button>
+</form>
+{% endif %}
+<footer class="foot"><a href="{{ url_for('portal') }}">{{ _("Portail citoyen") }}</a> · <a href="{{ url_for('terms') }}">{{ _("Conditions d'utilisation") }}</a> · <a href="{{ url_for('privacy') }}">{{ _("Confidentialité") }}</a> · {% for code, name in LANGS.items() %}{% if code != lang %}<a href="{{ request.path }}?lang={{ code }}" hreflang="{{ code }}" lang="{{ code }}">{{ name }}</a>{% endif %}{% endfor %}</footer>
+</main>
+{% block tabs %}{% endblock %}
+</div>
+<script>window.CV_T = {{ JS_T|tojson }}; window.CV_GLOSS = {{ GLOSS|tojson }};</script>
+<script src="{{ asset('ui.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+<script>
+(function () {
+  function openTarget() {
+    var id = location.hash.slice(1); if (!id) return;
+    var el = document.getElementById(decodeURIComponent(id)); if (!el) return;
+    var d = el; while (d) { if (d.tagName === 'DETAILS') d.open = true; d = d.parentElement; }
+    if (el.tagName === 'DETAILS') el.open = true;
+    el.scrollIntoView();
+  }
+  window.addEventListener('hashchange', openTarget);
+  if (location.hash) setTimeout(openTarget, 0);
+})();
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('{{ url_for("service_worker") }}', {scope: '/'}).catch(function () {}); }
+</script>
+</body>
+</html>

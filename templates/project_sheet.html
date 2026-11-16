@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Fiche du projet") }} · {{ p.name }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<h1>{{ _("Fiche du projet") }}</h1>
+
+<div class="cols2">
+<div class="stack">
+<div class="card">
+<b>{{ _("Identification") }}</b>
+<div class="row"><span class="muted">{{ _("Type") }}</span><span>{{ BUILDING_TYPES.get(p.building_type, _("Non renseigné")) }}{% if p.levels %} · R+{{ p.levels }}{% endif %}</span></div>
+<div class="row"><span class="muted">{{ _("Adresse") }}</span><span>{{ p.address or '–' }}{% if p.commune %}, {{ p.commune }}{% endif %}</span></div>
+<div class="row"><span class="muted">{{ _("Coordonnées GPS") }}</span><span>{{ '%.5f'|format(p.lat) }}, {{ '%.5f'|format(p.lng) }}</span></div>
+<div class="row"><span class="muted">{{ _("Surface du terrain") }}</span><span>{{ (p.surface_land|qte ~ ' m²') if p.surface_land else ('≈ ' ~ parcel_area ~ ' m² ' ~ _("(parcelle dessinée)") if parcel_area else '–') }}</span></div>
+<div class="row"><span class="muted">{{ _("Surface de plancher") }}</span><span>{{ (p.surface_floor|qte ~ ' m²') if p.surface_floor else '–' }}</span></div>
+<div class="row"><span class="muted">{{ _("Titre foncier ou ACD") }}</span><span>{{ p.land_title or '–' }}</span></div>
+<div class="row"><span class="muted">{{ _("Lot et îlot") }}</span><span>{{ p.land_ref or '–' }}</span></div>
+<div class="row"><span class="muted">{{ _("Permis de construire") }}</span><span>{{ p.permit_ref or '–' }}</span></div>
+{% if p.description %}<span class="muted">{{ p.description }}</span>{% endif %}
+</div>
+
+<div class="card">
+<b>{{ _("Budget et calendrier") }}</b>
+<div class="row"><span class="muted">{{ _("Budget prévisionnel") }}</span><span>{{ fcfa(p.montant_marche or s.total) }} FCFA</span></div>
+<div class="row"><span class="muted">{{ _("Payé") }}</span><span>{{ fcfa(s.paid) }} FCFA</span></div>
+<div class="row"><span class="muted">{{ _("Début") }}</span><span>{{ d(p.start_date) if p.start_date else '–' }}</span></div>
+{% if pred %}<div class="row"><span class="muted">{{ _("Fin prévue") }}</span><span>{{ d(pred.planned_end|string) }}</span></div><div class="row"><span class="muted">{{ _("Fin estimée") }}</span><span>{{ d(pred.predicted_end|string) }}</span></div>{% endif %}
+{% for st in s.steps %}<div class="row"><span>{{ loop.index }}. <a href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{{ st.name }}</a></span><span class="muted">{% if schedule and schedule.get(st.id) %}{{ d(schedule[st.id]|string) }} · {% endif %}{{ STATUS[st.status] }}</span></div>{% endfor %}
+</div>
+
+<div class="card">
+<b>{{ _("Entreprises et intervenants") }}</b>
+<div class="row"><span class="muted">{{ _("Maître d'ouvrage") }}</span><span>{{ people.owner.name }}</span></div>
+{% if people.chef %}<div class="row"><span class="muted">{{ _("Chef de chantier") }}</span><span>{{ people.chef.name }}</span></div>{% endif %}
+{% for m in people.members %}<div class="row"><span class="muted">{{ MEMBER_ROLES[m.role]|capitalize }}</span><span>{{ m.name }}</span></div>{% endfor %}
+{% for i in people.inspectors %}<div class="row"><span class="muted">{{ _("Inspecteur indépendant") }}</span><span>{{ i.name }}</span></div>{% endfor %}
+{% for f in people.suppliers %}<div class="row"><span class="muted">{{ _("Fournisseur") }}</span><span>{{ f.name }}</span></div>{% endfor %}
+</div>
+
+<div class="card">
+<b>{{ _("Plans et autorisations") }}</b>
+{% for doc in plans %}<a class="row" href="{{ url_for('document', doc_id=doc.id) }}" target="_blank"><span>{{ doc.title }}</span><span class="tag grey">{{ _(doc.category) }}</span></a>
+{% else %}<span class="muted">{{ _("Ajoutez les plans et le permis dans le dossier du chantier (catégories « Plan » et « Permis de construire »).") }}</span>{% endfor %}
+<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('bim', project_id=p.id) }}">{{ _("Maquette numérique") }}</a>{% if role == 'owner' %}<a class="btn ghost small" href="{{ url_for('reports', project_id=p.id) }}">{{ _("Historique complet") }}</a>{% endif %}</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="card">
+<b>{{ _("Parcelle") }}</b>
+<div id="map" style="height:360px;border-radius:12px"></div>
+{% if role == 'owner' %}
+<span class="muted">{{ _("Touchez la carte pour placer les bornes de la parcelle, dans l'ordre. Les photos sont alors contrôlées sur la parcelle (à %(t)s m près) au lieu du cercle autour du point.", t=tolerance) }}</span>
+<div class="row" style="justify-content:flex-start;gap:8px"><button type="button" class="btn ghost small" id="undo">{{ _("Retirer le dernier point") }}</button><button type="button" class="btn ghost small" id="clear">{{ _("Effacer") }}</button></div>
+{% elif parcel %}<span class="muted">{{ _("Surface dessinée :") }} ≈ {{ parcel_area }} m²</span>
+{% else %}<span class="muted">{{ _("Parcelle non dessinée : les photos sont contrôlées dans un rayon de %(r)s m.", r=p.radius) }}</span>{% endif %}
+<span id="area" class="muted"></span>
+</div>
+
+{% if role == 'owner' %}
+<form method="post" class="card" id="sheet-form">{{ csrf() }}
+<b>{{ _("Modifier la fiche") }}</b>
+<input type="hidden" name="parcel" id="parcel" value="{{ p.parcel or '' }}">
+<div class="grid2">
+<label>{{ _("Type de projet") }}<select name="building_type"><option value="">–</option>{% for k, v in BUILDING_TYPES.items() %}<option value="{{ k }}"{% if p.building_type == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Étages au-dessus du rez-de-chaussée (R+n)") }}<input name="levels" inputmode="numeric" value="{{ p.levels if p.levels is not none else '' }}"></label>
+<label>{{ _("Surface du terrain (m²)") }}<input name="surface_land" inputmode="decimal" value="{{ p.surface_land|qte if p.surface_land else '' }}"></label>
+<label>{{ _("Surface de plancher (m²)") }}<input name="surface_floor" inputmode="decimal" value="{{ p.surface_floor|qte if p.surface_floor else '' }}"></label>
+<label>{{ _("Titre foncier ou ACD") }}<input name="land_title" value="{{ p.land_title or '' }}" placeholder="TF 12345 / ACD n°…"></label>
+<label>{{ _("Lot et îlot") }}<input name="land_ref" value="{{ p.land_ref or '' }}" placeholder="{{ _("Lot 24, îlot 7") }}"></label>
+<label>{{ _("Commune") }}<input name="commune" value="{{ p.commune or '' }}"></label>
+<label>{{ _("Permis de construire") }}<input name="permit_ref" value="{{ p.permit_ref or '' }}"></label>
+</div>
+<label>{{ _("Description") }}<textarea name="description" maxlength="2000">{{ p.description or '' }}</textarea></label>
+<button class="btn">{{ _("Enregistrer la fiche") }}</button>
+</form>
+{% endif %}
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function () {
+  if (!window.L) return;
+  var center = [{{ p.lat }}, {{ p.lng }}], editable = {{ 'true' if role == 'owner' else 'false' }};
+  var pts = {{ (parcel or [])|tojson }};
+  var map = L.map('map').setView(center, 18);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              {maxZoom: 20, attribution: 'Esri, Maxar, Earthstar'}).addTo(map);
+  L.circleMarker(center, {radius: 6, color: '#fff', weight: 2, fillColor: '#B4501F', fillOpacity: 1}).addTo(map);
+  var circle = L.circle(center, {radius: {{ p.radius }}, color: '#fff', weight: 1, dashArray: '4 4', fill: false}).addTo(map);
+  var poly = L.polygon(pts, {color: '#F2C14E', weight: 3, fillOpacity: 0.15}).addTo(map);
+  var markers = L.layerGroup().addTo(map);
+  var input = document.getElementById('parcel'), area = document.getElementById('area');
+  function m2(ps) {
+    if (ps.length < 3) return 0;
+    var lat0 = ps.reduce(function (a, p) { return a + p[0]; }, 0) / ps.length, k = Math.cos(lat0 * Math.PI / 180), R = 6371000, s = 0;
+    var xy = ps.map(function (p) { return [p[1] * Math.PI / 180 * R * k, p[0] * Math.PI / 180 * R]; });
+    for (var i = 0; i < xy.length; i++) { var a = xy[i], b = xy[(i + 1) % xy.length]; s += a[0] * b[1] - b[0] * a[1]; }
+    return Math.abs(s / 2);
+  }
+  function draw() {
+    poly.setLatLngs(pts); markers.clearLayers();
+    if (editable) pts.forEach(function (q) { L.circleMarker(q, {radius: 5, color: '#F2C14E', fillOpacity: 1}).addTo(markers); });
+    circle.setStyle({opacity: pts.length >= 3 ? 0 : 1});
+    if (input) input.value = pts.length >= 3 ? JSON.stringify(pts) : '';
+    if (area) area.textContent = pts.length >= 3 ? '≈ ' + Math.round(m2(pts)).toLocaleString() + ' m²' : '';
+  }
+  if (pts.length >= 3) map.fitBounds(poly.getBounds(), {padding: [30, 30]});
+  if (editable) {
+    map.on('click', function (e) { pts.push([+e.latlng.lat.toFixed(7), +e.latlng.lng.toFixed(7)]); draw(); });
+    document.getElementById('undo').onclick = function () { pts.pop(); draw(); };
+    document.getElementById('clear').onclick = function () { pts = []; draw(); };
+  }
+  draw();
+})();
+</script>
+{% endblock %}

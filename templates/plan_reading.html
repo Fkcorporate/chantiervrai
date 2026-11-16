@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Lecture du plan") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<h1>{{ _("Lecture du plan") }}</h1>
+<p class="muted">{{ _("L'IA lit le plan de l'architecte : pièces, surfaces, longueurs de murs, portes et fenêtres. Vous corrigez si besoin, puis les quantités de maçonnerie, enduit, carrelage et peinture s'ajoutent au prévu du chantier. Elle ne dessine rien et ne dit rien sur la structure : c'est le travail de l'architecte et de l'ingénieur.") }}</p>
+
+<form method="post" enctype="multipart/form-data" class="card">{{ csrf() }}<input type="hidden" name="action" value="read">
+<b>{{ _("Plan à lire") }}</b>
+{% if plans %}<label>{{ _("Plan du dossier") }}<select name="doc_id"><option value="">–</option>{% for d_ in plans %}<option value="{{ d_.id }}">{{ d_.title }}</option>{% endfor %}</select></label>{% endif %}
+<label>{{ _("Ou un fichier (PDF, JPEG, PNG)") }}<input type="file" name="file" accept=".pdf,image/*"></label>
+<button class="btn"{% if not ai %} disabled{% endif %}>{{ _("Lire le plan avec l'IA") }}</button>
+{% if not ai %}<span class="muted">{{ _("Lecture automatique non activée sur ce serveur : saisissez les mesures ci-dessous.") }}</span>{% endif %}
+</form>
+
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="save">
+<div class="row"><b>{{ _("Mesures du plan") }}</b>{% if reading %}<span class="tag {{ 'amber' if reading.source == 'ia' else 'blue' }}">{{ _("lu par l'IA, à vérifier") if reading.source == 'ia' else _("vérifié par vous") }}</span>{% endif %}</div>
+{% if reading and reading.source == 'ia' %}<span class="muted">{% if reading.scale %}{{ _("Échelle") }} {{ reading.scale }} · {% endif %}{% if reading.confidence is not none %}{{ _("confiance") }} {{ (reading.confidence * 100)|round|int }} %{% endif %}{% if reading.remarks %} · {{ reading.remarks }}{% endif %}</span>{% endif %}
+<div class="grid2">
+<label>{{ _("Surface habitable (m²)") }}<input name="floor_area" inputmode="decimal" value="{{ reading.floor_area|qte if reading and reading.floor_area else '' }}"></label>
+<label>{{ _("Hauteur sous plafond (m)") }}<input name="height" inputmode="decimal" value="{{ reading.height|qte if reading and reading.height else '2.8' }}"></label>
+<label>{{ _("Murs extérieurs (m)") }}<input name="ext_walls" inputmode="decimal" value="{{ reading.ext_walls|qte if reading and reading.ext_walls else '' }}"></label>
+<label>{{ _("Murs intérieurs (m)") }}<input name="int_walls" inputmode="decimal" value="{{ reading.int_walls|qte if reading and reading.int_walls else '' }}"></label>
+<label>{{ _("Portes") }}<input name="doors" inputmode="numeric" value="{{ reading.doors if reading else '' }}"></label>
+<label>{{ _("Fenêtres") }}<input name="windows" inputmode="numeric" value="{{ reading.windows if reading else '' }}"></label>
+</div>
+{% if role == 'owner' and not p.surface_floor %}<label class="check"><input type="checkbox" name="update_sheet" value="1" checked> {{ _("Reporter la surface dans la fiche du projet") }}</label>{% endif %}
+<button class="btn ghost">{{ _("Enregistrer les mesures") }}</button>
+{% if reading and reading.rooms %}
+<details><summary>{{ reading.rooms|length }} {{ pl(reading.rooms|length, "pièce(s) lue(s)") }}</summary>
+{% for r in reading.rooms %}<div class="row"><span>{{ r.name }}</span><span>{{ (r.area|qte ~ ' m²') if r.area else '–' }}</span></div>{% endfor %}
+</details>{% endif %}
+</form>
+
+{% if quantities %}
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="plan">
+<b>{{ _("Quantités déduites du plan") }}</b>
+<span class="muted">{{ _("Ouvertures comptées 1,9 m² par porte et 1,5 m² par fenêtre ; murs en parpaings de 15. Ajustez dans le calculateur si votre projet diffère.") }}</span>
+{% for kind, q in quantities.items() %}
+<div class="card">
+<label class="check"><input type="checkbox" name="kind" value="{{ kind }}" checked> <b>{{ CALC_TYPES[kind].title }}</b></label>
+<span>{% for m, u, v in q.result.lines if m != 'Eau' %}{{ v|qte }} {{ _(u) }} {{ _(m)|lower }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+<div class="row" style="gap:8px"><a class="muted" href="{{ url_for('calculator', project_id=p.id, type=kind, go=1, **q.params) if role in ('owner', 'chef') else url_for('calculator_public', type=kind, go=1, **q.params) }}">{{ _("Ouvrir dans le calculateur") }}</a>
+{% if role in ('owner', 'chef') %}<select name="step_{{ kind }}" aria-label="{{ _("Étape") }}">{% for st in steps %}<option value="{{ st.id }}"{% if (kind == 'maconnerie' and 'lévation' in st.name) or (kind != 'maconnerie' and ('finition' in st.name|lower)) %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select>{% endif %}</div>
+</div>
+{% endfor %}
+{% if role in ('owner', 'chef') %}<button class="btn">{{ _("Ajouter au prévu du chantier") }}</button>{% endif %}
+</form>
+{% endif %}
+{% endblock %}

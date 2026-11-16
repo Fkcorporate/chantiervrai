@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Facture") }} {{ inv.number }} · ChantierVrai{% endblock %}
+{% block content %}
+<a href="{{ (url_for('subscription') if inv.kind != 'inspection' else url_for('home')) if me.id == inv.user_id else url_for('admin', _anchor='abonnements') }}" class="muted noprint">{{ _("← Retour") }}</a>
+<div class="row"><h1>{{ _("Facture") }} {{ inv.number }}</h1><button class="btn ghost small" onclick="window.print()">{{ _("Imprimer ou enregistrer en PDF") }}</button></div>
+<div class="card">
+<div class="grid2">
+<div><span class="muted">{{ _("Émise par") }}</span><div style="white-space:pre-line">{{ seller }}</div></div>
+<div><span class="muted">{{ _("Client") }}</span><div>{{ buyer.company or buyer.name }}{% if buyer.company %}<br>{{ buyer.name }}{% endif %}<br>{{ buyer.email }}{% if buyer.phone %}<br>{{ buyer.phone }}{% endif %}</div></div>
+</div>
+<div class="row"><span class="muted">{{ _("Date") }}</span><span>{{ d(inv.created_at) }}</span></div>
+<div class="row"><span class="muted">{{ _("Échéance") }}</span><span>{{ d(inv.due_date) }}</span></div>
+<div class="row"><span class="muted">{{ _("Désignation") }}</span><span>{% if inv.kind == 'inspection' %}{{ _("Inspection indépendante ChantierVrai") }}{% else %}{{ _("Abonnement ChantierVrai") }} {{ _(PLANS[inv.plan].label) }} · {{ CYCLES[inv.cycle] }} · {{ d(inv.period_start) }} → {{ d(inv.period_end) }}{% endif %}</span></div>
+<div class="row"><span class="muted">{{ _("Montant HT") }}</span><span>{{ fcfa(inv.amount_ht) }} FCFA</span></div>
+<div class="row"><span class="muted">{{ _("TVA") }} ({{ "%g"|format(inv.vat_rate) }} %)</span><span>{{ fcfa(inv.vat) }} FCFA</span></div>
+<div class="row"><b>{{ _("Total TTC") }}</b><span class="big">{{ fcfa(inv.amount) }} FCFA</span></div>
+<div class="row"><span class="muted">{{ _("État") }}</span><span class="tag{% if inv.status == 'a_payer' %} amber{% elif inv.status == 'annulee' %} grey{% endif %}">{{ INV_STATUS[inv.status] }}{% if inv.paid_at %} · {{ d(inv.paid_at) }}{% endif %}{% if inv.method %} · {{ INV_METHODS[inv.method] }}{% endif %}{% if inv.reference %} · {{ inv.reference }}{% endif %}</span></div>
+</div>
+{% if inv.status == 'a_payer' and me.id == inv.user_id %}
+<form method="post" class="card noprint">{{ csrf() }}
+<b>{{ _("Payer en ligne") }}</b>
+<span class="muted">{{ _("Wave, Orange Money, MTN, Moov ou carte bancaire.") }} {{ _("L'inspecteur est attribué dès la confirmation.") if inv.kind == 'inspection' else _("L'abonnement est activé dès la confirmation.") }}{% if not provider.real %} {{ _("(simulation : aucun argent réel)") }}{% endif %}</span>
+<button class="btn">{{ _("Payer") }} {{ fcfa(inv.amount) }} FCFA</button>
+</form>
+{% if bank %}<div class="card noprint"><b>{{ _("Ou par virement") }}</b><span class="muted" style="white-space:pre-line">{{ bank }}</span><span class="muted">{{ _("Indiquez le numéro de facture") }} {{ inv.number }} {{ _("dans le libellé. L'équipe valide le paiement à réception.") }}</span></div>{% endif %}
+{% endif %}
+{% endblock %}

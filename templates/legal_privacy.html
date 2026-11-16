@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Confidentialité · ChantierVrai{% endblock %}
+{% block content %}
+<h1>Politique de confidentialité</h1>
+<div class="card legal">
+<p class="muted">Modèle à faire relire par un juriste avant la mise en service. En Côte d'Ivoire, le traitement de données personnelles relève de la loi n° 2013-450 du 19 juin 2013 et de l'ARTCI ; une déclaration ou une autorisation préalable peut être nécessaire. Si des utilisateurs résident dans l'Union européenne, le RGPD s'applique aussi.</p>
+<h2>Responsable du traitement</h2>
+<p>{{ company }} · {{ contact }}</p>
+<h2>Données collectées</h2>
+<ul>
+<li>Compte : nom, e-mail, téléphone, rôle, préférences de notification.</li>
+<li>Preuves : photos, vidéos, date de prise de vue, position GPS de la prise de vue et du téléphone au moment de l'envoi, empreinte du fichier.</li>
+<li>Chantier : adresse et position du terrain, étapes, montants, factures, documents, rapports d'inspection.</li>
+<li>Paiements : montants, références de transaction. Les données de carte ou de Mobile Money sont traitées par le partenaire de paiement, pas par ChantierVrai.</li>
+<li>Sécurité : adresse IP des tentatives de connexion (conservée 24 heures).</li>
+</ul>
+<h2>Utilisation de la position</h2>
+<p>La position n'est lue qu'au moment où vous prenez ou envoyez une preuve, pour vérifier qu'elle a été prise sur le chantier. Il n'y a aucun suivi en continu.</p>
+<h2>Destinataires</h2>
+<p>Les membres du chantier (propriétaires, chef de chantier, inspecteur réservé) ; nos prestataires techniques : hébergement, envoi de messages, partenaire de paiement et, si elle est activée, analyse d'images par intelligence artificielle. Pour les chantiers publics publiés, les photos approuvées par le maître d'ouvrage sont publiques, avec les visages floutés.</p>
+<h2>Durée de conservation</h2>
+<p>Pendant la durée du chantier, puis [10 ans] pour les preuves et PV (preuve des travaux et des paiements). Les données de compte sont effacées à la suppression du compte.</p>
+<h2>Vos droits</h2>
+<p>Accès et portabilité : téléchargez vos données depuis « Mon compte › Sécurité et données ». Effacement : supprimez votre compte depuis la même page. Rectification et opposition : écrivez à {{ contact }}.</p>
+</div>
+{% endblock %}

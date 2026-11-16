@@ -1,0 +1,51 @@
+{# Schemas pedagogiques de l'Academie. Valeurs d'exemple : le plan de l'ingenieur fait foi. #}
+{% macro poteau() %}
+<svg viewBox="0 0 520 260" role="img" aria-label="{{ _("Coupe d'un poteau armé : barres, cadres et enrobage") }}" style="width:100%;max-width:560px">
+<rect x="40" y="40" width="180" height="180" fill="#E9E5DA" stroke="#2B2B2B" stroke-width="2"/>
+<rect x="64" y="64" width="132" height="132" fill="none" stroke="#B4501F" stroke-width="3" rx="6"/>
+{% for x, y in [(76,76),(184,76),(76,184),(184,184)] %}<circle cx="{{ x }}" cy="{{ y }}" r="9" fill="#2B2B2B"/>{% endfor %}
+<line x1="40" y1="232" x2="64" y2="232" stroke="#0E5A3A" stroke-width="2"/><text x="52" y="250" font-size="12" text-anchor="middle" fill="#0E5A3A">{{ _("enrobage") }}</text>
+<text x="130" y="30" font-size="13" text-anchor="middle" font-weight="600">{{ _("Coupe du poteau") }}</text>
+<line x1="193" y1="80" x2="300" y2="80" stroke="#6B6A63"/><text x="306" y="84" font-size="13">{{ _("4 HA 12 : barres longitudinales") }}</text>
+<line x1="196" y1="130" x2="300" y2="130" stroke="#6B6A63"/><text x="306" y="134" font-size="13" fill="#B4501F">{{ _("cadre HA 6") }}</text>
+<line x1="52" y1="224" x2="52" y2="196" stroke="#6B6A63"/>
+<text x="306" y="184" font-size="13">{{ _("cales : 2,5 à 5 cm selon l'ingénieur") }}</text>
+<text x="306" y="210" font-size="12" fill="#6B6A63">{{ _("exemple : le plan de ferraillage fait foi") }}</text>
+</svg>
+{% endmacro %}
+{% macro fondation() %}
+<svg viewBox="0 0 520 280" role="img" aria-label="{{ _("Coupe d'une fondation filante") }}" style="width:100%;max-width:560px">
+<rect x="0" y="40" width="520" height="240" fill="#D9C7A7"/>
+<rect x="0" y="20" width="520" height="20" fill="#B7A27E"/>
+<rect x="130" y="40" width="200" height="200" fill="#F6F4EF" stroke="#8A7A5B" stroke-dasharray="5 4"/>
+<rect x="140" y="222" width="180" height="12" fill="#BDBAB0"/>
+<rect x="150" y="182" width="160" height="40" fill="#A9A69C" stroke="#2B2B2B"/>
+{% for x in [165,195,225,255,285] %}<circle cx="{{ x }}" cy="{{ 210 }}" r="4" fill="#2B2B2B"/>{% endfor %}
+<rect x="205" y="70" width="50" height="112" fill="#CFCAC0" stroke="#2B2B2B"/>
+<line x1="320" y1="228" x2="372" y2="250" stroke="#6B6A63"/><text x="376" y="254" font-size="13">{{ _("béton de propreté (≈ 5 cm)") }}</text>
+<line x1="310" y1="200" x2="372" y2="200" stroke="#6B6A63"/><text x="376" y="204" font-size="13">{{ _("semelle armée") }}</text>
+<line x1="255" y1="110" x2="372" y2="110" stroke="#6B6A63"/><text x="376" y="114" font-size="13">{{ _("soubassement") }}</text>
+<line x1="330" y1="60" x2="372" y2="60" stroke="#6B6A63"/><text x="376" y="64" font-size="13">{{ _("fouille") }}</text>
+<text x="10" y="270" font-size="12" fill="#5B4C30">{{ _("bon sol, profondeur fixée par l'étude") }}</text>
+</svg>
+{% endmacro %}
+{% macro dosage() %}
+<svg viewBox="0 0 520 170" role="img" aria-label="{{ _("Dosages courants en sacs de ciment par mètre cube") }}" style="width:100%;max-width:560px">
+{% for label, kg in [(_("Béton de propreté"), 150), (_("Mortier de pose"), 350), (_("Béton armé"), 350), (_("Enduit"), 400)] %}{% set y = 14 + loop.index0 * 38 %}
+<text x="0" y="{{ y + 17 }}" font-size="13">{{ label }}</text>
+<rect x="170" y="{{ y }}" width="{{ kg * 0.7 }}" height="24" rx="3" fill="#0E5A3A"/>
+<text x="{{ 178 + kg * 0.7 }}" y="{{ y + 17 }}" font-size="13">{{ kg }} kg/m³ = {{ (kg / 50)|round(1)|qte }} {{ _("sacs") }}</text>
+{% endfor %}
+</svg>
+{% endmacro %}
+{% macro etapes() %}
+<svg viewBox="0 0 560 120" role="img" aria-label="{{ _("Les grandes étapes d'une construction") }}" style="width:100%;max-width:600px">
+{% for label in [_("Terrain"), _("Plans"), _("Fondations"), _("Élévation"), _("Dalle, toit"), _("Finitions"), _("Réception")] %}{% set x = 10 + loop.index0 * 78 %}
+<circle cx="{{ x + 24 }}" cy="40" r="20" fill="{{ '#0E5A3A' if loop.index0 < 2 else '#B4501F' if loop.index0 < 5 else '#D98E04' }}"/>
+<text x="{{ x + 24 }}" y="45" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">{{ loop.index }}</text>
+{% if not loop.last %}<line x1="{{ x + 46 }}" y1="40" x2="{{ x + 80 }}" y2="40" stroke="#B9B5AA" stroke-width="2"/>{% endif %}
+<text x="{{ x + 24 }}" y="86" font-size="12" text-anchor="middle">{{ label }}</text>
+{% endfor %}
+<text x="10" y="112" font-size="11" fill="#6B6A63">{{ _("vert : préparer · brun : gros œuvre, à contrôler avant de payer · ocre : second œuvre") }}</text>
+</svg>
+{% endmacro %}

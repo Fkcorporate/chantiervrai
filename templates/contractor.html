@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ u.name }} · ChantierVrai{% endblock %}
+{% block content %}
+<a href="{{ url_for('contractors') }}">← {{ _("Entrepreneurs vérifiés") }}</a>
+<h1>{{ u.name }}</h1>
+<div class="row"><span class="muted">{{ u.company or '' }}{% if u.zone %} · {{ u.zone }}{% endif %}</span>{% if listed %}<span class="tag blue">{{ _("Entreprise vérifiée") }}</span>{% else %}<span class="tag grey">{{ _("Non vérifiée") }}</span>{% endif %}</div>
+{% if u.bio %}<div class="card"><span>{{ u.bio }}</span></div>{% endif %}
+
+<h2>{{ _("Historique mesuré par ChantierVrai") }}</h2>
+<div class="grid3">
+<div class="card"><span class="muted">{{ _("Chantiers") }}</span><span class="big">{{ rec.projects }}</span><span class="muted">{{ rec.finished }} {{ pl(rec.finished, "terminé(s)") }}, {{ rec.ongoing }} {{ _("en cours") }} · {{ fcfa(rec.amount) }} FCFA</span></div>
+<div class="card"><span class="muted">{{ _("Indice de confiance moyen") }}</span><span class="big">{{ rec.trust if rec.trust is not none else '–' }}</span><span class="muted">{{ _("sur 100") }}</span></div>
+<div class="card"><span class="muted">{{ _("Retard moyen prévu ou constaté") }}</span><span class="big">{{ rec.avg_delay if rec.avg_delay is not none else '–' }}</span><span class="muted">{{ _("jours") }}{% if rec.late_projects %} · {{ rec.late_projects }} {{ pl(rec.late_projects, "chantier(s) à plus de 15 jours") }}{% endif %}</span></div>
+<div class="card"><span class="muted">{{ _("Non-conformités relevées") }}</span><span class="big">{{ rec.nonconform }}</span><span class="muted">{{ _("sur") }} {{ rec.checks }} {{ pl(rec.checks, "contrôle(s)") }}</span></div>
+<div class="card"><span class="muted">{{ _("Photos refusées") }}</span><span class="big">{{ (rec.refused_pct ~ ' %') if rec.refused_pct is not none else '–' }}</span><span class="muted">{{ rec.proofs }} {{ pl(rec.proofs, "preuve(s) envoyée(s)") }}</span></div>
+<div class="card"><span class="muted">{{ _("Avis des propriétaires") }}</span><span class="big">{{ (rec.rating ~ '/5') if rec.rating is not none else '–' }}</span><span class="muted">{{ rec.reviews }} {{ _("avis") }}</span></div>
+</div>
+<p class="muted">{{ _("La vérification confirme que l'entreprise existe. Elle ne garantit pas la qualité des travaux : continuez à payer par étapes après preuve et contrôle.") }}</p>
+
+{% if mine and listed %}
+<form method="post" class="card">{{ csrf() }}
+<b>{{ _("Inviter sur un de vos chantiers") }}</b>
+<label>{{ _("Chantier") }}<select name="project_id">{% for p in mine %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+<span class="muted">{{ _("Il reçoit le code du chantier et vous rejoint en le saisissant.") }}</span>
+<button class="btn">{{ _("Envoyer l'invitation") }}</button>
+</form>
+{% endif %}
+
+<h2>{{ _("Avis") }}</h2>
+<div class="card">
+{% for r in reviews %}<div><b>{{ r.rating }}/5</b> · {{ r.author }} · <span class="muted">{{ r.project_name }}, {{ d(r.created_at) }}</span>{% if r.comment %}<br>{{ r.comment }}{% endif %}</div>
+{% else %}<span class="muted">{{ _("Pas encore d'avis.") }}</span>{% endfor %}
+</div>
+{% endblock %}

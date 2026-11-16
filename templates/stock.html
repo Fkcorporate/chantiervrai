@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Stock et matériaux") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else ('factures' if role == 'chef' else None), _anchor='materiaux' if role == 'owner' else None) }}">← {{ p.name }}</a>
+<h1>{{ _("Stock et matériaux") }}</h1>
+<p class="muted">{{ _("Ce qui est prévu, acheté, livré, utilisé et encore sur le chantier. Un écart entre ces colonnes signale une perte, un vol ou une facture sans livraison.") }}</p>
+{% if role in ('owner', 'chef') %}<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('calculator', project_id=p.id) }}">{{ _("Calculateur de matériaux") }}</a><a class="btn ghost small" href="{{ url_for('new_order', project_id=p.id) }}">{{ _("Commander des matériaux") }}</a></div>{% endif %}
+
+{% for a in alerts %}<div class="card alert"><b>{{ a }}</b></div>{% endfor %}
+
+<div class="card table-wrap">
+{% if table %}
+<table class="stock"><thead><tr><th>{{ _("Matériau") }}</th><th>{{ _("Prévu") }}</th><th>{{ _("Acheté") }}</th><th>{{ _("Livré") }}</th><th>{{ _("Utilisé") }}</th><th>{{ _("Disponible") }}</th></tr></thead><tbody>
+{% for r in table %}
+<tr{% if r.flags %} class="bad"{% endif %}><td><b>{{ _(r.material) }}</b> <span class="muted">{{ _(r.unit) }}</span>{% for f in r.flags %}<br><span class="tag {{ 'bad' if 'Rupture' in f or 'livré' in f or 'Plus' in f else 'amber' }}">{{ f }}</span>{% endfor %}</td>
+<td>{{ r.planned|qte if r.planned else '–' }}</td><td>{{ r.bought|qte if r.bought else '–' }}</td><td>{{ r.delivered|qte if r.delivered else '–' }}</td>
+<td>{{ (r.used + r.lost)|qte if (r.used or r.lost) else '–' }}</td><td><b>{{ r.available|qte }}</b>{% if r.min is not none %}<br><span class="muted">{{ _("seuil") }} {{ r.min|qte }}</span>{% endif %}</td></tr>
+{% endfor %}
+</tbody></table>
+{% else %}<span class="muted">{{ _("Rien pour l'instant. Remplissez le prévu avec le calculateur, puis enregistrez les livraisons et les consommations.") }}</span>{% endif %}
+</div>
+
+{% if role in ('owner', 'chef') %}
+<div class="cols2">
+<form method="post" class="card">{{ csrf() }}
+<b>{{ _("Enregistrer un mouvement") }}</b>
+<label>{{ _("Mouvement") }}<select name="action">{% for k, v in KINDS.items() if k != 'inventaire' %}<option value="{{ k }}"{% if k == 'sortie' %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Matériau") }}<input name="material" list="mats" required></label>
+<div class="grid2"><label>{{ _("Quantité") }}<input name="qty" inputmode="decimal" required></label><label>{{ _("Unité") }}<input name="unit" placeholder="sac, m³, barre"></label></div>
+<label>{{ _("Pour l'étape") }}<select name="step_id"><option value="">–</option>{% for st in steps %}<option value="{{ st.id }}"{% if current and st.id == current.id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select></label>
+<label>{{ _("Note") }}<input name="note" maxlength="200" placeholder="{{ _("Bon de livraison n°, poteaux du 1er étage…") }}"></label>
+<button class="btn">{{ _("Enregistrer") }}</button>
+<span class="muted">{{ _("Les livraisons des commandes ChantierVrai entrent toutes seules dans le stock.") }}</span>
+</form>
+<div class="stack">
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="inventaire">
+<b>{{ _("Inventaire") }}</b><span class="muted">{{ _("Comptez ce qui reste vraiment sur le chantier. Tout écart est noté et signalé au propriétaire.") }}</span>
+<label>{{ _("Matériau") }}<input name="material" list="mats" required></label>
+<label>{{ _("Quantité comptée") }}<input name="qty" inputmode="decimal" required></label>
+<button class="btn ghost">{{ _("Enregistrer l'inventaire") }}</button>
+</form>
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="seuil">
+<b>{{ _("Alerte de rupture") }}</b>
+<label>{{ _("Matériau") }}<input name="material" list="mats" required></label>
+<label>{{ _("Prévenir quand il reste moins de") }}<input name="qty" inputmode="decimal" required></label>
+<button class="btn ghost">{{ _("Enregistrer le seuil") }}</button>
+</form>
+</div>
+</div>
+<datalist id="mats">{% for m in materials %}<option value="{{ m }}">{% endfor %}</datalist>
+{% endif %}
+
+<h2>{{ _("Historique des mouvements") }}</h2>
+<div class="card">
+{% for m in moves %}
+<div class="row"><span><b>{{ KINDS[m.kind] }}</b> · {{ _(m.material) }} {{ ('+' if m.kind in ('entree',) or (m.kind == 'inventaire' and m.qty > 0) else '−' if m.kind != 'inventaire' else '') }}{{ (m.qty if m.qty > 0 else -m.qty)|qte }} {{ m.unit or '' }}{% if m.step_name %} <span class="muted">· {{ m.step_name }}</span>{% endif %}<br><span class="muted">{{ m.author }} · {{ dt(m.created_at) }}{% if m.note %} · {{ m.note }}{% endif %}</span></span>
+{% if m.order_id %}<a class="tag blue" href="{{ url_for('order', oid=m.order_id) }}">{{ _("Commande") }}</a>{% endif %}</div>
+{% else %}<span class="muted">{{ _("Aucun mouvement.") }}</span>{% endfor %}
+</div>
+{% endblock %}

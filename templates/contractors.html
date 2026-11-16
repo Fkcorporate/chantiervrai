@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Entrepreneurs vérifiés") }} · ChantierVrai{% endblock %}
+{% block content %}
+<h1>{{ _("Entrepreneurs vérifiés") }}</h1>
+<p class="muted">{{ _("Chefs de chantier et entreprises dont l'équipe a vérifié l'existence (RCCM, références). Les chiffres sont mesurés par l'application sur leurs chantiers ChantierVrai : rien n'est déclaré par l'entrepreneur lui-même.") }}</p>
+<form method="get" class="row" style="gap:8px"><input name="zone" value="{{ zone }}" placeholder="{{ _("Zone : Cocody, Bingerville, Yamoussoukro…") }}" aria-label="{{ _("Zone") }}" style="flex:1"><button class="btn small">{{ _("Filtrer") }}</button></form>
+<div class="cards">
+{% for u, r in items %}
+<a class="card" href="{{ url_for('contractor', uid=u.id) }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ u.name }}</b><span class="tag blue">{{ _("Vérifié") }}</span></div>
+<span class="muted">{{ u.company or '' }}{% if u.zone %} · {{ u.zone }}{% endif %}</span>
+<div class="row"><span class="muted">{{ _("Chantiers") }}</span><span>{{ r.finished }} {{ pl(r.finished, "terminé(s)") }}, {{ r.ongoing }} {{ _("en cours") }}</span></div>
+<div class="row"><span class="muted">{{ _("Indice de confiance moyen") }}</span><b>{{ r.trust if r.trust is not none else '–' }}</b></div>
+<div class="row"><span class="muted">{{ _("Avis") }}</span><span>{% if r.rating is not none %}{{ r.rating }}/5 ({{ r.reviews }}){% else %}–{% endif %}</span></div>
+</a>
+{% else %}<div class="card muted">{{ _("Aucun entrepreneur vérifié dans cette zone pour l'instant.") }}</div>{% endfor %}
+</div>
+{% endblock %}

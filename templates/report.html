@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Compte rendu ·") }} {{ p.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('reports', project_id=p.id) }}">{{ _("← Fil d'actualité") }}</a>
+<h1>{{ _("Compte rendu de la semaine") }}</h1>
+<div class="muted">{{ p.name }} {{ _("· du") }} {{ d(c.period_start) }} {{ _("au") }} {{ d(c.period_end) }}</div>
+<div class="card">
+{% for line in c.summary %}<span>{{ line }}</span>{% endfor %}
+</div>
+<div class="grid2">
+<div class="card"><span class="muted">{{ _("Preuves vérifiées") }}</span><span class="big">{{ c.proofs_ok }}</span><span class="muted">{{ c.proofs_bad }} {{ pl(c.proofs_bad, "refusée(s)") }}</span></div>
+<div class="card"><span class="muted">{{ _("Avancement vérifié") }}</span><span class="big">{{ c.verified_pct }} %</span><span class="muted">{{ _("déclaré") }} {{ c.declared_pct }} %</span></div>
+<div class="card"><span class="muted">{{ _("Versé cette semaine") }}</span><span class="big">{{ fcfa(c.released) }}</span><span class="muted">FCFA</span></div>
+<div class="card"><span class="muted">{{ _('Bloqué sur le séquestre') if c.sequestre else _('Reste à payer') }}</span><span class="big">{{ fcfa(c.locked) }}</span><span class="muted">FCFA</span></div>
+</div>
+{% if c.current %}<div class="card"><span class="muted">{{ _("Étape en cours") }}</span><b>{{ c.current }}</b></div>{% endif %}
+{% if c.prediction %}
+<div class="card"><b>{{ _("Prédiction") }}</b>
+<span>{{ _("Fin estimée le") }} {{ c.prediction.predicted_end }} {{ _("(prévue le") }} {{ c.prediction.planned_end }}){% if not c.prediction.done %}, {{ c.prediction.delay }} {{ pl(c.prediction.delay, "jour(s) d'écart") }}{% endif %}.</span>
+{% for reason in c.prediction.reasons %}<span class="muted">• {{ reason }}</span>{% endfor %}
+</div>
+{% endif %}
+{% if c.inspections %}<div class="card"><b>{{ _("Inspections") }}</b>{% for v in c.inspections %}<span>{{ v }}</span>{% endfor %}</div>{% endif %}
+{% for a in c.alerts %}<div class="card alert"><b>{{ a }}</b></div>{% endfor %}
+{% if c.proof_ids %}
+<h2>{{ _("Photos de la semaine") }}</h2>
+<div class="gallery">{% for pid in c.proof_ids %}<a href="{{ url_for('proof_photo', proof_id=pid) }}" target="_blank"><img src="{{ url_for('proof_photo', proof_id=pid) }}" alt="{{ _("Preuve de la semaine") }}" loading="lazy" onerror="this.parentNode.style.display='none'"></a>{% endfor %}</div>
+{% endif %}
+<button class="btn ghost" onclick="window.print()">{{ _("Imprimer ou enregistrer en PDF") }}</button>
+{% endblock %}

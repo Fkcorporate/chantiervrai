@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Assistant") }} · ChantierVrai{% endblock %}
+{% block content %}
+<h1>{{ _("Assistant") }}</h1>
+<p class="muted">{{ _("Posez vos questions sur la construction ou sur votre chantier. L'assistant répond à partir des cours relus de l'Académie et des données de votre chantier, et cite ses sources. Pour tout calcul de structure, il vous renvoie vers l'ingénieur.") }}</p>
+{% if not ai %}<div class="card alert"><b>{{ _("Assistant IA non activé sur ce serveur") }}</b><span class="muted">{{ _("En attendant, vos questions trouvent les passages des cours qui y répondent.") }}</span></div>{% endif %}
+
+<form method="post" class="card">{{ csrf() }}
+<label>{{ _("À propos de") }}<select name="chantier"><option value="">{{ _("Question générale") }}</option>{% for pr in projects %}<option value="{{ pr.id }}"{% if project and project.id == pr.id %} selected{% endif %}>{{ pr.name }}</option>{% endfor %}</select></label>
+<label>{{ _("Votre question") }}<textarea name="q" required maxlength="600" placeholder="{{ _("Mon chef dit que la dalle est prête : que dois-je vérifier avant de payer ?") }}"></textarea></label>
+<button class="btn">{{ _("Demander") }}</button>
+</form>
+
+{% if answer %}
+<div class="card">
+<b>{{ answer.q }}</b>
+{% if answer.structural %}<div class="card alert"><span class="muted">{{ _("Les dimensions et le ferraillage d'un élément porteur se calculent pour chaque bâtiment : seul l'ingénieur peut les donner.") }}</span></div>{% endif %}
+{% if answer.text %}
+<div style="white-space:pre-line;max-width:70ch">{{ answer.text }}</div>
+<span class="muted">{{ _("Sources :") }}
+{% for i in answer.cited %}{% set pa = answer.passages[i - 1] %}<a href="{{ url_for('academy_course', slug=pa[1]) }}">[C{{ i }}] {{ pa[2] }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% if answer.used_project %}{% if answer.cited %}, {% endif %}[CHANTIER] {{ _("données mesurées de votre chantier") }}{% endif %}{% if not answer.cited and not answer.used_project %}{{ _("aucune : la réponse n'est pas dans les cours.") }}{% endif %}</span>
+<span class="muted">{{ _("Réponse générée par une IA à partir de ces sources : vérifiez avant toute décision importante.") }}</span>
+{% else %}
+{% if answer.error %}<span class="muted">{{ _("L'assistant ne répond pas pour l'instant. Voici les passages des cours les plus proches :") }}</span>{% endif %}
+{% for score, slug, ctitle, h, text in answer.passages[:3] %}<div><a href="{{ url_for('academy_course', slug=slug) }}"><b>{{ ctitle }}</b></a> <span class="muted">· {{ h }}</span><p style="margin:.3em 0 0">{{ text }}</p></div>
+{% else %}<span class="muted">{{ _("Pas de réponse dans les cours pour cette question. Reformulez avec des mots du chantier (ciment, ferraillage, fondation…) ou demandez à votre ingénieur.") }}</span>{% endfor %}
+{% endif %}
+</div>
+{% endif %}
+
+{% if history %}
+<h2>{{ _("Questions précédentes") }}</h2>
+{% for h in history %}<details class="card"><summary>{{ h.question }}</summary><div style="white-space:pre-line">{{ h.answer }}</div><span class="muted">{{ dt(h.created_at) }}</span></details>{% endfor %}
+{% endif %}
+{% endblock %}

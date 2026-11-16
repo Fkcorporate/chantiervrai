@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Administration · ChantierVrai") }}{% endblock %}
+{% block wrapclass %} wide{% endblock %}
+{% block content %}
+<div class="row"><h1>{{ _("Administration") }}</h1>{% if can('team') %}<a class="btn ghost small" href="{{ url_for('staff_team') }}">{{ _("Équipe") }}</a>{% endif %}</div>
+<p class="muted">{{ _("Votre rôle :") }} <b>{{ STAFF_ROLES[my_role] }}</b>. {{ _("Vous ne voyez que les sections de ce rôle.") }}</p>
+<div class="card{% if todo %} alert{% endif %}"><b>{{ _("À traiter") }}</b>
+{% for label, n, anchor in todo %}<a class="row" href="#{{ anchor }}"><span>{{ label }}</span><span class="pill warn">{{ n }}</span></a>{% else %}<span class="muted">{{ _("Rien en attente pour votre rôle.") }}</span>{% endfor %}</div>
+{% if can('money') %}<a class="card cardlink pl-entry" href="{{ url_for('pilotage') }}"><b>{{ _("Pilotage de l'activité") }}</b><span class="muted">{{ _("Chiffre d'affaires, argent suivi, clients, chantiers actifs : chiffres clés et évolution sur 12 mois.") }}</span></a>{% endif %}
+<nav class="chips anchors" aria-label="{{ _("Sections") }}">
+{% if can('money') %}<a class="chip" href="#abonnements">{{ _("Abonnements") }}</a><a class="chip" href="#commissions">{{ _("Commissions") }}</a>{% endif %}
+{% if can('inspections') or can('money') %}<a class="chip" href="#inspections">{{ _("Inspections") }}</a>{% endif %}
+{% if can('verify') %}<a class="chip" href="#verifier">{{ _("Vérifications") }}</a>{% endif %}
+{% if can('disputes') %}<a class="chip" href="#litiges">{{ _("Litiges") }}</a>{% endif %}
+{% if can('moderation') %}<a class="chip" href="#moderation">{{ _("Portail citoyen") }}</a>{% endif %}
+{% if can('accounts') %}<a class="chip" href="#comptes">{{ _("Comptes") }}</a>{% endif %}
+{% if stats.ops %}<a class="chip" href="#exploitation">{{ _("Sauvegardes") }}</a>{% endif %}
+{% if can('platform') %}<a class="chip" href="#reglages">{{ _("Réglages") }}</a>{% endif %}
+{% if can('journal') %}<a class="chip" href="#journal">{{ _("Journal") }}</a>{% endif %}
+</nav>
+{% if reset_link %}
+<div class="card alert"><b>{{ _("Lien de réinitialisation pour") }} {{ reset_link[0] }}</b>
+<span class="muted">{{ _("Valable 1 heure. Transmettez-le uniquement après avoir vérifié l'identité de la personne.") }}</span>
+<input value="{{ reset_link[1] }}" readonly onclick="this.select()" aria-label="{{ _("Lien de réinitialisation") }}"></div>
+{% endif %}
+{% if stats.users is defined or stats.projects is defined or stats.escrow is defined %}<div class="grid3">
+{% if stats.users is defined %}<div class="card"><span class="muted">{{ _("Comptes") }}</span><span class="big">{{ stats.users }}</span></div>{% endif %}
+{% if stats.projects is defined %}<div class="card"><span class="muted">{{ _("Chantiers") }}</span><span class="big">{{ stats.projects }}</span></div>{% endif %}
+{% if stats.escrow is defined %}<div class="card"><span class="muted">{{ _("En séquestre") }}</span><span class="big">{{ fcfa(stats.escrow) }}</span></div>{% endif %}
+</div>{% endif %}
+{% if stats.proofs_bad is defined %}<div class="muted">{{ stats.proofs_bad }} {{ pl(stats.proofs_bad, "preuve(s) refusée(s) sur 7 jours ·") }} {{ stats.notif_fail }} {{ pl(stats.notif_fail, "message(s) en échec") }}</div>{% endif %}
+
+{% if can('commerce') or stats.orders_litige %}<div class="card"><b>{{ _("Achat direct des matériaux") }}</b>
+{% if can('commerce') %}<span class="muted">{{ stats.orders.n }} {{ pl(stats.orders.n, "commande(s) livrée(s) ·") }} {{ fcfa(stats.orders.v) }} {{ _("FCFA de matériaux ·") }}{% if can('money') %} {{ fcfa(stats.orders.c) }} {{ _("FCFA de commission ·") }}{% endif %} {{ stats.orders_open }} {{ _("en cours") }}</span>{% endif %}
+{% for o in stats.orders_litige or [] %}<a href="{{ url_for('order', oid=o.id) }}" class="row"><span>{{ o.ref }} · {{ o.project_name }}</span><span class="tag bad">{{ _("Problème signalé") }}</span></a>{% endfor %}
+</div>{% endif %}
+
+{% if can('money') %}<h2 id="abonnements">{{ _("Abonnements") }}</h2>
+<div class="grid3">
+<div class="card"><span class="muted">{{ _("Revenu mensuel récurrent (HT)") }}</span><span class="big">{{ fcfa(stats.mrr) }}</span><span class="muted">FCFA</span></div>
+<div class="card"><span class="muted">{{ _("Encaissé ce mois (HT)") }}</span><span class="big">{{ fcfa(stats.revenue_month) }}</span><span class="muted">FCFA</span></div>
+<div class="card"><span class="muted">{{ _("Clients") }}</span><span>{% for k, n in stats.subs.items() %}{{ SUB_STATUS[k] }} : <b>{{ n }}</b>{% if not loop.last %} · {% endif %}{% else %}—{% endfor %}</span></div>
+</div>
+<div class="card"><b>{{ _("Factures à encaisser") }}</b>
+{% for inv in stats.open_invoices %}
+<form method="post" action="{{ url_for('admin_billing') }}" class="stack">{{ csrf() }}<input type="hidden" name="id" value="{{ inv.id }}">
+<div class="row"><a href="{{ url_for('billing_invoice', inv_id=inv.id) }}">{{ inv.number }} · {{ inv.name }} ({{ inv.email }})</a><span>{{ fcfa(inv.amount) }} FCFA · {{ _("échéance") }} {{ d(inv.due_date) }}{% if inv.reminders %} · {{ inv.reminders }} {{ pl(inv.reminders, "relance(s)") }}{% endif %}</span></div>
+<div class="acts-row"><select name="method" aria-label="{{ _("Moyen") }}">{% for k, m in INV_METHODS.items() %}<option value="{{ k }}"{% if k == 'virement' %} selected{% endif %}>{{ m }}</option>{% endfor %}</select><input name="reference" placeholder="{{ _("Référence du virement") }}" aria-label="{{ _("Référence") }}"><button class="btn small" name="action" value="inv_paid">{{ _("Marquer payée") }}</button><button class="btn ghost small" name="action" value="inv_cancel">{{ _("Annuler la facture") }}</button></div>
+</form>
+{% else %}<span class="muted">{{ _("Aucune facture en attente.") }}</span>{% endfor %}
+</div>
+{% if stats.paid_invoices %}<div class="card"><b>{{ _("Dernières factures payées") }}</b>{% for inv in stats.paid_invoices %}<a class="row" href="{{ url_for('billing_invoice', inv_id=inv.id) }}"><span>{{ inv.number }} · {{ inv.name }}</span><span>{{ fcfa(inv.amount) }} FCFA · {{ d(inv.paid_at) }}</span></a>{% endfor %}</div>{% endif %}
+{% endif %}
+{% if can('money') %}<h2 id="commissions">{{ _("Commissions à facturer aux fournisseurs") }}</h2>
+<div class="card">
+<form method="get" class="row" action="{{ url_for('admin') }}#commissions"><label>{{ _("Mois") }}<input type="month" name="mois" value="{{ stats.month }}"></label><button class="btn ghost small">{{ _("Afficher") }}</button><a class="btn ghost small" href="{{ url_for('commissions_csv', mois=stats.month) }}">{{ _("Exporter en CSV") }}</a></form>
+<span class="muted">{{ _("Commandes reçues ce mois et payées directement au fournisseur. Facturez-lui la commission en fin de mois.") }}</span>
+{% for r in stats.commissions %}<div class="row"><span>{{ r.company or r.name }} · {{ r.n }} {{ pl(r.n, "commande(s)") }} · {{ fcfa(r.sales) }} FCFA</span><b>{{ fcfa(r.commission) }} FCFA</b></div>
+{% else %}<span class="muted">{{ _("Aucune commande ce mois.") }}</span>{% endfor %}
+</div>{% endif %}
+
+{% if can('inspections') or (can('money') and stats.insp_payouts) %}<h2 id="inspections">{{ _("Inspections indépendantes") }}</h2>
+{% if can('inspections') %}<div class="card"><b>{{ _("À attribuer") }}</b><span class="muted">{{ _("Payées par le client. Choisissez un inspecteur vérifié de la zone, sans lien avec le chantier.") }}</span>
+{% for r in stats.insp_requests %}
+<form method="post" action="{{ url_for('admin_inspections') }}" class="stack">{{ csrf() }}<input type="hidden" name="id" value="{{ r.id }}">
+<span>{{ r.project_name }} · {{ r.address or r.commune or '' }}{% if r.step_name %} · {{ r.step_name }}{% endif %}{% if r.wanted_date %} · {{ _("souhaitée le") }} {{ d(r.wanted_date) }}{% endif %}</span>
+<div class="acts-row"><select name="inspector_id" aria-label="{{ _("Inspecteur") }}">{% for u in stats.inspectors %}<option value="{{ u.id }}">{{ u.name }}{% if u.zone %} · {{ u.zone }}{% endif %}</option>{% endfor %}</select><button class="btn small" name="action" value="assign">{{ _("Attribuer") }}</button></div>
+</form>
+{% else %}<span class="muted">{{ _("Aucune inspection à attribuer.") }}</span>{% endfor %}
+</div>{% endif %}
+{% if can('money') %}<div class="card"><b>{{ _("Inspecteurs à payer") }}</b>
+{% for i in stats.insp_payouts %}
+<form method="post" action="{{ url_for('admin_inspections') }}" class="row">{{ csrf() }}<input type="hidden" name="id" value="{{ i.id }}">
+<span>{{ i.inspector_name }}{% if i.inspector_phone %} · {{ i.inspector_phone }}{% endif %} · {{ i.project_name }} · <b>{{ fcfa(i.fee) }} FCFA</b></span>
+<span class="acts-row"><input name="reference" placeholder="{{ _("Référence du versement") }}" aria-label="{{ _("Référence") }}"><button class="btn small" name="action" value="payout">{{ _("Marquer versé") }}</button></span>
+</form>
+{% else %}<span class="muted">{{ _("Aucun versement en attente.") }}</span>{% endfor %}
+</div>{% endif %}
+{% endif %}
+
+{% if can('imagery') %}<h2 id="images">{{ _("Images satellite très haute résolution à livrer") }}</h2>
+{% for o in stats.imagery %}
+<form method="post" action="{{ url_for('imagery_deliver', order_id=o.id) }}" enctype="multipart/form-data" class="card">{{ csrf() }}
+<div class="row"><b>{{ o.project_name }}</b><span class="tag amber">{{ IMAGERY_PROVIDERS[o.provider] }}</span></div>
+<span class="muted">{{ '%.5f'|format(o.lat) }}, {{ '%.5f'|format(o.lng) }} · {{ d(o.created_at) }}{% if o.note %} · {{ o.note }}{% endif %}</span>
+<div class="grid2"><label>{{ _("Mois de prise de vue") }}<input name="month" placeholder="2026-11" pattern="\d{4}-\d{2}"></label><label>{{ _("Image reçue") }}<input type="file" name="file" accept="image/*,.tif,.tiff"></label></div>
+<div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" name="action" value="deliver">{{ _("Livrer au propriétaire") }}</button><button class="btn ghost small" name="action" value="cancel">{{ _("Annuler") }}</button></div>
+</form>
+{% else %}<div class="card muted">{{ _("Aucune demande en cours.") }}</div>{% endfor %}
+{% endif %}
+
+{% if can('verify') %}<h2 id="foncier">{{ _("Vérifications foncières demandées") }}</h2>
+{% for r in stats.land_requests or [] %}
+<form method="post" action="{{ url_for('admin_action') }}" class="card">{{ csrf() }}<input type="hidden" name="action" value="land_request"><input type="hidden" name="id" value="{{ r.id }}">
+<div class="row"><b>{{ r.project_name }}</b><span class="tag {{ 'blue' if r.status == 'en_cours' else 'amber' }}">{{ _("Prise en charge") if r.status == 'en_cours' else _("Nouvelle") }}</span></div>
+<span class="muted">{{ r.owner_name }} · {{ r.owner_email }}{% if r.owner_phone %} · {{ r.owner_phone }}{% endif %} · {{ d(r.created_at) }}{% if r.doc_type %} · {{ r.doc_type }}{% if r.title_ref %} {{ r.title_ref }}{% endif %}{% endif %}</span>
+{% if r.message %}<span>{{ r.message }}</span>{% endif %}
+<label>{{ _("Réponse au propriétaire (partenaire, devis, résultat)") }}<textarea name="result" maxlength="2000">{{ r.result or '' }}</textarea></label>
+<div class="row" style="justify-content:flex-start;gap:8px"><button class="btn ghost small" name="status" value="en_cours">{{ _("Prendre en charge") }}</button><button class="btn small" name="status" value="faite">{{ _("Terminer") }}</button></div>
+</form>
+{% else %}<p class="muted">{{ _("Aucune demande en cours.") }}</p>{% endfor %}
+<h2 id="verifier">{{ _("Inspecteurs et fournisseurs à vérifier") }}</h2>
+{% for u in pending %}
+<form method="post" action="{{ url_for('admin_action') }}" class="card">{{ csrf() }}
+<div class="row"><b>{{ u.name }}</b><span class="tag">{{ PROFESSIONS[u.profession] if u.role == 'pro' and u.profession else ROLES[u.role] }}</span><span class="muted">{{ u.email }} · {{ u.phone or _('sans téléphone') }}</span></div>
+<span class="muted">{{ u.zone or _('Zone ?') }}{% if u.role == 'inspecteur' %} · {{ fcfa(u.tarif) if u.tarif else _('Tarif ?') }} {{ _("FCFA") }}{% endif %} · {{ _("inscrit le") }} {{ d(u.created_at) }}</span>
+{% if u.bio %}<div class="report">{{ u.bio }}</div>{% endif %}
+<input type="hidden" name="id" value="{{ u.id }}">
+<span class="muted">{% if u.company %}{{ u.company }} · {% endif %}{% if u.role == 'chef' or u.profession == 'entrepreneur' %}{{ _("Vérifiez le RCCM, les références et un ancien chantier avant d'approuver.") }}{% elif u.role == 'fournisseur' %}{{ _("Vérifiez le RCCM, l'adresse du dépôt et les prix avant d'approuver.") }}{% else %}{{ _("Vérifiez diplômes, inscription à l'ordre ou références avant d'approuver.") }}{% endif %}</span>
+<div class="grid2"><button class="btn" name="action" value="verify">{{ _("Approuver") }}</button><button class="btn ghost" name="action" value="block">{{ _("Refuser et bloquer") }}</button></div>
+</form>
+{% else %}<div class="card muted">{{ _("Personne en attente de vérification.") }}</div>{% endfor %}
+{% endif %}
+
+{% if can('disputes') %}<h2 id="litiges">{{ _("Litiges") }}</h2>
+<div class="card">
+{% for dsp in disputes %}<a class="row" href="{{ url_for('dispute', did=dsp.id) }}"><span>{{ dsp.project_name }} · {{ dsp.subject }}</span><span class="pill{% if dsp.status in ('ouvert', 'en_appel') %} warn{% endif %}">{{ DSTAGES[dsp.stage or 'echanges'] if dsp.status != 'clos' else DSTAGES['clos'] }}</span></a>
+{% else %}<span class="muted">{{ _("Aucun litige.") }}</span>{% endfor %}
+</div>{% endif %}
+
+{% if can('moderation') %}<h2 id="moderation">{{ _("Modération du portail citoyen") }}</h2>
+<p class="muted">{{ _("Un signalement est écarté s'il est injurieux, hors sujet ou s'il expose des données personnelles. Le maître d'ouvrage doit répondre publiquement sous 10 jours ; sans réponse, le support est alerté.") }}</p>
+<div class="card">
+{% for sg in sigs %}
+<form method="post" action="{{ url_for('admin_action') }}" class="row">{{ csrf() }}<input type="hidden" name="id" value="{{ sg.id }}">
+<span>{{ sg.project_name }} · {{ sg.text[:120] }} <span class="pill{% if sg.status in ('nouveau', 'en_cours', 'rejete') %} warn{% endif %}">{{ SIG_STATUS[sg.status] }}</span>{% if sg.moderation_note %} <span class="muted">({{ sg.moderation_note }})</span>{% endif %}</span>
+{% if not sg.hidden %}<input name="note" placeholder="{{ _("Motif : injurieux, hors sujet, données personnelles") }}" aria-label="{{ _("Motif") }}">{% endif %}
+<button class="btn ghost small" name="action" value="{{ 'show_sig' if sg.hidden else 'hide_sig' }}">{{ _('Réafficher') if sg.hidden else _('Écarter') }}</button>
+</form>
+{% else %}<span class="muted">{{ _("Aucun signalement.") }}</span>{% endfor %}
+</div>{% endif %}
+
+{% if can('accounts') %}<h2 id="comptes">{{ _("Comptes") }}</h2>
+<form method="get" class="row"><input name="q" value="{{ q }}" placeholder="{{ _("Nom, e-mail ou téléphone") }}" aria-label="{{ _("Rechercher un compte") }}"><button class="btn small">{{ _("Rechercher") }}</button></form>
+<details class="card"{% if q %} open{% endif %}><summary class="btn ghost small">{{ _("Voir les derniers comptes") if not q else _("Résultats de la recherche") }}</summary><div class="table-wrap"><table>
+<thead><tr><th>{{ _("Nom") }}</th><th>{{ _("Rôle") }}</th><th>{{ _("État") }}</th><th>{{ _("Actions") }}</th></tr></thead><tbody>
+{% for u in users %}
+<tr><td>{{ u.name }}<br><span class="muted">{{ u.email }}</span></td>
+<td>{{ ROLES[u.role] }}{% if u.is_admin %} · {{ _("équipe") }}{% endif %}{% if u.role in ('inspecteur', 'fournisseur') %}<br><span class="muted">{{ _('vérifié') if u.verified else _('non vérifié') }}</span>{% endif %}</td>
+<td>{{ _('Bloqué') if u.blocked else _('Actif') }}{% if u.totp_on %} {{ _("· 2FA") }}{% endif %}</td>
+<td><form method="post" action="{{ url_for('admin_action') }}" class="acts-row">{{ csrf() }}<input type="hidden" name="id" value="{{ u.id }}"><input type="hidden" name="q" value="{{ q }}">
+{% if u.id != me.id %}<button class="btn ghost small" name="action" value="{{ 'unblock' if u.blocked else 'block' }}">{{ _('Débloquer') if u.blocked else _('Bloquer') }}</button>{% endif %}
+{% if can('recovery') %}<button class="btn ghost small" name="action" value="reset_link">{{ _("Lien mot de passe") }}</button>{% endif %}
+{% if u.totp_on and can('recovery') %}<button class="btn ghost small" name="action" value="disable_2fa">{{ _("Retirer 2FA") }}</button>{% endif %}
+{% if u.role in ('inspecteur', 'fournisseur') and u.verified and can('verify') %}<button class="btn ghost small" name="action" value="unverify">{{ _("Retirer vérification") }}</button>{% endif %}
+</form></td></tr>
+{% endfor %}
+</tbody></table></div></details>{% endif %}
+
+{% if stats.ops %}{% set o = stats.ops %}
+<section class="card{% if o.warn %} alert{% endif %}" id="exploitation">
+<div class="row"><h2 style="margin:0">{{ _("Sauvegardes et surveillance") }}</h2><a class="btn ghost small" href="{{ url_for('health') }}" target="_blank" rel="noopener">{{ _("Page de santé") }}</a></div>
+<div class="row"><span>{{ _("Dernière sauvegarde") }}</span><span class="tag {{ 'green' if o.ok == '1' and o.age is not none and o.age <= 36 else 'bad' if o.ok == '0' or (o.age is not none and o.age > 36) else 'grey' }}">{% if o.last %}{{ dt(o.last) }}{% else %}{{ _("pas encore faite") }}{% endif %}</span></div>
+{% if o.detail and o.ok == '1' %}<span class="muted">{{ _("Vérifiée :") }} {{ o.detail }}</span>{% endif %}
+{% if o.error %}<span class="muted">{{ _("Erreur :") }} {{ o.error }}</span>{% endif %}
+<div class="row"><span>{{ _("Copie hors du serveur") }}</span><span class="tag {{ 'grey' if not o.remote else 'green' if o.remote_ok == '1' else 'bad' if o.remote_ok == '0' else 'grey' }}">{% if not o.remote %}{{ _("non configurée") }}{% elif o.remote_ok == '1' %}{{ _("à jour") }}{% elif o.remote_ok == '0' %}{{ _("en échec") }}{% else %}{{ _("pas encore faite") }}{% endif %}</span></div>
+{% if o.remote_detail and o.remote_ok == '1' %}<span class="muted">{{ o.remote_detail }}</span>{% endif %}
+{% if o.remote_error %}<span class="muted">{{ _("Erreur :") }} {{ o.remote_error }}</span>{% endif %}
+{% if not o.remote %}<span class="muted">{{ _("Sans copie distante, une panne du serveur ferait perdre photos et données. Configurez un stockage (Cloudflare R2, Backblaze B2, AWS S3) : voir le guide de mise en ligne.") }}</span>{% endif %}
+<div class="row"><span>{{ _("Tâches planifiées") }}</span><span class="tag {{ 'green' if o.daily else 'grey' }}">{% if o.daily %}{{ _("dernier passage") }} {{ dt(o.daily) }}{% else %}{{ _("aucun passage") }}{% endif %}</span></div>
+<div class="row"><span>{{ _("Espace disque libre") }}</span><span class="tag {{ 'green' if o.disk > 0.5 else 'bad' }}">{{ o.disk }} {{ _("Go") }}</span></div>
+</section>{% endif %}
+{% if can('platform') %}<details class="card fold-section" id="reglages"><summary><h2>{{ _("Réglages de la plateforme") }}</h2><span class="muted">{{ _("Séquestre, tarifs et TVA, offres sur mesure, IA, validation automatique") }}</span></summary>
+<div class="stack">
+<h3 id="plateforme">{{ _("Paiements de la plateforme") }}</h3>
+<form method="post" action="{{ url_for('admin_action') }}" class="card">{{ csrf() }}
+{% if stats.escrow_on %}
+<div class="row"><b>{{ _("Séquestre activé") }}</b><span class="tag amber">{{ _("Les clients peuvent déposer de l'argent") }}</span></div>
+<span class="muted">{{ _("À n'utiliser qu'avec un partenaire agréé qui garde réellement les fonds.") }}</span>
+<button class="btn ghost" name="action" value="escrow_off">{{ _("Désactiver le séquestre") }}</button>
+{% else %}
+<div class="row"><b>{{ _("Séquestre désactivé") }}</b><span class="tag">{{ _("ChantierVrai ne touche pas l'argent") }}</span></div>
+<span class="muted">{{ _("Les chantiers utilisent le paiement suivi : le client paie lui-même, le bénéficiaire confirme la réception. Le code du séquestre reste en place, prêt à être réactivé.") }}</span>
+<details><summary>{{ _("Activer le séquestre") }}</summary>
+<label>{{ _("Partenaire agréé qui garde les fonds") }}<input name="partner" placeholder="{{ _("Banque ou établissement de paiement agréé BCEAO") }}"></label>
+<label class="check"><input type="checkbox" name="confirm" value="1"> {{ _("Le contrat est signé et validé par notre avocat.") }}</label>
+<button class="btn" name="action" value="escrow_on">{{ _("Activer le séquestre") }}</button></details>
+{% endif %}
+<span class="muted">{{ stats.escrow_projects }} {{ pl(stats.escrow_projects, "chantier(s) encore en séquestre : ils utilisent leurs fonds restants, sans nouveau dépôt quand le séquestre est désactivé.") }}{% if stats.escrow_changed %} {{ _("Dernier changement :") }} {{ dt(stats.escrow_changed.updated_at) }}, {{ stats.escrow_changed.email }}.{% endif %}</span>
+</form>
+<details class="card"><summary><b>{{ _("Tarifs, TVA et mentions de facture") }}</b></summary>
+<form method="post" action="{{ url_for('admin_billing') }}" class="stack">{{ csrf() }}
+<div class="grid3"><label>{{ _("Essentiel (FCFA TTC / mois)") }}<input name="price_essentiel" inputmode="numeric" value="{{ stats.prices.essentiel }}"></label>
+<label>{{ _("Pro (FCFA TTC / mois)") }}<input name="price_pro" inputmode="numeric" value="{{ stats.prices.pro }}"></label>
+<label>{{ _("TVA (%)") }}<input name="vat_rate" inputmode="decimal" value="{{ stats.vat_rate }}"></label>
+<label>{{ _("Inspection indépendante (FCFA TTC)") }}<input name="inspection_price" inputmode="numeric" value="{{ stats.inspection_price }}"></label>
+<label>{{ _("Versé à l'inspecteur (FCFA)") }}<input name="inspection_payout" inputmode="numeric" value="{{ stats.inspection_payout }}"></label></div>
+<span class="muted">{{ _("Les prix sont saisis TTC, tels que les clients les paient ; chaque facture détaille le HT et la TVA.") }}</span>
+<label>{{ _("Vendeur : raison sociale, adresse, RCCM, numéro de compte contribuable") }}<textarea name="seller">{{ stats.seller }}</textarea></label>
+<label>{{ _("Coordonnées bancaires pour les virements") }}<textarea name="bank">{{ stats.bank }}</textarea></label>
+<span class="muted">{{ _("Faites valider le taux de TVA et les mentions obligatoires par votre comptable.") }}</span>
+<button class="btn" name="action" value="prices">{{ _("Enregistrer") }}</button></form></details>
+<details class="card"><summary><b>{{ _("Offre sur mesure pour un client") }}</b></summary>
+<form method="post" action="{{ url_for('admin_billing') }}" class="stack">{{ csrf() }}
+<div class="grid2"><label>{{ _("E-mail du propriétaire") }}<input type="email" name="email" required></label>
+<label>{{ _("Offre") }}<select name="plan"><option value="entreprise">{{ _("Entreprise") }}</option><option value="pro">{{ _("Pro") }}</option><option value="essentiel">{{ _("Essentiel") }}</option></select></label>
+<label>{{ _("Prix mensuel TTC (vide : tarif normal)") }}<input name="price" inputmode="numeric"></label>
+<label>{{ _("Chantiers en cours autorisés (vide : selon l'offre ou illimité)") }}<input name="sites" inputmode="numeric"></label>
+<label>{{ _("Mois offerts ou payés à part") }}<input name="months" inputmode="numeric" value="0"></label></div>
+<button class="btn" name="action" value="custom">{{ _("Appliquer") }}</button></form></details>
+<form method="post" action="{{ url_for('admin_action') }}" class="card" id="qualite">{{ csrf() }}<input type="hidden" name="action" value="quality_ai">
+<b>{{ _("Contrôle qualité des photos par l'IA") }}</b>
+<span class="muted">{% if stats.quality_ai_key %}{{ _("Clé d'IA configurée.") }}{% else %}{{ _("Aucune clé d'IA (ANTHROPIC_API_KEY) : seuls les contrôles par mesures et par le propriétaire fonctionnent.") }}{% endif %} {{ stats.quality_month }} {{ pl(stats.quality_month, "analyse(s) ce mois-ci. Analyses comprises par mois : Essai et Essentiel 3, Pro 30, Entreprise illimité.") }}</span>
+<label class="check"><input type="checkbox" name="on" value="1"{% if stats.quality_ai %} checked{% endif %}> {{ _("Analyser les photos des contrôles qualité avec l'IA") }}</label>
+<button class="btn ghost">{{ _("Enregistrer") }}</button></form>
+<form method="post" action="{{ url_for('admin_action') }}" class="card">{{ csrf() }}<input type="hidden" name="action" value="auto_validate">
+<b>{{ _("Validation automatique des étapes") }}</b>
+<span class="muted">{{ _("Désactivée par défaut. Activée ici, elle est proposée aux propriétaires, qui l'acceptent ou non chantier par chantier. Elle ne s'applique jamais sans les contrôles obligatoires, sans l'inspection exigée, ou si un litige est ouvert.") }}</span>
+<label class="check"><input type="checkbox" name="on" value="1"{% if stats.auto_on %} checked{% endif %}> {{ _("Proposer la validation automatique aux propriétaires") }}</label>
+<label>{{ _("Délai sans réponse avant validation (5 à 30 jours)") }}<input name="days" inputmode="numeric" value="{{ stats.auto_days }}"></label>
+<span class="muted">{{ stats.auto_projects }} {{ pl(stats.auto_projects, "chantier(s) l'ont acceptée.") }}</span>
+<button class="btn ghost">{{ _("Enregistrer") }}</button></form>
+</div></details>{% endif %}
+
+{% if can('journal') %}<details class="card fold-section" id="journal"><summary><h2>{{ _("Journal d'administration") }}</h2><span class="muted">{{ _("Qui a fait quoi, et quand") }}</span></summary>
+<div class="log">{% for l in journal %}<div><span>{{ dt(l.created_at) }}</span><span>{{ l.email }}{% if l.staff_role %} ({{ STAFF_ROLES[l.staff_role] }}){% endif %} : {{ l.action }} {{ _("(n°") }}{{ l.target }})</span></div>{% else %}<span class="muted">{{ _("Vide.") }}</span>{% endfor %}</div></details>{% endif %}
+{% endblock %}

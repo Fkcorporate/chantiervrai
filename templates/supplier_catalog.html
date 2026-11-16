@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Mon catalogue · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Mon catalogue") }}</h1>
+<p class="muted">{{ _("Les chefs de chantier et les propriétaires commandent ici, au prix affiché. Vous êtes payé sur votre Mobile Money dès que la livraison est photographiée sur le terrain et comptée. Commission ChantierVrai :") }} {{ commission|qte }} %.</p>
+{% if not me.verified %}<div class="card alert"><b>{{ _("Entreprise en attente de vérification") }}</b><span class="muted">{{ _("Vos produits seront visibles par les chantiers une fois votre entreprise vérifiée.") }}</span></div>{% endif %}
+
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="add">
+<b>{{ _("Ajouter un produit") }}</b>
+<label>{{ _("Produit") }}<input name="name" required maxlength="120" placeholder="{{ _("Ciment CPJ 42,5 sac de 50 kg") }}"></label>
+<div class="grid2">
+<label>{{ _("Matériau") }}<select name="material"><option value="">{{ _("Reconnaître depuis le nom") }}</option>{% for m in MATERIALS %}<option value="{{ m }}">{{ _(m) }}</option>{% endfor %}</select></label>
+<label>{{ _("Unité") }}<input name="unit" maxlength="20" placeholder="{{ _("sac") }}"></label>
+</div>
+<label>{{ _("Prix unitaire livré (FCFA)") }}<input name="price" inputmode="numeric" required></label>
+<button class="btn">{{ _("Ajouter") }}</button>
+</form>
+
+<div class="card">
+<b>{{ _("Produits") }} ({{ products|length }})</b>
+{% for pr in products %}
+<div class="stack" style="border-top:1px solid var(--line);padding-top:12px{% if not pr.available %};opacity:.55{% endif %}">
+<div class="row"><span><b>{{ pr.name }}</b><br><span class="muted">{{ _(pr.material) }} · {{ _("par") }} {{ pr.unit }}{% if not pr.available %} · {{ _("masqué") }}{% endif %}</span></span></div>
+<div class="row" style="flex-wrap:wrap;gap:8px">
+<form method="post" class="row" style="gap:8px">{{ csrf() }}<input type="hidden" name="action" value="price"><input type="hidden" name="product_id" value="{{ pr.id }}"><input name="price" value="{{ pr.price }}" inputmode="numeric" style="width:8em" aria-label="{{ _("Prix") }} {{ pr.name }}"><button class="btn ghost small">{{ _("Changer le prix") }}</button></form>
+<form method="post" class="row" style="gap:8px">{{ csrf() }}<input type="hidden" name="product_id" value="{{ pr.id }}">
+<button class="btn ghost small" name="action" value="toggle">{{ _("Masquer") if pr.available else _("Remettre en vente") }}</button>
+<button class="btn ghost small" name="action" value="delete">{{ _("Supprimer") }}</button></form>
+</div></div>
+{% else %}<span class="muted">{{ _("Aucun produit. Commencez par vos articles les plus demandés : ciment, fer à béton, sable, gravier, parpaings.") }}</span>{% endfor %}
+</div>
+{% endblock %}

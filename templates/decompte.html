@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Situation des travaux") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a class="noprint" href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
+<h1>{{ _("Situation des travaux et décompte") }}</h1>
+<div class="row"><span class="muted">{{ p.name }}{% if p.marche_ref %} · {{ _("marché") }} {{ p.marche_ref }}{% endif %} · {{ _("arrêtée le") }} {{ d(today) }}</span><button class="btn ghost small" onclick="window.print()">{{ _("Imprimer") }}</button></div>
+<div class="grid3">
+<div class="card"><span class="muted">{{ _("Montant du contrat") }}</span><span class="big">{{ fcfa(contract) }}</span></div>
+<div class="card green"><span class="muted">{{ _("Payé à ce jour") }}</span><span class="big">{{ fcfa(paid) }}</span><span class="muted">{{ (paid * 100 / contract)|round|int if contract else 0 }} %</span></div>
+<div class="card"><span class="muted">{{ _("Reste à payer") }}</span><span class="big">{{ fcfa(contract - paid) }}</span>{% if to_pay %}<span class="muted">{{ _("dont") }} {{ fcfa(to_pay) }} {{ _("à valider") }}</span>{% endif %}</div>
+</div>
+<div class="card table-wrap"><table><thead><tr><th>{{ _("Étape") }}</th><th>{{ _("Montant") }}</th><th>{{ _("État") }}</th><th>{{ _("Contrôles") }}</th><th>{{ _("Payé le") }}</th></tr></thead><tbody>
+{% for r in rows %}<tr{% if r.missing and r.st.status in ('declare', 'paye', 'versement') %} class="bad"{% endif %}>
+<td>{{ loop.index }}. <a href="{{ url_for('step_page', project_id=p.id, step_id=r.st.id) }}">{{ r.st.name }}</a>{% if r.orders %}<br><span class="muted">{{ _("matériaux achetés en direct :") }} {{ fcfa(r.orders) }}</span>{% endif %}</td>
+<td>{{ fcfa(r.st.amount) }}</td><td>{{ STATUS[r.st.status] }}</td>
+<td>{{ r.checks_ok }}/{{ r.checks }}{% if r.missing %} <span class="tag amber">{{ r.missing }} {{ pl(r.missing, "obligatoire(s) manquant(s)") }}</span>{% endif %}</td>
+<td>{{ d(r.st.paid_at) if r.st.paid_at else '–' }}{% if r.st.pay_ref %}<br><span class="muted">{{ r.st.pay_ref }}</span>{% endif %}</td></tr>{% endfor %}
+<tr><td><b>{{ _("Total") }}</b></td><td><b>{{ fcfa(s.total) }}</b></td><td colspan="3"><span class="muted">{{ _("Avancement vérifié :") }} {{ s.verified_pct }} %{% if materials %} · {{ _("matériaux achetés en direct :") }} {{ fcfa(materials) }} FCFA{% endif %}</span></td></tr>
+</tbody></table></div>
+<p class="muted">{{ _("Document généré par ChantierVrai à partir des preuves, contrôles et paiements enregistrés. Il ne remplace pas le décompte contractuel signé par les parties.") }}</p>
+{% endblock %}

@@ -1,0 +1,35 @@
+<form method="post" class="stack fin-src">{{ csrf() }}<input type="hidden" name="action" value="source"><input type="hidden" name="anchor" value="sources">
+{% if src %}<input type="hidden" name="source_id" value="{{ src.id }}">{% endif %}
+<div class="grid3">
+<label>{{ _("Type de source") }}<select name="kind" required class="fin-kind">{% for k, v in KINDS.items() %}<option value="{{ k }}"{% if src and src.kind == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label><span class="fin-amount-label">{{ _("Montant (FCFA)") }}</span><input name="amount" inputmode="numeric" required value="{{ src.amount if src else '' }}"></label>
+<label>{{ _("Date d'arrivée prévue") }}<input type="date" name="expected_on" value="{{ src.expected_on if src and src.expected_on else '' }}"></label>
+</div>
+<div class="grid3">
+<label>{{ _("Nom (facultatif)") }}<input name="label" maxlength="120" value="{{ (src.label if src else '') or '' }}" placeholder="{{ _("Ex. épargne Paris, prêt immobilier") }}"></label>
+<label>{{ _("Banque, organisme ou personne") }}<input name="lender" maxlength="120" value="{{ (src.lender if src else '') or '' }}"></label>
+<label>{{ _("Statut") }}<select name="status"><option value="prevue"{% if src and src.status == 'prevue' %} selected{% endif %}>{{ FSTATUS.prevue }}</option><option value="confirmee"{% if src and src.status == 'confirmee' %} selected{% endif %}>{{ _("Confirmée (accord écrit, argent disponible)") }}</option></select></label>
+</div>
+<div class="grid3 fin-months">
+<label>{{ _("Durée (mois)") }}<input name="months" inputmode="numeric" value="{{ src.months if src and src.months else '' }}"></label>
+<label class="fin-loan">{{ _("Taux annuel (%)") }}<input name="rate" inputmode="decimal" value="{{ src.rate if src and src.rate is not none else '' }}"></label>
+<label class="fin-loan">{{ _("Différé (mois)") }}<input name="deferral_months" inputmode="numeric" value="{{ src.deferral_months if src and src.deferral_months else '' }}"></label>
+</div>
+<label class="fin-loan">{{ _("Mensualité connue (FCFA, sinon calculée)") }}<input name="monthly_payment" inputmode="numeric" value="{{ src.monthly_payment if src and src.monthly_payment else '' }}"></label>
+<label>{{ _("Note") }}<input name="note" maxlength="500" value="{{ (src.note if src else '') or '' }}"></label>
+<button class="btn small">{{ _("Enregistrer la source") if src else _("Ajouter la source") }}</button>
+</form>
+<script>
+(function () {
+  document.querySelectorAll('.fin-src').forEach(function (f) {
+    var k = f.querySelector('.fin-kind');
+    function upd() {
+      var loan = k.value === 'credit' || k.value === 'microfinance', tr = k.value === 'transferts';
+      f.querySelectorAll('.fin-loan').forEach(function (x) { x.classList.toggle('hidden', !loan); });
+      f.querySelector('.fin-months').classList.toggle('hidden', !(loan || tr));
+      f.querySelector('.fin-amount-label').textContent = tr ? {{ _("Montant par mois (FCFA)")|tojson }} : {{ _("Montant (FCFA)")|tojson }};
+    }
+    k.addEventListener('change', upd); upd();
+  });
+})();
+</script>

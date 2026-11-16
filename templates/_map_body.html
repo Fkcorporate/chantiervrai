@@ -1,0 +1,18 @@
+<div class="legend">
+<span><i style="background:#0E5A3A"></i>{{ _("Dans les temps") }}</span>
+<span><i style="background:#D9A21F"></i>{{ _("Retard 8 à 30 j") }}</span>
+<span><i style="background:#B4501F"></i>{{ _("Retard &gt; 30 j") }}</span>
+<span><i style="background:#8A8F8C"></i>{{ _("Planning non renseigné") }}</span>
+</div>
+<div id="map" class="map"></div>
+<div class="list">
+{% for q in points %}
+<a class="card" href="{{ q.url }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ q.name }}</b><span class="pill{% if q.risk == 'élevé' %} warn{% elif q.risk == 'moyen' %} amber{% elif q.risk == 'inconnu' %} grey{% endif %}">{% if q.delay is not none and q.risk != 'terminé' %}{{ '+' if q.delay > 0 }}{{ q.delay }} {{ _("j") }}{% else %}{{ _(q.risk)|capitalize }}{% endif %}</span></div>
+<span class="muted">{{ q.address }} · {{ q.current }}</span>
+<div class="bar"><div style="width:{{ q.pct }}%"></div></div>
+</a>
+{% else %}
+<div class="card muted">{{ _("Aucun chantier à afficher.") }}</div>
+{% endfor %}
+</div>

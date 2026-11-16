@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Dossier de crédit") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a class="noprint" href="{{ url_for('financing', project_id=p.id) }}">← {{ _("Plan de financement") }}</a>
+<div class="row"><h1>{{ _("Dossier de financement") }}</h1><button class="btn ghost small noprint" type="button" onclick="window.print()">{{ _("Imprimer ou enregistrer en PDF") }}</button></div>
+<div class="muted">{{ p.name }} · {{ p.address }} · {{ _("préparé le") }} {{ d(today) }} {{ _("avec ChantierVrai") }}</div>
+
+<div class="card noprint{% if missing %} alert{% endif %}">
+{% if missing %}<b>{{ _("%(n)s pièce(s) obligatoire(s) manquante(s)", n=missing|length) }}</b><span class="muted">{{ missing|map(attribute='label')|join(' · ') }}</span>
+{% else %}<b>{{ _("Toutes les pièces habituellement demandées sont présentes.") }}</b><span class="muted">{{ _("Chaque banque peut demander des pièces supplémentaires.") }}</span>{% endif %}
+</div>
+
+<h2 id="pieces">{{ _("Pièces du dossier") }}</h2>
+{% for section_label, section_items in sections %}
+<div class="card">
+<b>{{ section_label }}</b>
+{% for it in section_items %}
+<div class="row"><span>{{ it.label }}{% if not it.required %} <span class="tag grey">{{ _("si concerné") }}</span>{% endif %}
+{% for f in it.files %}<br><a class="muted" href="{{ url_for('financing_doc', doc_id=f.id) }}" target="_blank">{{ f.title or f.original_name }}</a>{% if can_edit %} <form method="post" class="noprint" style="display:inline">{{ csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="doc_id" value="{{ f.id }}"><button class="linkish">{{ _("retirer") }}</button></form>{% endif %}{% endfor %}
+{% if it.auto and not it.files %}<br><span class="muted">{{ _("Fourni par ChantierVrai (ci-dessous)") }}</span>{% endif %}</span>
+<span class="tag {{ 'green' if it.ok else ('bad' if it.required else 'grey') }}">{{ _("Fourni") if it.ok else _("Manquant") }}</span></div>
+{% endfor %}
+</div>
+{% endfor %}
+{% if can_edit %}
+<form method="post" enctype="multipart/form-data" class="card stack noprint">{{ csrf() }}
+<b>{{ _("Ajouter une pièce") }}</b>
+<div class="grid3">
+<label>{{ _("Pièce") }}<select name="kind" required>{% for k, v in DOC_KINDS.items() %}<option value="{{ k }}"{% if missing and missing[0].upload_kind == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Fichier") }}<input type="file" name="file" required></label>
+<label>{{ _("Titre (facultatif)") }}<input name="title" maxlength="150"></label>
+</div>
+<span class="muted">{{ _("Plans, devis et permis se déposent dans le dossier du chantier, onglet « Dossier » : ils sont repris ici. Les pièces de ce dossier restent privées : seuls vous, vos co-propriétaires et votre responsable financier les voient.") }}</span>
+<button class="btn ghost small">{{ _("Ajouter") }}</button></form>
+{% endif %}
+
+<h2>{{ _("1. Emprunteur") }}</h2>
+<div class="card">
+<div class="row"><span>{{ _("Nom") }}</span><b>{{ owner.name }}</b></div>
+<div class="row"><span>{{ _("Contact") }}</span><span>{{ owner.email }}{% if owner.phone %} · {{ owner.phone }}{% endif %}</span></div>
+{% if profile %}
+{% if profile.country %}<div class="row"><span>{{ _("Pays de résidence") }}</span><span>{{ profile.country }}</span></div>{% endif %}
+{% if profile.employer %}<div class="row"><span>{{ _("Employeur") }}</span><span>{{ profile.employer }}</span></div>{% endif %}
+{% endif %}
+{% if debt and debt.income %}
+<div class="row"><span>{{ _("Revenus nets mensuels") }}</span><span>{{ fcfa(debt.income) }} FCFA{% if profile.income_currency != 'XOF' %} ({{ profile.monthly_income|int }} {{ profile.income_currency }}){% endif %}</span></div>
+<div class="row"><span>{{ _("Charges et mensualités") }}</span><span>{{ fcfa(debt.loans + debt.charges) }} FCFA</span></div>
+<div class="row"><span>{{ _("Taux d'endettement") }}</span><b>{{ debt.ratio }} %</b></div>
+{% endif %}
+</div>
+
+<h2>{{ _("2. Projet") }}</h2>
+<div class="card">
+<div class="row"><span>{{ _("Chantier") }}</span><b>{{ p.name }}</b></div>
+<div class="row"><span>{{ _("Adresse") }}</span><span>{{ p.address }}{% if p.commune %}, {{ p.commune }}{% endif %}</span></div>
+{% if p.building_type %}<div class="row"><span>{{ _("Type de bâtiment") }}</span><span>{{ p.building_type }}{% if p.levels %} · {{ p.levels }} {{ pl(p.levels, "niveau(x)") }}{% endif %}</span></div>{% endif %}
+{% if p.surface_floor %}<div class="row"><span>{{ _("Surface de plancher") }}</span><span>{{ p.surface_floor|int }} m²</span></div>{% endif %}
+{% if p.land_title or p.land_ref %}<div class="row"><span>{{ _("Terrain") }}</span><span>{{ p.land_title or '' }} {{ p.land_ref or '' }}</span></div>{% endif %}
+{% if p.permit_ref %}<div class="row"><span>{{ _("Permis de construire") }}</span><span>{{ p.permit_ref }}</span></div>{% endif %}
+<div class="row"><span>{{ _("Coordonnées GPS du terrain") }}</span><span>{{ p.lat }}, {{ p.lng }}</span></div>
+</div>
+
+<h2>{{ _("3. Budget et planning") }}</h2>
+<div class="card">
+<table class="table"><thead><tr><th>{{ _("Étape") }}</th><th>{{ _("Montant (FCFA)") }}</th><th>{{ _("Fin prévue") }}</th><th>{{ _("Statut") }}</th></tr></thead><tbody>
+{% for st in s.steps %}<tr><td>{{ loop.index }}. {{ st.name }}</td><td>{{ fcfa(st.amount) }}</td><td>{{ d(schedule.get(st.id)) if schedule.get(st.id) else '—' }}</td><td>{{ STATUS[st.status] }}</td></tr>{% endfor %}
+</tbody></table>
+<div class="row"><b>{{ _("Budget total (étapes et autres coûts)") }}</b><b>{{ fcfa(pl.budget) }} FCFA</b></div>
+{% if p.start_date %}<span class="muted">{{ _("Début des travaux :") }} {{ d(p.start_date) }}</span>{% endif %}
+</div>
+
+<h2>{{ _("4. Plan de financement") }}</h2>
+<div class="card">
+<table class="table"><thead><tr><th>{{ _("Source") }}</th><th>{{ _("Montant (FCFA)") }}</th><th>{{ _("Date") }}</th><th>{{ _("Statut") }}</th><th>{{ _("Reçu") }}</th></tr></thead><tbody>
+{% for x in pl.sources %}{% set src = x.row %}<tr><td>{{ src.label or KINDS[src.kind] }}{% if src.lender %} · {{ src.lender }}{% endif %}</td><td>{{ fcfa(x.total) }}</td><td>{{ d(src.expected_on) if src.expected_on else '—' }}</td><td>{{ FSTATUS[x.status] }}</td><td>{{ fcfa(x.received) }}</td></tr>{% endfor %}
+</tbody></table>
+<div class="row"><span>{{ _("Total des sources") }}</span><b>{{ fcfa(pl.total_sources) }} FCFA{% if pl.coverage is not none %} ({{ pl.coverage }} %){% endif %}</b></div>
+{% if pl.shortfall %}<div class="row"><span>{{ _("Montant à financer") }}</span><b class="fin-neg">{{ fcfa(pl.shortfall) }} FCFA</b></div>{% endif %}
+{% if pl.first_gap %}<span class="muted">{{ _("Premier besoin de trésorerie : %(m)s (%(a)s FCFA).", m=month_label(pl.first_gap.month), a=fcfa(-pl.first_gap.balance)) }}</span>{% endif %}
+</div>
+
+<h2>{{ _("5. Avancement prouvé") }}</h2>
+<div class="card">
+<div class="row"><span>{{ _("Avancement validé") }}</span><b>{{ s.verified_pct }} %</b></div>
+<div class="row"><span>{{ _("Étapes payées") }}</span><span>{{ s.steps|selectattr('status', 'equalto', 'paye')|list|length }} / {{ s.steps|length }}</span></div>
+<div class="row"><span>{{ _("Montant déjà payé") }}</span><span>{{ fcfa(pl.spent) }} FCFA</span></div>
+<span class="muted">{{ _("Avancement établi à partir de photos géolocalisées et horodatées, vérifiées par ChantierVrai, et des validations du propriétaire. Le détail est consultable sur demande.") }}</span>
+</div>
+{% if docs_project %}
+<h2>{{ _("Documents techniques du chantier") }}</h2>
+<div class="card">{% for dc in docs_project %}<div class="row"><span>{{ _(dc.category) }} · {{ dc.title }}</span><span class="muted">{{ d(dc.created_at) }}</span></div>{% endfor %}</div>
+{% endif %}
+<p class="muted">{{ _("Dossier préparé par l'emprunteur avec ChantierVrai, à partir de ses déclarations et des données du chantier. ChantierVrai ne donne pas d'avis sur l'obtention d'un crédit et n'est pas intermédiaire bancaire.") }}</p>
+{% endblock %}

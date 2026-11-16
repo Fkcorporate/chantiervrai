@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Académie du BTP · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Académie du BTP") }}</h1>
+<p class="muted">{{ _("Les bases pour comprendre ce qui se construit, contrôler votre chantier et parler le même langage que l'entrepreneur. Cours courts, schémas, listes de contrôle, quiz et calculateurs.") }}</p>
+
+<form method="get" class="card" role="search">
+<b>{{ _("Posez votre question") }}</b>
+<div class="row" style="gap:8px"><input name="q" value="{{ q }}" placeholder="{{ _("Combien de sacs de ciment pour un mètre cube de béton ?") }}" aria-label="{{ _("Votre question") }}" style="flex:1"><button class="btn small">{{ _("Chercher") }}</button></div>
+<span class="muted">{{ _("L'assistant cherche la réponse dans les cours relus de l'Académie et vous montre le passage exact. Il n'invente rien.") }}{% if me %} <a href="{{ url_for('assistant') }}">{{ _("Poser une question sur votre chantier à l'assistant IA") }}</a>{% endif %}</span>
+</form>
+{% if q %}
+<div class="card">
+{% if structural %}<div class="card alert"><b>{{ _("Question de structure") }}</b><span class="muted">{{ _("Les dimensions et le ferraillage des poteaux, poutres, dalles et fondations se calculent pour chaque bâtiment. Demandez-les à l'ingénieur ou au bureau d'études : les cours expliquent comment lire et contrôler ce qu'il prescrit.") }}</span></div>{% endif %}
+{% for score, slug, ctitle, h, text in hits %}
+<div><a href="{{ url_for('academy_course', slug=slug) }}"><b>{{ ctitle }}</b></a> <span class="muted">· {{ h }}</span><p style="margin:.3em 0 0">{{ text }}</p></div>
+{% else %}<span class="muted">{{ _("Pas de réponse dans les cours pour cette question. Reformulez avec des mots du chantier (ciment, ferraillage, fondation…) ou demandez à votre ingénieur.") }}</span>{% endfor %}
+</div>
+{% endif %}
+
+<div class="cards">
+{% for c in courses %}
+<a class="card" href="{{ url_for('academy_course', slug=c.slug) }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ c.title }}</b>{% if done.get(c.slug) is not none %}<span class="tag {{ 'blue' if done[c.slug] >= 67 else 'amber' }}">{{ done[c.slug] }} %</span>{% endif %}</div>
+<span class="muted">{{ c.audience }} · {{ c.minutes }} min{% if c.calc %} · {{ _("calculateur") }}{% endif %}</span>
+</a>
+{% endfor %}
+</div>
+
+<h2>{{ _("Calculateurs") }}</h2>
+<div class="chips">{% for k, t in calcs.items() %}<a class="chip" href="{{ url_for('calculator_public', type=k) }}">{{ t.title }}</a>{% endfor %}</div>
+<p class="muted">{{ _("Les valeurs données dans l'Académie sont des ordres de grandeur de chantier. Pour tout élément porteur, les études techniques et l'ingénieur font foi.") }}</p>
+{% endblock %}

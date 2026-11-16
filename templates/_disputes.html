@@ -1,0 +1,17 @@
+{% for dsp in disputes %}
+<a class="card{% if dsp.status == 'ouvert' %} alert{% endif %}" href="{{ url_for('dispute', did=dsp.id) }}" style="text-decoration:none;color:inherit">
+<div class="row"><b>{{ dsp.subject }}</b><span class="pill{% if dsp.status == 'ouvert' %} warn{% endif %}">{{ _('En cours') if dsp.status == 'ouvert' else _('Résolu') }}</span></div>
+<span class="muted">{{ _("Ouvert le") }} {{ d(dsp.created_at) }}</span>
+</a>
+{% endfor %}
+<details class="card">
+<summary><b>{{ _("Ouvrir un litige") }}</b></summary>
+<span class="muted">{{ _("Désaccord sur une étape, un refus ou un paiement ? Expliquez la situation : l'autre partie et l'équipe de médiation ChantierVrai sont prévenues et voient les preuves.") }}</span>
+<form method="post" action="{{ url_for('open_dispute', project_id=p.id) }}" class="stack">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<label>{{ _("Étape concernée") }}<select name="step_id"><option value="">{{ _("Aucune en particulier") }}</option>{% for st in s.steps %}<option value="{{ st.id }}"{% if s.current and st.id == s.current.id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select></label>
+<label>{{ _("Objet") }}<input name="subject" required minlength="5" placeholder="{{ _("Étape refusée trois fois sans motif clair") }}"></label>
+<label>{{ _("Explication") }}<textarea name="text" required minlength="20"></textarea></label>
+<button class="btn ghost">{{ _("Ouvrir le litige") }}</button>
+</form>
+</details>

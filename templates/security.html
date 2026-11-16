@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Sécurité · ChantierVrai") }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('account') }}">{{ _("← Mon compte") }}</a>
+<h1>{{ _("Sécurité et données") }}</h1>
+{% if my_staff_role and not me.totp_on %}<div class="card alert"><b>{{ _("Équipe ChantierVrai : 2FA obligatoire") }}</b><span class="muted">{{ _("Activez la double authentification ci-dessous pour ouvrir l'administration.") }}</span></div>{% endif %}
+
+{% if new_codes %}
+<div class="card alert">
+<b>{{ _("Vos codes de secours") }}</b>
+<span class="muted">{{ _("Notez-les maintenant sur papier. Chacun sert une seule fois si vous perdez votre téléphone. Ils ne seront plus affichés.") }}</span>
+<div class="codes">{% for c in new_codes %}<span>{{ c[:4] }} {{ c[4:] }}</span>{% endfor %}</div>
+</div>
+{% endif %}
+
+<div class="card">
+<div class="row"><b>{{ _("Double authentification") }}</b><span class="pill{% if not me.totp_on %} warn{% endif %}">{{ _('Activée') if me.totp_on else _('Désactivée') }}</span></div>
+{% if me.totp_on %}
+<span class="muted">{{ _("À chaque connexion, un code de votre application d'authentification est demandé.") }}</span>
+<form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="totp_off">
+<label>{{ _("Mot de passe pour désactiver") }}<input type="password" name="current" required autocomplete="current-password"></label>
+<button class="btn ghost">{{ _("Désactiver") }}</button></form>
+{% elif setup %}
+<span>{{ _("1. Installez Google Authenticator, Microsoft Authenticator ou une application équivalente.") }}</span>
+<span>{{ _("2. Sur le téléphone, touchez") }} <a href="{{ uri }}">{{ _("ce lien") }}</a>{{ _(", ou ajoutez un compte et saisissez la clé :") }}</span>
+<span class="code" style="font-size:17px;letter-spacing:.06em">{{ setup_group }}</span>
+<form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="totp_confirm">
+<label>{{ _("3. Saisissez le code à 6 chiffres affiché") }}<input name="code" inputmode="numeric" autocomplete="one-time-code" required></label>
+<button class="btn">{{ _("Activer") }}</button></form>
+{% else %}
+<span class="muted">{{ _("Fortement conseillé si vous gérez de l'argent : même avec votre mot de passe, personne ne peut se connecter sans votre téléphone.") }}</span>
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="totp_start"><button class="btn">{{ _("Activer la double authentification") }}</button></form>
+{% endif %}
+</div>
+
+<form method="post" class="card">
+{{ csrf() }}<input type="hidden" name="action" value="password">
+<b>{{ _("Changer de mot de passe") }}</b>
+<label>{{ _("Mot de passe actuel") }}<input type="password" name="current" required autocomplete="current-password"></label>
+<label>{{ _("Nouveau mot de passe") }}<input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
+<button class="btn ghost">{{ _("Changer") }}</button>
+</form>
+
+<form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="logout_all">
+<b>{{ _("Appareils connectés") }}</b><span class="muted">{{ _("Téléphone perdu ou ordinateur partagé ? Déconnectez tous les autres appareils.") }}</span>
+<button class="btn ghost">{{ _("Déconnecter les autres appareils") }}</button></form>
+
+<div class="card">
+<b>{{ _("Mes données") }}</b>
+<a class="btn ghost" href="{{ url_for('export_data') }}">{{ _("Télécharger mes données") }}</a>
+<span class="muted"><a href="{{ url_for('privacy') }}">{{ _("Politique de confidentialité") }}</a> · <a href="{{ url_for('terms') }}">{{ _("Conditions d'utilisation") }}</a></span>
+</div>
+
+<details class="card">
+<summary><b>{{ _("Supprimer mon compte") }}</b></summary>
+<form method="post" action="{{ url_for('delete_account') }}" class="stack">
+{{ csrf() }}
+<span class="muted">{{ _("Vos données personnelles sont effacées. L'historique des chantiers reste visible par les autres participants, sous le nom « Compte supprimé ». Impossible si de l'argent est encore bloqué ou si un litige est en cours.") }}</span>
+<label>{{ _("Mot de passe") }}<input type="password" name="current" required autocomplete="current-password"></label>
+<button class="btn orange">{{ _("Supprimer définitivement") }}</button>
+</form>
+</details>
+{% endblock %}
