@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block bodyclass %}{% if tab == 'accueil' %}top-photo{% endif %}{% endblock %}
-{% from "_macros.html" import proof_card, tabs, csrf, risk_pill with context %}
+{% from "_macros.html" import proof_card, tabs, csrf, risk_pill, project_tools with context %}
 {% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
 {% block head %}
 {% if tab == 'vues' %}
@@ -41,6 +41,10 @@
 {% else %}<div class="todo-item"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span></div>{% endif %}
 {% endfor %}
 </section>{% endif %}
+<section class="tools-card" aria-labelledby="tools-h">
+<h2 id="tools-h">{{ _("Outils du chantier") }}</h2>
+{{ project_tools(p, land_label if land_level is not none else None) }}
+</section>
 {% if notes_recent %}<a class="card cardlink" href="{{ url_for('site_notes_page', project_id=p.id) }}"><div class="row"><b>{{ _("Messages du chef") }}</b>{% if notes_unread %}<span class="pill warn">{{ notes_unread }} {{ pl(notes_unread, "nouveau(x)") }}</span>{% endif %}</div>{% for n in notes_recent %}<span class="muted">{% if n.urgent %}<span class="tag bad">{{ _("Urgent") }}</span> {% endif %}{{ '🎙️ ' if n.kind == 'vocal' else '' }}{{ n.summary or n.transcript or _("Note vocale à écouter") }}</span>{% endfor %}</a>{% endif %}
 
 <div class="dash"><div class="dash-main">

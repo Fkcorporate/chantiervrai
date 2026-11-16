@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="{{ asset('style.css') }}">
 {% block head %}{% endblock %}
 </head>
-{% from "_macros.html" import icon as _ico %}
+{% from "_macros.html" import icon as _ico, project_tools as _ptools with context %}
 {% if false %}{% block tabs %}{% endblock %}{% endif %}
 {% set ep = request.endpoint or '' %}
 {% set ptabs = self.tabs()|trim %}
@@ -94,6 +94,11 @@
 <span class="sheet-me-txt"><b>{{ me.name }}</b><span class="muted">{{ ROLES.get(me.role, me.role) }}</span></span>
 <span class="sheet-chev">{{ _ico('chev') }}</span>
 </a>
+{% if ptabs and p is defined and p and p.id is defined and g.project_role == 'owner' %}
+<span class="sheet-sec">{{ _("Ce chantier") }}</span>
+{{ _ptools(p, None, 'sheet-grid') }}
+<span class="sheet-sec">{{ _("Menu") }}</span>
+{% endif %}
 <div class="sheet-grid">
 {% for it in (NAV.side if ptabs else NAV.more) %}{% if it.key not in ('account', 'alerts') %}
 <a href="{{ it.url }}"{% if ep in it.eps %} class="on"{% endif %}><span class="bb-ico">{{ _ico(it.icon) }}</span><span>{{ it.label }}</span></a>

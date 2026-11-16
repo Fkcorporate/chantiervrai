@@ -68,6 +68,11 @@
 {% elif name == 'back' %}<path d="M15 5l-7 7 7 7"/>
 {% elif name == 'globe' %}<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.8 3 2.8 15 0 18"/><path d="M12 3c-2.8 3-2.8 15 0 18"/>
 {% elif name == 'chev' %}<path d="M9 5l7 7-7 7"/>
+{% elif name == 'userplus' %}<circle cx="10" cy="8" r="3.6"/><path d="M3.5 20c.7-3.8 3.3-6 6.5-6 1.6 0 3 .5 4.1 1.4"/><path d="M18 14v6"/><path d="M15 17h6"/>
+{% elif name == 'compare' %}<rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/><path d="M5.5 15l2-3 1.5 2"/><path d="M15.5 15l2-3 1.5 2"/>
+{% elif name == 'note' %}<path d="M5 3h10l4 4v14H5z"/><path d="M15 3v4h4"/><path d="M8.5 12h7"/><path d="M8.5 16h5"/>
+{% elif name == 'land' %}<path d="M3 20l5-9 4 6 3-4 6 7z"/><circle cx="16.5" cy="6.5" r="2"/>
+{% elif name == 'gauge' %}<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/>
 {% endif %}</svg>{% endmacro %}
 
 {% macro tabs(p, items, current) %}
@@ -124,4 +129,20 @@
 <button class="btn" type="submit" id="send" disabled>{{ _("Envoyer la preuve") }}</button>
 <span class="muted">{{ hint }} {{ _("Sans réseau, la photo est gardée sur le téléphone et envoyée automatiquement au retour du réseau (72 h maximum).") }}</span>
 </form>
+{% endmacro %}
+
+
+{# Outils d'un chantier pour le propriétaire : tuiles avec icône, visibles d'un coup d'œil (accueil du chantier, menu « Plus »). #}
+{% macro project_tools(p, land_label=None, tiles_class='tools') %}
+<div class="{{ tiles_class }}">
+<a href="{{ url_for('financing', project_id=p.id) }}"><span class="t-ico">{{ icon('wallet') }}</span><span>{{ _("Plan de financement") }}</span></a>
+<a href="{{ url_for('plan_real', project_id=p.id) }}"><span class="t-ico">{{ icon('compare') }}</span><span>{{ _("Plan et réalité") }}</span></a>
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}#membres"><span class="t-ico">{{ icon('userplus') }}</span><span>{{ _("Inviter la famille ou un pro") }}</span></a>
+<a href="{{ url_for('quality_list', project_id=p.id) }}"><span class="t-ico">{{ icon('shield') }}</span><span>{{ _("Contrôle qualité") }}</span></a>
+<a href="{{ url_for('site_notes_page', project_id=p.id) }}"><span class="t-ico">{{ icon('note') }}</span><span>{{ _("Notes du chantier") }}</span></a>
+<a href="{{ url_for('land_page', project_id=p.id) }}"><span class="t-ico">{{ icon('land') }}</span><span>{{ _("Terrain") }}{% if land_label %} <small>· {{ land_label }}</small>{% endif %}</span></a>
+<a href="{{ url_for('decompte', project_id=p.id) }}"><span class="t-ico">{{ icon('bill') }}</span><span>{{ _("Situation des travaux") }}</span></a>
+<a href="{{ url_for('financing_file', project_id=p.id) }}"><span class="t-ico">{{ icon('folder') }}</span><span>{{ _("Dossier de crédit") }}</span></a>
+<a href="{{ url_for('trust_page', project_id=p.id) }}"><span class="t-ico">{{ icon('gauge') }}</span><span>{{ _("Indice de confiance") }}</span></a>
+</div>
 {% endmacro %}
