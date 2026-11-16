@@ -128,3 +128,56 @@
     im.addEventListener('error', function () { im.classList.add('is-loaded'); }, { once: true });
   });
 })();
+
+/* Panneau « Plus » (menu de l'application sur téléphone) */
+(function () {
+  document.addEventListener('click', function (ev) {
+    var open = ev.target.closest && ev.target.closest('[data-sheet]');
+    if (open) {
+      var d = document.getElementById(open.dataset.sheet);
+      if (d && d.showModal) { d.showModal(); d.classList.add('is-open'); open.setAttribute('aria-expanded', 'true'); }
+      return;
+    }
+    var dlg = ev.target.closest && ev.target.closest('dialog.sheet');
+    if (ev.target.matches && ev.target.matches('dialog.sheet')) dlg = ev.target;   // clic sur le fond
+    if (dlg && (ev.target === dlg || ev.target.closest('[data-close]'))) closeSheet(dlg);
+  });
+  function closeSheet(d) {
+    d.classList.remove('is-open'); d.classList.add('is-closing');
+    setTimeout(function () { d.classList.remove('is-closing'); if (d.open) d.close(); }, 200);
+    document.querySelectorAll('[data-sheet="' + d.id + '"]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+  }
+  document.querySelectorAll('dialog.sheet').forEach(function (d) {
+    d.addEventListener('cancel', function (e) { e.preventDefault(); closeSheet(d); });
+  });
+})();
+
+/* Barre du haut : un fin trait apparaît dès qu'on fait défiler */
+(function () {
+  var bar = document.querySelector('.appbar');
+  if (!bar) return;
+  var on = false;
+  function tick() { var s = window.scrollY > 4; if (s !== on) { on = s; bar.classList.toggle('scrolled', s); } }
+  window.addEventListener('scroll', tick, { passive: true }); tick();
+})();
+
+/* Titre compact de la barre du haut : il apparaît quand le grand titre de la page sort de l'écran */
+(function () {
+  var title = document.getElementById('ab-title'), h1 = document.querySelector('main h1');
+  if (!title || !h1 || !('IntersectionObserver' in window) || window.innerWidth >= 1000) return;
+  if (h1.getBoundingClientRect().top > 520) return;          // grand titre loin du haut : barre toujours titrée
+  title.style.transition = 'none'; title.classList.add('is-hidden');
+  void title.offsetHeight; title.style.transition = '';          // masqué d'emblée, sans animation au chargement
+  new IntersectionObserver(function (es) { title.classList.toggle('is-hidden', es[0].isIntersecting); },
+    { rootMargin: '-60px 0px 0px 0px' }).observe(h1);
+})();
+
+/* Flèche de retour de la barre du haut : elle suit le lien « ← … » de la page quand il existe (parent exact) */
+(function () {
+  var back = document.querySelector('.appbar .ab-back');
+  var link = document.querySelector('main .backlink[href]');
+  if (back && link) {
+    back.setAttribute('href', link.getAttribute('href'));
+    back.removeAttribute('onclick');
+  }
+})();
