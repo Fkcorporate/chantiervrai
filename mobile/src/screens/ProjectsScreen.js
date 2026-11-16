@@ -1,15 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, Text } from 'react-native';
-import { Screen, Card, T, Bar, Pill, Row, Button, Field, Banner } from '../components/ui';
-import { api, current, queue } from '../services/session';
+import { Screen, Card, T, Pill, Row, Button, Field, Banner, Band, PhotoCard } from '../components/ui';
+import { api, current, queue, setCounts } from '../services/session';
 import { t } from '../core/i18n';
-import { C } from '../theme';
 import { fcfa } from '../core/format';
 
 export default function ProjectsScreen({ go }) {
   const [projects, setProjects] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [unread, setUnread] = useState(0);
   const [toConfirm, setToConfirm] = useState(0);
   const [pending, setPending] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -22,13 +20,13 @@ export default function ProjectsScreen({ go }) {
     try {
       if (user.role === 'fournisseur') {
         const [o, n] = await Promise.all([api.orders(), api.notifications()]);
-        setOrders(o.orders); setUnread(n.unread);
+        setOrders(o.orders); setCounts({ unread: n.unread || 0 });
       } else {
         const [p, n] = await Promise.all([api.projects(), api.notifications()]);
-        setProjects(p.projects); setUnread(n.unread);
+        setProjects(p.projects); setSummary(p.summary || null); setCounts({ unread: n.unread || 0 });
       }
       if (user.role !== 'proprio') {
-        api.me().then((m) => setToConfirm(m.user.paiements_a_confirmer || 0)).catch(() => {});
+        api.me().then((m) => { setToConfirm(m.user.paiements_a_confirmer || 0); setCounts({ toConfirm: m.user.paiements_a_confirmer || 0 }); }).catch(() => {});
       }
     } catch (e) {
       setError(e.name === 'NetworkError' ? t('Pas de connexion au serveur.') : e.message);
@@ -43,22 +41,8 @@ export default function ProjectsScreen({ go }) {
     try { await api.joinProject(code.trim().toUpperCase()); setCode(''); load(); } catch (e) { setError(e.message); }
   }
 
-  const right = (
-    <>
-      <Pressable onPress={() => go('payments')} accessibilityRole="button" accessibilityLabel={t('Paiements')}>
-        <Text style={{ color: C.green, fontWeight: '700' }}>{t('Paiements')}{toConfirm ? ` (${toConfirm})` : ''}</Text>
-      </Pressable>
-      <Pressable onPress={() => go('notifications')} accessibilityRole="button" accessibilityLabel={t('Notifications')}>
-        <Text style={{ color: C.green, fontWeight: '700' }}>{t('Alertes')}{unread ? ` (${unread})` : ''}</Text>
-      </Pressable>
-      <Pressable onPress={() => go('settings')} accessibilityRole="button" accessibilityLabel={t('Réglages')}>
-        <Text style={{ color: C.green, fontSize: 20 }}>⚙</Text>
-      </Pressable>
-    </>
-  );
-
   return (
-    <Screen title={user.role === 'fournisseur' ? t('Mes commandes') : t('Mes chantiers')} right={right} refreshing={loading} onRefresh={load}>
+    <Screen large title={user.role === 'fournisseur' ? t('Mes commandes') : 'ChantierVrai'} refreshing={loading} onRefresh={load}>
       <Banner text={error} tone="error" />
       {pending ? <Banner text={t('%(n)s preuve(s) en attente de réseau', { n: pending })} /> : null}
       {toConfirm ? (
@@ -67,20 +51,25 @@ export default function ProjectsScreen({ go }) {
           <T muted>{t('Vérifiez votre compte, puis confirmez la réception.')}</T>
         </Card>
       ) : null}
-      {projects.map((p) => (
-        <Card key={p.id} onPress={() => go('project', { id: p.id })}>
-          <Row>
-            <T bold style={{ flex: 1 }}>{p.name}</T>
-            {p.to_validate ? <Pill text={t('À valider')} tone="warn" />
-              : p.prediction && !p.prediction.done ? (p.prediction.delay > 7
-                ? <Pill text={t('Retard prévu : %(n)s j', { n: p.prediction.delay })} tone={p.prediction.delay > 30 ? 'warn' : 'amber'} />
-                : <Pill text={t('Dans les temps')} />) : null}
-          </Row>
-          <T muted>{p.address}{p.current ? ` · ${p.current.name}` : ''}</T>
-          <Row><T muted>{t('Avancement vérifié')}</T><T bold>{p.verified_pct} %</T></Row>
-          <Bar pct={p.verified_pct} />
-        </Card>
-      ))}
+      {user.role === 'proprio' && summary && projects.length ? (
+        <Band kicker={projects.length > 1 ? t('Argent suivi sur vos %(n)s chantiers', { n: projects.length }) : t('Argent suivi sur votre chantier')}
+          value={summary.paid_short} unit="FCFA" sub={`${t('sur un budget de')} ${summary.total_short} FCFA`}
+          stats={[{ label: t('À valider'), value: t('%(n)s étape(s)', { n: summary.to_validate }),
+            onPress: summary.to_validate ? () => go('project', { id: (projects.find((x) => x.to_validate) || projects[0]).id }) : undefined }]} />
+      ) : null}
+      {projects.length ? <T bold style={{ fontSize: 20, fontWeight: '800', marginTop: 4 }}>{user.role === 'proprio' ? t('Vos chantiers') : t('Mes chantiers')}</T> : null}
+      {projects.map((p) => {
+        const late = p.prediction && !p.prediction.done && p.prediction.delay > 7;
+        const tags = p.to_validate ? [{ text: t('Étape à valider'), hot: true }]
+          : late ? [{ text: `${t('Retard prévu')} ${p.prediction.delay} ${t('j')}`, hot: true }]
+            : [{ text: p.prediction && p.prediction.done ? t('Terminé') : t('Dans les temps') }];
+        if (p.current) tags.push({ text: p.current.name });
+        return (
+          <PhotoCard key={p.id} onPress={() => go('project', { id: p.id })} title={p.name} pct={p.verified_pct} tags={tags}
+            uri={p.cover_url ? api.url(p.cover_url) : null} headers={{ Authorization: `Bearer ${current().token}` }}
+            chip={p.cover_url ? `${t('Photo')} ${p.cover_ago} · ${t('vérifiée')}` : t('Pas encore de photo')} />
+        );
+      })}
       {orders.map((o) => (
         <Card key={o.id} onPress={() => go('order', { order: o, role: 'fournisseur' })}
           tone={['envoyee', 'acceptee'].includes(o.status) ? 'alert' : undefined}>

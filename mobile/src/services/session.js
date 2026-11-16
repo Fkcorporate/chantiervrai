@@ -13,7 +13,7 @@ const DEFAULT_URL = (Constants.expoConfig && Constants.expoConfig.extra && Const
   || 'https://chantiervrai.ci';
 const QUEUE_DIR = `${FileSystem.documentDirectory}envois/`;
 
-const state = { serverUrl: DEFAULT_URL, token: null, user: null, listeners: new Set() };
+const state = { serverUrl: DEFAULT_URL, token: null, user: null, counts: { unread: 0, toConfirm: 0 }, listeners: new Set() };
 
 export function subscribe(fn) {
   state.listeners.add(fn);
@@ -41,6 +41,22 @@ export async function restore() {
 }
 
 export function current() { return { ...state }; }
+
+// Pastilles des onglets : alertes non lues, paiements reçus à confirmer.
+export function setCounts(c) {
+  const next = { ...state.counts, ...c };
+  if (next.unread === state.counts.unread && next.toConfirm === state.counts.toConfirm) return;
+  state.counts = next;
+  emit();
+}
+
+export async function refreshCounts() {
+  if (!state.token) return;
+  try {
+    const [n, m] = await Promise.all([api.notifications(), api.me()]);
+    setCounts({ unread: n.unread || 0, toConfirm: (m.user && m.user.paiements_a_confirmer) || 0 });
+  } catch (e) { /* hors ligne : on garde les derniers chiffres */ }
+}
 
 export async function signIn(token, user) {
   state.token = token;

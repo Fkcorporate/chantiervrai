@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Screen, Card, T, Row, Button, Field, Banner, Pill } from '../components/ui';
-import { api } from '../services/session';
+import { api, setCounts } from '../services/session';
 import { t } from '../core/i18n';
 import { fcfa } from '../core/format';
 import { C, R } from '../theme';
@@ -18,7 +18,7 @@ export default function PaymentsScreen({ back }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await api.payments()); } catch (e) { setMsg({ text: e.message, tone: 'error' }); } finally { setLoading(false); }
+    try { const r = await api.payments(); setData(r); setCounts({ toConfirm: (r.a_confirmer || []).length }); } catch (e) { setMsg({ text: e.message, tone: 'error' }); } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -43,7 +43,7 @@ export default function PaymentsScreen({ back }) {
   }));
 
   return (
-    <Screen title={t('Paiements')} onBack={back} refreshing={loading} onRefresh={load}>
+    <Screen large={!back} title={t('Paiements')} onBack={back} refreshing={loading} onRefresh={load}>
       <Banner text={msg.text} tone={msg.tone === 'error' ? 'error' : undefined} />
       <T muted>{t('ChantierVrai ne touche pas l\'argent : le payeur paie directement, puis le bénéficiaire confirme.')}</T>
 

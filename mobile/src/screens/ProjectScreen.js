@@ -58,10 +58,21 @@ export default function ProjectScreen({ go, back, params }) {
   const img = (url) => ({ uri: api.url(url), headers: { Authorization: `Bearer ${token}` } });
   const openWeb = () => Linking.openURL(api.url(`/chantiers/${p.id}?lang=${getLang()}`));
   const accepted = (p.inspections || []).filter((i) => i.status === 'acceptee');
+  const cover = (p.proofs || []).find((x) => x.ok && (x.kind !== 'video' || x.thumb_url));
 
   return (
-    <Screen title={p.name} onBack={back} refreshing={loading} onRefresh={load}>
-      <T muted>{p.address}</T>
+    <Screen title={p.name} kicker={t('Chantier')} onBack={back} refreshing={loading} onRefresh={load}>
+      {cover ? (
+        <View style={st.hero}>
+          <Image source={{ uri: api.url(cover.thumb_url || cover.url), headers: { Authorization: `Bearer ${current().token}` } }}
+            style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityLabel={t('Dernière photo vérifiée du chantier')} />
+          <View style={st.heroChip}><T bold style={{ fontSize: 12 }}>✓ {t('Photo vérifiée')} · {dateTime(cover.created_at, getLang())}</T></View>
+          <View style={st.heroBody}>
+            {cur ? <T style={{ color: '#CFE3D8', fontSize: 13, fontWeight: '600' }}>{cur.name} · {cur.status_label}</T> : null}
+            <T style={{ color: '#fff', fontSize: 15 }}>{p.address}</T>
+          </View>
+        </View>
+      ) : <T muted>{p.address}</T>}
       <Banner text={error} tone="error" />
       <Banner text={info} />
       {pending ? <Banner text={t('%(n)s preuve(s) en attente de réseau', { n: pending })} /> : null}
@@ -245,4 +256,10 @@ const s = StyleSheet.create({
   decl: { borderWidth: 2, borderColor: C.orange },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,.45)', justifyContent: 'center', padding: 18 },
   full: { width: '100%', aspectRatio: 0.75, borderRadius: 12, backgroundColor: '#D9D4CA' },
+});
+
+const st = StyleSheet.create({
+  hero: { height: 220, borderRadius: 24, overflow: 'hidden', backgroundColor: C.forest },
+  heroChip: { position: 'absolute', left: 12, top: 12, backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  heroBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, gap: 2, backgroundColor: 'rgba(12,42,30,0.78)' },
 });

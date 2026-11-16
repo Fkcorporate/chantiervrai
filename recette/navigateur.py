@@ -37,6 +37,13 @@ with sync_playwright() as pw:
     p.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
     login(p, "aminata@demo.chantiervrai.ci")
     ok(p.locator(".flash").count() == 0 or p.locator(".flash .flash-close").count() > 0, "messages : bouton de fermeture")
+    p.goto(srv.url + "/"); p.wait_for_load_state("networkidle")
+    ok(p.locator(".bottombar").is_visible() and p.locator(".appbar").is_visible() and not p.locator("header nav.top").is_visible(),
+       "téléphone : onglets en bas et barre du haut, plus de menu en haut de page")
+    p.click(".bottombar .bb-more"); p.wait_for_timeout(450)
+    ok(p.locator("#nav-sheet").is_visible() and p.locator("#nav-sheet >> text=Déconnexion").is_visible(), "« Plus » ouvre le panneau du menu")
+    p.mouse.click(195, 40); p.wait_for_timeout(400)
+    ok(not p.locator("#nav-sheet").is_visible(), "toucher le fond referme le panneau")
     p.goto(srv.url + f"/chantiers/{pid}/financement"); p.wait_for_load_state("networkidle")
     terms = p.locator(".term")
     ok(terms.count() >= 2, f"financement : {terms.count()} mot(s) technique(s) expliqué(s)")

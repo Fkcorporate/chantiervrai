@@ -41,7 +41,7 @@ export default function SettingsScreen({ back, reset, pushToken }) {
   }
 
   return (
-    <Screen title={t('Réglages')} onBack={back}>
+    <Screen large={!back} title={back ? t('Réglages') : t('Compte')} onBack={back}>
       <Banner text={msg} />
       <Card>
         <T bold>{t('Langue')}</T>

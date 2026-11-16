@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import NetInfo from '@react-native-community/netinfo';
 import * as Notifications from 'expo-notifications';
-import { restore, subscribe, current, queue, api } from './src/services/session';
+import { restore, subscribe, current, queue, api, refreshCounts } from './src/services/session';
 import { registerPush } from './src/services/device';
 import LoginScreen from './src/screens/LoginScreen';
 import ProjectsScreen from './src/screens/ProjectsScreen';
@@ -17,7 +17,11 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import OrderScreen from './src/screens/OrderScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
 import { C } from './src/theme';
+import { TabBar } from './src/components/ui';
 import { t } from './src/core/i18n';
+
+// Onglets du bas : les écrans racines. Les autres (chantier, photo, commande) s'empilent par-dessus, sans barre.
+const TAB_ROOTS = ['projects', 'payments', 'notifications', 'settings'];
 
 const SCREENS = { login: LoginScreen, projects: ProjectsScreen, project: ProjectScreen, capture: CaptureScreen,
   notifications: NotificationsScreen, settings: SettingsScreen, order: OrderScreen, payments: PaymentsScreen };
@@ -52,12 +56,14 @@ export default function App() {
     });
     const hw = BackHandler.addEventListener('hardwareBackPress', () => {
       if (stackRef.current.length > 1) { back(); return true; }
+      const root = stackRef.current[0].name;
+      if (TAB_ROOTS.includes(root) && root !== 'projects') { setStack([{ name: 'projects', params: {} }]); return true; }
       return false;
     });
     // Envoi des preuves en attente au retour du reseau, ou quand l'application revient au premier plan
     const flush = () => { if (current().token) queue.flush().catch(() => {}); };
     const net = NetInfo.addEventListener((s) => { if (s.isConnected && s.isInternetReachable !== false) flush(); });
-    const app = AppState.addEventListener('change', (s) => { if (s === 'active') flush(); });
+    const app = AppState.addEventListener('change', (s) => { if (s === 'active') { flush(); refreshCounts(); } });
     // Toucher une notification ouvre le chantier concerne
     const tap = Notifications.addNotificationResponseReceivedListener((r) => {
       const d = r.notification.request.content.data || {};
@@ -71,6 +77,7 @@ export default function App() {
   const token = current().token;
   useEffect(() => {
     if (!token) return;
+    refreshCounts();
     registerPush().then((pt) => {
       if (pt) { setPushToken(pt); api.registerDevice(pt, Platform.OS).catch(() => {}); }
     }).catch(() => {});
@@ -90,11 +97,25 @@ export default function App() {
   }
   const top = stack[stack.length - 1];
   const Screen = SCREENS[top.name];
+  const st = current();
+  const role = (st.user && st.user.role) || '';
+  const showTabs = !!st.token && stack.length === 1 && TAB_ROOTS.includes(top.name);
+  const tabs = [
+    { key: 'projects', label: role === 'fournisseur' ? t('Commandes') : role === 'inspecteur' ? t('Missions') : t('Chantiers'), icon: 'home' },
+    { key: 'payments', label: t('Paiements'), icon: 'wallet', badge: st.counts.toConfirm },
+    { key: 'notifications', label: t('Alertes'), icon: 'notifications', badge: st.counts.unread },
+    { key: 'settings', label: t('Compte'), icon: 'person-circle' },
+  ];
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <Screen key={`${top.name}-${stack.length}-${JSON.stringify(top.params)}`} params={top.params} go={go} back={back} reset={reset}
-        pushToken={pushToken} />
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <Screen key={`${top.name}-${stack.length}-${JSON.stringify(top.params)}`} params={top.params} go={go}
+          back={stack.length > 1 ? back : undefined} reset={reset} pushToken={pushToken} isTab={showTabs} />
+        {showTabs ? (
+          <TabBar tabs={tabs} active={top.name} onChange={(k) => { if (k !== top.name) { setStack([{ name: k, params: {} }]); refreshCounts(); } }} />
+        ) : null}
+      </View>
     </SafeAreaProvider>
   );
 }
