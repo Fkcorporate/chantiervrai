@@ -76,7 +76,7 @@ for role, word, extra in (("chef", "Rejoindre le chantier", {}), ("pro", "Ce que
     cl = register(f"{role}@aide.ci", role, **extra)
     cl.get("/?lang=fr")
     h = cl.get("/aide").get_data(as_text=True).replace('&#39;', "'")
-    check(word in h and 'class="on" aria-current="page">Aide' in h, f"{role} : son guide, menu Aide actif")
+    check(word in h and re.search(r'class="on" aria-current="page">(?:<svg.*?</svg>)?(?:<span>)?Aide', h, re.S), f"{role} : son guide, menu Aide actif")
 own = register("proprio@aide.ci", "proprio")
 own.get("/?lang=fr")
 check("Créer votre compte et votre chantier" in own.get("/aide").get_data(as_text=True).replace('&#39;', "'"), "propriétaire : son guide")

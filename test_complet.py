@@ -319,7 +319,7 @@ imp = s.execute("SELECT * FROM projects WHERE marche_ref='2026-0-1-0123/02-12'")
 assert imp["kind"] == "public" and imp["is_public"] == 1 and imp["start_date"] == "2026-01-15"
 assert s.execute("SELECT SUM(amount) FROM steps WHERE project_id=?", (imp["id"],)).fetchone()[0] == 185000000
 h = own.get("/carte").get_data(as_text=True); assert "Construction d" in h and "L.map" in h
-h = own.get("/").get_data(as_text=True); assert "Budget total" in h
+h = own.get("/").get_data(as_text=True); assert "Argent suivi sur vos" in h and "sur un budget de" in h
 print("import SIGOMAP (creation puis mise a jour) et carte ok")
 
 # --- 15. Application installable et pages diverses ---

@@ -62,7 +62,7 @@ r = own.get("/inscription", headers={"Accept-Language": "en-GB,en;q=0.9,fr;q=0.5
 assert "Create an account" in r.get_data(as_text=True) and '<html lang="en">' in r.get_data(as_text=True)
 r = own.post("/inscription", data=dict(csrf=tok(own, "/inscription"), terms="1", role="proprio", name="Ama", email="ama@x.co.uk",
                                        password=PW), headers={"Accept-Language": "en-GB"}, follow_redirects=True)
-assert "My sites" in r.get_data(as_text=True)
+assert "Your sites" in r.get_data(as_text=True) or "My sites" in r.get_data(as_text=True)
 assert s.execute("SELECT lang FROM users WHERE email='ama@x.co.uk'").fetchone()[0] == "en"
 # Le chef est en francais
 chef.post("/inscription", data=dict(csrf=tok(chef, "/inscription"), terms="1", role="chef", name="Koffi", email="k@x.ci",
@@ -161,7 +161,7 @@ assert "Payez seulement ce qui est bâti" in fr and "Créer mon compte" in fr
 en = v.get("/produit?lang=en")
 assert "Pay only for what is built" in en.get_data(as_text=True)
 no_french(text(en), "page produit")
-assert "My sites" in own.get("/").get_data(as_text=True)          # connecte : tableau de bord
+assert "Your sites" in own.get("/").get_data(as_text=True)          # connecte : tableau de bord
 print("page produit ok")
 shutil.rmtree(inst, ignore_errors=True)
 print("TOUT OK")

@@ -1391,7 +1391,7 @@ def security_headers(resp):
     h.setdefault("Permissions-Policy", "geolocation=(self), camera=(self), microphone=(self)")
     h.setdefault("Content-Security-Policy",
                  "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; "
-                 "style-src 'self' 'unsafe-inline' https://unpkg.com; "
+                 "style-src 'self' 'unsafe-inline' https://unpkg.com; font-src 'self'; "
                  "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://server.arcgisonline.com https://unpkg.com; "
                  "media-src 'self' blob:; connect-src 'self' blob: data: https://unpkg.com; worker-src 'self' blob:; "
                  "frame-ancestors 'self'; form-action 'self' https://checkout.cinetpay.com; base-uri 'self'")
@@ -1447,6 +1447,66 @@ def sub_banner(me):
     return None
 
 
+def ago(iso):
+    """« il y a 2 h », « hier », « il y a 3 j » : fraîcheur d'une photo ou d'un événement."""
+    if not iso:
+        return ""
+    try:
+        t = datetime.fromisoformat(iso)
+    except ValueError:
+        return ""
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    m = int((datetime.now(timezone.utc) - t).total_seconds() // 60)
+    if m < 1:
+        return _("à l'instant")
+    if m < 60:
+        return _("il y a %(n)s min", n=m)
+    if m < 24 * 60:
+        return _("il y a %(n)s h", n=m // 60)
+    if m < 48 * 60:
+        return _("hier")
+    return _("il y a %(n)s j", n=m // 1440)
+
+
+HOME_ENDPOINTS = ("home", "project", "new_project", "reports", "report", "invoice", "dispute")
+
+
+def app_nav(me):
+    """Menu de l'application selon le rôle : 4 onglets en bas sur téléphone (+ « Plus »), le reste dans le panneau.
+    Chaque entrée : (clé, libellé, adresse, icône, points d'entrée qui l'allument)."""
+    role = me["role"]
+    home_label = {"fournisseur": _("Commandes"), "inspecteur": _("Missions")}.get(role, _("Chantiers"))
+    items = {
+        "home": (home_label, url_for("home"), "home", HOME_ENDPOINTS),
+        "payments": (_("Paiements"), url_for("payments_received"), "wallet", ("payments_received",)),
+        "map": (_("Carte"), url_for("map_view"), "map", ("map_view",)),
+        "assistant": (_("Assistant"), url_for("assistant"), "chat", ("assistant",)),
+        "academy": (_("Académie"), url_for("academy"), "book", ("academy", "academy_course", "calculator_public")),
+        "contractors": (_("Entrepreneurs"), url_for("contractors"), "people", ("contractors", "contractor")),
+        "help": (_("Aide"), url_for("help_page"), "help", ("help_page",)),
+        "account": (_("Mon compte"), url_for("account"), "user", ("account", "security", "subscription")),
+        "alerts": (_("Alertes"), url_for("notifications"), "bell", ("notifications",)),
+    }
+    primary = {"proprio": ["home", "map", "assistant", "help"], "pro": ["home", "payments", "assistant", "help"],
+               "chef": ["home", "payments", "assistant", "help"], "inspecteur": ["home", "payments", "academy", "help"],
+               "fournisseur": ["home", "payments", "help"]}.get(role, ["home", "help"])
+    allowed = {"proprio": ["home", "map", "academy", "assistant", "contractors"], "pro": ["home", "payments", "map", "academy", "assistant"],
+               "chef": ["home", "payments", "academy", "assistant"], "inspecteur": ["home", "payments", "academy"],
+               "fournisseur": ["home", "payments"]}.get(role, ["home"])
+    order = ["home", "payments", "map", "assistant", "academy", "contractors", "help", "alerts", "account"]
+    full = [k for k in order if k in allowed or k in ("help", "alerts", "account")]
+    more = [k for k in full if k not in primary and k != "alerts"]
+    mk = lambda k: dict(key=k, label=items[k][0], url=items[k][1], icon=items[k][2], eps=items[k][3])
+    admin = []
+    if me["is_admin"]:
+        admin.append(dict(key="admin", label=_("Administration"), url=url_for("admin"), icon="shield", eps=("admin",)))
+        if can("money"):
+            admin.append(dict(key="pilotage", label=_("Pilotage"), url=url_for("pilotage"), icon="chart", eps=("pilotage",)))
+    return {"primary": [mk(k) for k in primary], "more": [mk(k) for k in more] + admin,
+            "side": [mk(k) for k in full] + admin}
+
+
 @app.context_processor
 def inject_globals():
     me = current_user()
@@ -1466,7 +1526,7 @@ def inject_globals():
             "escrow_on": escrow_enabled(), "PAY_MODES": tr(PAY_MODES), "advanced": g.get("advanced", True),
             "sub_banner": sub_banner(me), "SIG_STATUS": tr(SIG_STATUS), "DSTAGES": tr(DISPUTE_STAGES),
             "AUTO_VALIDATE_DAYS": auto_validate_days(), "auto_validate_on": auto_validate_on(),
-            "is_critical": is_critical}
+            "is_critical": is_critical, "NAV": app_nav(me) if me else None, "ago": ago, "compact": compact}
 
 
 def project_role(p, user=None):
@@ -2162,6 +2222,18 @@ def home():
             "SELECT i.*, p.name AS project_name, p.address, st.name AS step_name, u.name AS owner_name, u.phone AS owner_phone "
             "FROM inspections i JOIN projects p ON p.id = i.project_id LEFT JOIN steps st ON st.id = i.step_id "
             "JOIN users u ON u.id = i.requested_by WHERE i.inspector_id = ? ORDER BY i.id DESC", (user["id"],)).fetchall()
+    covers = {}
+    if cards:
+        ids = [c[0]["id"] for c in cards]
+        marks = ",".join("?" * len(ids))
+        for r in db.execute(f"SELECT project_id, MAX(id) AS pid FROM proofs WHERE ok = 1 AND project_id IN ({marks}) "
+                            "AND (kind IS NULL OR kind != 'video' OR thumb IS NOT NULL) GROUP BY project_id", ids):
+            covers[r["project_id"]] = r["pid"]
+        for r in db.execute(f"SELECT project_id, MAX(created_at) AS at FROM proofs WHERE ok = 1 AND project_id IN ({marks}) "
+                            "GROUP BY project_id", ids):
+            covers[f"at{r['project_id']}"] = r["at"]
+    activity = db.execute("SELECT title, body, link, project_id, created_at, is_read FROM notifications WHERE user_id = ? "
+                          "AND channel = 'app' ORDER BY id DESC LIMIT 4", (user["id"],)).fetchall()
     portfolio = None
     if user["role"] == "proprio" and cards:
         portfolio = {
@@ -2186,7 +2258,7 @@ def home():
                             "GROUP BY c.project_id"):
             pending_checks[r["project_id"]] = r["n"]
     return render_template("home.html", cards=cards, inspections=inspections, portfolio=portfolio, orders=orders,
-                           trusts=trusts, controlled=controlled, pending_checks=pending_checks,
+                           trusts=trusts, controlled=controlled, pending_checks=pending_checks, covers=covers, activity=activity,
                            onboarding=onboarding(db, user, [c[0] for c in cards]))
 
 
@@ -2429,6 +2501,8 @@ def project(project_id):
         "WHERE i.project_id = ? ORDER BY i.id DESC", (project_id,)).fetchall()
     ctx["inspections"] = inspections
     ctx["qual_by_step"] = quality_by_step(db, project_id)
+    ctx["cover"] = db.execute("SELECT id, created_at FROM proofs WHERE project_id = ? AND ok = 1 AND "
+                              "(kind IS NULL OR kind != 'video' OR thumb IS NOT NULL) ORDER BY id DESC LIMIT 1", (p["id"],)).fetchone()
     ctx["land_level"] = land_risk(db, p) if role == "owner" else None
     ctx["land_label"] = LAND.label(LAND.RISK[ctx["land_level"]], g.lang) if ctx["land_level"] is not None else None
     ctx["notes_recent"] = db.execute("SELECT * FROM site_notes WHERE project_id = ? ORDER BY id DESC LIMIT 3", (project_id,)).fetchall()
@@ -10988,11 +11062,20 @@ def project_json(p, s, role, pred=None, full=False):
 @app.route("/api/v1/chantiers")
 @api_auth
 def api_projects():
-    out = []
+    out, paid, total, to_validate = [], 0, 0, 0
+    db = get_db()
     for p in user_projects(current_user()):
         s = project_stats(p["id"])
-        out.append(project_json(p, s, project_role(p), project_prediction(p, s)))
-    return jsonify(ok=True, projects=out)
+        j = project_json(p, s, project_role(p), project_prediction(p, s))
+        cov = db.execute("SELECT id, created_at FROM proofs WHERE project_id = ? AND ok = 1 AND "
+                         "(kind IS NULL OR kind != 'video' OR thumb IS NOT NULL) ORDER BY id DESC LIMIT 1", (p["id"],)).fetchone()
+        j["cover_url"] = url_for("proof_thumb", proof_id=cov["id"]) if cov else None
+        j["cover_ago"] = ago(cov["created_at"]) if cov else None
+        j["to_validate"] = s["to_validate"]
+        out.append(j)
+        paid, total, to_validate = paid + s["paid"], total + s["total"], to_validate + s["to_validate"]
+    return jsonify(ok=True, projects=out, summary={"paid": paid, "total": total, "to_validate": to_validate,
+                                                   "paid_short": compact(paid), "total_short": compact(total)})
 
 
 @app.route("/api/v1/chantiers/<int:project_id>")

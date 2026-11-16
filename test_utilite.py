@@ -60,7 +60,8 @@ check(A.app.test_client().get(f"/photos/{pr['id']}/vignette").status_code in (30
 check("en attente de la validation du propriétaire" in html(chef.get(f"/chantiers/{pid}")), "le chef voit que l'étape attend le propriétaire")
 
 h = html(own.get(f"/chantiers/{pid}"))
-check(h.index("à valider") < h.index("Avancement vérifié"), "l'étape à valider est en tête de l'accueil")
+check('class="actionbar"' in h and h.index('class="actionbar"') < h.index("todo-list") < h.index("Avancement vérifié</b>"),
+      "l'étape à valider est en tête de l'accueil (barre d'action)")
 t = A.TRUST.compute(dict(A.trust_inputs(s, s.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone(),
                                         A.project_stats(pid, s), None)))
 check(t["score"] <= 79, "problème de solidité ouvert : l'indice ne peut pas dire « bonne maîtrise »")
@@ -95,7 +96,17 @@ if pub:
 h = html(own.get(f"/chantiers/{pid}"))
 check('class="card alert todo-list"' in h and h.count('class="card alert"') == 0, "accueil : les points à voir regroupés dans une seule carte")
 check("(s)" not in re.sub(r"<script.*?</script>", "", h, flags=re.S), "accueil : pluriels accordés (« 1 preuve refusée », pas « 1 preuve(s) refusée(s) »)")
-check('class="nav-more"' in h and 'class="sec"' in h, "menu du haut : liens secondaires derrière « Plus » sur téléphone")
+check('class="appbar"' in h and 'class="tabs"' in h and 'class="bottombar"' not in h and 'data-sheet="nav-sheet"' in h,
+      "chantier sur téléphone : barre du haut (retour, menu, alertes), sections du chantier en bas")
+h_home = html(own.get("/"))
+bb = re.search(r'<nav class="bottombar".*?</nav>', h_home, re.S).group(0)
+check(len(re.findall(r"<a href=", bb)) == 4 and "bb-more" in bb and 'class="on" aria-current="page"' in bb,
+      "accueil sur téléphone : 4 onglets en bas + « Plus », onglet actif signalé")
+check('<dialog class="sheet" id="nav-sheet"' in h_home and "Déconnexion" in h_home.split('id="nav-sheet"')[1],
+      "panneau « Plus » : compte, autres rubriques, langue, déconnexion")
+h_chef = html(chef.get("/"))
+bb = re.search(r'<nav class="(?:bottombar|tabs)".*?</nav>', h_chef, re.S).group(0)
+check("Paiements" in h_chef and ("Paiements" in bb or 'data-sheet="nav-sheet"' in h_chef), "chef : Paiements accessible en un geste")
 with A.app.test_request_context():
     from services import i18n as I
     check(I.translate("%(n)s preuve(s) refusée(s)", "fr", n=1) == "1 preuve refusée" and I.translate("%(n)s preuve(s) refusée(s)", "fr", n=3) == "3 preuves refusées"
