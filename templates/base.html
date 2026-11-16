@@ -4,32 +4,50 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{% block title %}ChantierVrai{% endblock %}</title>
-<meta name="theme-color" content="#0E5A3A">
+<meta name="theme-color" content="#0C2A1E">
 <link rel="manifest" href="{{ url_for('manifest') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ChantierVrai">
+<link rel="preload" href="{{ url_for('static', filename='fonts/InterDisplay-ExtraBold.woff') }}" as="font" type="font/woff" crossorigin>
 <link rel="stylesheet" href="{{ asset('style.css') }}">
 {% block head %}{% endblock %}
 </head>
-<body>
+{% from "_macros.html" import icon as _ico %}
+{% if false %}{% block tabs %}{% endblock %}{% endif %}
+{% set ep = request.endpoint or '' %}
+{% set ptabs = self.tabs()|trim %}
+<body class="{% if me %}has-app{% endif %}{% if ptabs %} has-ptabs{% endif %} {% block bodyclass %}{% endblock %}">
 <div class="wrap{% block wrapclass %}{% endblock %}">
+{% if me %}
+{# ---- Téléphone : barre du haut (retour, titre, alertes) ---- #}
+{% set root_eps = ('home', 'payments_received', 'map_view', 'assistant', 'academy', 'help_page', 'notifications', 'account', 'contractors', 'admin') %}
+{% set page_title = (self.title()|striptags|trim).split(' · ')[0] %}
+<div class="appbar">
+{% if ep == 'project' %}
+<a class="ab-btn ab-back" href="{{ url_for('home') }}" aria-label="{{ _("Retour aux chantiers") }}">{{ _ico('back') }}</a>
+{% elif p is defined and p and p.id is defined and ep not in root_eps %}
+<a class="ab-btn ab-back" href="{{ url_for('project', project_id=p.id) }}" aria-label="{{ _("Retour au chantier") }}">{{ _ico('back') }}</a>
+{% elif ep not in root_eps %}
+<a class="ab-btn ab-back" href="{{ url_for('home') }}" onclick="if (history.length > 1 && document.referrer.indexOf(location.host) > -1) { history.back(); return false; }" aria-label="{{ _("Retour") }}">{{ _ico('back') }}</a>
+{% else %}
+<a class="ab-logo" href="{{ url_for('home') }}" aria-label="ChantierVrai"><img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="30" height="30"></a>
+{% endif %}
+<div class="ab-title" id="ab-title">
+{% if ep == 'project' and p is defined %}<span class="ab-kicker">{{ _("Chantier") }}</span>{% elif p is defined and p and p.name is defined and ep not in root_eps %}<span class="ab-kicker">{{ p.name }}</span>{% endif %}
+<b>{{ page_title if page_title != 'ChantierVrai' else NAV.primary[0].label }}</b>
+</div>
+{% if ptabs %}<button type="button" class="ab-btn" data-sheet="nav-sheet" aria-haspopup="dialog" aria-label="{{ _("Menu") }}">{{ _ico('more') }}</button>{% endif %}
+<a class="ab-btn{% if ep == 'notifications' %} on{% endif %}" href="{{ url_for('notifications') }}" aria-label="{{ _("Alertes") }}{% if unread %} ({{ unread }}){% endif %}">{{ _ico('bell') }}{% if unread %}<span class="ab-dot">{{ unread if unread < 10 else '9+' }}</span>{% endif %}</a>
+</div>
+{% endif %}
 <header>
 <a class="brand" href="{{ url_for('home') }}">ChantierVrai</a>
 {% if me %}
 <nav class="top" aria-label="{{ _("Menu principal") }}">
-{% set ep = request.endpoint or '' %}
-<a href="{{ url_for('home') }}"{% if ep in ('home', 'project', 'new_project', 'reports', 'report', 'invoice', 'dispute') %} class="on" aria-current="page"{% endif %}>{{ _("Chantiers") }}</a>
-{% if me.role in ('proprio', 'pro') %}<a class="sec" href="{{ url_for('map_view') }}"{% if ep == 'map_view' %} class="on" aria-current="page"{% endif %}>{{ _("Carte") }}</a>{% endif %}
-{% if me.role != 'fournisseur' %}<a class="sec" href="{{ url_for('academy') }}"{% if ep in ('academy', 'academy_course', 'calculator_public') %} class="on" aria-current="page"{% endif %}>{{ _("Académie") }}</a>{% endif %}
-{% if me.role in ('proprio', 'pro', 'chef') %}<a class="sec" href="{{ url_for('assistant') }}"{% if ep == 'assistant' %} class="on" aria-current="page"{% endif %}>{{ _("Assistant") }}</a>{% endif %}
-{% if me.role == 'proprio' %}<a class="sec" href="{{ url_for('contractors') }}"{% if ep in ('contractors', 'contractor') %} class="on" aria-current="page"{% endif %}>{{ _("Entrepreneurs") }}</a>{% endif %}
-{% if me.role in ('chef', 'fournisseur', 'inspecteur', 'pro') %}<a href="{{ url_for('payments_received') }}"{% if ep == 'payments_received' %} class="on" aria-current="page"{% endif %}>{{ _("Paiements") }}</a>{% endif %}
-<a href="{{ url_for('help_page') }}"{% if ep == 'help_page' %} class="on" aria-current="page"{% endif %}>{{ _("Aide") }}</a>
-<a href="{{ url_for('notifications') }}"{% if ep == 'notifications' %} class="on" aria-current="page"{% endif %}>{{ _("Alertes") }}{% if unread %} <span class="badge">{{ unread }}</span>{% endif %}</a>
-<a href="{{ url_for('account') }}"{% if ep in ('account', 'security') %} class="on" aria-current="page"{% endif %}>{{ _("Compte") }}</a>
-{% if me.is_admin %}<a href="{{ url_for('admin') }}"{% if ep == 'admin' %} class="on" aria-current="page"{% endif %}>Admin</a>{% endif %}
-<button type="button" class="nav-more" aria-expanded="false" onclick="var n=this.parentNode;var o=n.classList.toggle('open');this.setAttribute('aria-expanded',o);this.textContent=o?this.dataset.less:this.dataset.more" data-more="{{ _("Plus") }} ▾" data-less="{{ _("Moins") }} ▴">{{ _("Plus") }} ▾</button>
+{% for it in NAV.side %}
+<a href="{{ it.url }}"{% if ep in it.eps %} class="on" aria-current="page"{% endif %}>{{ _ico(it.icon) }}<span>{{ it.label }}</span>{% if it.key == 'alerts' and unread %}<span class="badge">{{ unread }}</span>{% endif %}</a>
+{% endfor %}
 </nav>
 <form method="post" action="{{ url_for('logout') }}" class="side-logout">
 <input type="hidden" name="csrf" value="{{ csrf_token() }}">
@@ -59,8 +77,37 @@
 {% endif %}
 <footer class="foot"><a href="{{ url_for('portal') }}">{{ _("Portail citoyen") }}</a> · <a href="{{ url_for('terms') }}">{{ _("Conditions d'utilisation") }}</a> · <a href="{{ url_for('privacy') }}">{{ _("Confidentialité") }}</a> · {% for code, name in LANGS.items() %}{% if code != lang %}<a href="{{ request.path }}?lang={{ code }}" hreflang="{{ code }}" lang="{{ code }}">{{ name }}</a>{% endif %}{% endfor %}</footer>
 </main>
-{% block tabs %}{% endblock %}
+{% if ptabs %}{{ ptabs|safe }}{% elif me %}
+<nav class="bottombar" aria-label="{{ _("Menu principal") }}">
+{% for it in NAV.primary %}
+<a href="{{ it.url }}"{% if ep in it.eps %} class="on" aria-current="page"{% endif %}><span class="bb-ico">{{ _ico(it.icon) }}</span><span>{{ it.label }}</span></a>
+{% endfor %}
+<button type="button" class="bb-more" data-sheet="nav-sheet" aria-haspopup="dialog"><span class="bb-ico">{{ _ico('more') }}</span><span>{{ _("Plus") }}</span></button>
+</nav>
+{% endif %}
 </div>
+{% if me %}
+<dialog class="sheet" id="nav-sheet" aria-label="{{ _("Menu") }}">
+<div class="sheet-grip" aria-hidden="true"></div>
+<a class="sheet-me" href="{{ url_for('account') }}">
+<span class="avatar" aria-hidden="true">{{ (me.name or '?')[:1]|upper }}{{ ((me.name or '').split(' ')[1] if (me.name or '').split(' ')|length > 1 else '')[:1]|upper }}</span>
+<span class="sheet-me-txt"><b>{{ me.name }}</b><span class="muted">{{ ROLES.get(me.role, me.role) }}</span></span>
+<span class="sheet-chev">{{ _ico('chev') }}</span>
+</a>
+<div class="sheet-grid">
+{% for it in (NAV.side if ptabs else NAV.more) %}{% if it.key not in ('account', 'alerts') %}
+<a href="{{ it.url }}"{% if ep in it.eps %} class="on"{% endif %}><span class="bb-ico">{{ _ico(it.icon) }}</span><span>{{ it.label }}</span></a>
+{% endif %}{% endfor %}
+<a href="{{ url_for('notifications') }}"><span class="bb-ico">{{ _ico('bell') }}</span><span>{{ _("Alertes") }}{% if unread %} ({{ unread }}){% endif %}</span></a>
+</div>
+<div class="sheet-row">
+<span class="sheet-lang">{{ _ico('globe') }}{% for code, name in LANGS.items() %}<a href="{{ request.path }}?lang={{ code }}" class="{{ 'on' if code == lang }}" hreflang="{{ code }}" lang="{{ code }}">{{ name }}</a>{% endfor %}</span>
+<form method="post" action="{{ url_for('logout') }}">{{ '' }}<input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small" type="submit">{{ _ico('logout') }}{{ _("Déconnexion") }}</button></form>
+</div>
+<div class="sheet-foot"><a href="{{ url_for('portal') }}">{{ _("Portail citoyen") }}</a> · <a href="{{ url_for('terms') }}">{{ _("Conditions d'utilisation") }}</a> · <a href="{{ url_for('privacy') }}">{{ _("Confidentialité") }}</a></div>
+<button type="button" class="sheet-close" data-close aria-label="{{ _("Fermer") }}">×</button>
+</dialog>
+{% endif %}
 <script>window.CV_T = {{ JS_T|tojson }}; window.CV_GLOSS = {{ GLOSS|tojson }};</script>
 <script src="{{ asset('ui.js') }}" defer></script>
 {% block scripts %}{% endblock %}

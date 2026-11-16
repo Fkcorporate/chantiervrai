@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Stock et matériaux") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else ('factures' if role == 'chef' else None), _anchor='materiaux' if role == 'owner' else None) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else ('factures' if role == 'chef' else None), _anchor='materiaux' if role == 'owner' else None) }}">← {{ p.name }}</a>
 <h1>{{ _("Stock et matériaux") }}</h1>
 <p class="muted">{{ _("Ce qui est prévu, acheté, livré, utilisé et encore sur le chantier. Un écart entre ces colonnes signale une perte, un vol ou une facture sans livraison.") }}</p>
 {% if role in ('owner', 'chef') %}<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('calculator', project_id=p.id) }}">{{ _("Calculateur de matériaux") }}</a><a class="btn ghost small" href="{{ url_for('new_order', project_id=p.id) }}">{{ _("Commander des matériaux") }}</a></div>{% endif %}

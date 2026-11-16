@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Notes du chantier") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
 <h1>{{ _("Notes du chantier") }}</h1>
 <p class="muted">{{ _("Messages et notes vocales envoyés par le chef de chantier sur WhatsApp, transcrits et résumés.") }}{% if not can_transcribe %} {{ _("La transcription automatique n'est pas activée : les notes vocales s'écoutent telles quelles.") }}{% endif %}</p>
 {% for n in notes %}

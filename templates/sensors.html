@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Capteurs et météo") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
 <h1>{{ _("Capteurs et météo") }}</h1>
 <p class="muted">{{ _("Humidité d'une dalle en cure, vibrations, fissuromètre, pluie et vent : chaque capteur envoie ses mesures, et le propriétaire, le chef et le contrôleur sont alertés dès qu'une valeur sort des seuils.") }}{% if meteo %} {{ _("La météo de la veille (Open-Meteo) est relevée chaque jour.") }}{% endif %}</p>
 

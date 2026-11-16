@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Commander des matériaux ·") }} {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else 'factures', _anchor='commandes') }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else 'factures', _anchor='commandes') }}">← {{ p.name }}</a>
 <h1>{{ _("Commander des matériaux") }}</h1>
 <p class="muted">{{ _("L'argent part directement au fournisseur, et seulement pour ce qui est livré sur le terrain et compté. Plus de matériaux surfacturés ni de sacs fantômes.") }}</p>
 {% if not supplier %}

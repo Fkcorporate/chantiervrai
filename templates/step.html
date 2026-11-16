@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ st.name }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
 <h1>{{ st.name }}</h1>
 <div class="row"><span class="muted">{{ fcfa(st.amount) }} FCFA{% if st.declared_at %} · {{ _("déclarée le") }} {{ d(st.declared_at) }}{% endif %}</span><span class="pill{% if st.status == 'declare' %} warn{% endif %}">{{ STATUS[st.status] }}</span></div>
 {% if st.status == 'declare' and st.declared_at and p.pay_mode != 'sequestre' and p.auto_validate and auto_validate_on %}<div class="card alert"><b>{{ _("Réponse attendue du propriétaire") }}</b><span class="muted">{{ _("Sans validation ni refus sous %(n)s jours après la déclaration, l'étape est validée automatiquement et le bon à payer est émis, si tous les contrôles obligatoires sont faits. Le propriétaire peut ouvrir un litige à tout moment.", n=AUTO_VALIDATE_DAYS) }}</span></div>{% endif %}

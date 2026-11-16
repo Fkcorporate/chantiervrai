@@ -3,7 +3,7 @@
 {% block title %}{{ _("Visites 360°") }} · {{ p.name }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="https://unpkg.com/pannellum@2.5.6/build/pannellum.css" crossorigin="">{% endblock %}
 {% block content %}
-<a href="{{ url_for('zones_page', project_id=p.id) }}">← {{ _("Avancement par zone") }}</a>
+<a class="backlink" href="{{ url_for('zones_page', project_id=p.id) }}">← {{ _("Avancement par zone") }}</a>
 <h1>{{ _("Visites 360°") }}</h1>
 <p class="muted">{{ _("Une photo 360° montre toute la pièce d'un coup : rien ne peut être caché hors du cadre. Chaque visite est contrôlée (position GPS, date, photo neuve) puis comparée à la précédente de la même zone.") }}</p>
 

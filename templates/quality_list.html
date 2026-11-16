@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Contrôle qualité") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
 <h1>{{ _("Contrôle qualité des ouvrages") }}</h1>
 <p class="muted">{{ _("Pour chaque ouvrage (escalier, carrelage, douche…), le chef prend des photos guidées et saisit quelques mesures. ChantierVrai contrôle les mesures, analyse les photos et vous dit ce qui semble correct, ce qui est à vérifier et ce qui pose probablement problème.") }}</p>
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block bodyclass %}{% if tab not in ('preuves', 'factures') %}top-dark{% endif %}{% endblock %}
 {% from "_macros.html" import proof_card, tabs, csrf, capture_form with context %}
 {% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
 {% block content %}
@@ -27,21 +28,32 @@
 {% endfor %}
 
 {% else %}
-<h1>{{ p.name }}</h1>
-<div class="muted">{{ _("Chantier de") }} {{ people[p.owner_id].name }} · {{ p.address }}</div>
 {% if pending_pay %}<a class="card alert" href="{{ url_for('payments_received') }}" style="text-decoration:none;color:inherit"><b>{{ pending_pay|length }} {{ pl(pending_pay|length, "paiement(s) à confirmer") }}</b><span class="muted">{{ _("Le propriétaire déclare vous avoir payé. Vérifiez votre compte, puis confirmez la réception.") }}</span></a>{% endif %}
 {% if not me.phone and (s.sequestre or s.suivi) %}<div class="card alert"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b><span class="muted">{{ _("Sans lui, le paiement automatique ne peut pas vous être versé.") if s.sequestre else _("Il apparaît sur le bon à payer pour que le propriétaire vous paie au bon numéro.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>{% endif %}
 {% set c = s.current %}
 {% if not c %}
+<h1>{{ p.name }}</h1>
 <div class="card green"><b>{{ _("Toutes les étapes sont terminées et validées.") }}</b></div>
 {% else %}
 {% set okc = ok_by_step.get(c.id, 0) %}
-<div class="card green">
-<span class="muted">{% if c.status == 'declare' %}{{ _("Étape déclarée terminée : en attente de la validation du propriétaire") }}{% elif c.status == 'versement' %}{{ _("Étape validée : paiement en cours") }}{% else %}{{ _("Étape en cours") }}{% endif %}</span>
-<span class="big">{{ c.name }}</span>
-<span class="muted">{{ _("Paiement à la validation :") }} {{ fcfa(c.amount) }} FCFA{% if s.sequestre %} · {{ _('fonds déjà bloqués') if s.escrow.balance >= c.amount else _('fonds pas encore déposés') }}{% elif s.suivi %} · {{ _("payé par le propriétaire, vous confirmez la réception") }}{% endif %}</span>
-{% if schedule.get(c.id) %}<span class="muted">{{ _("Fin prévue le") }} {{ d(schedule[c.id]) }}</span>{% endif %}
-</div>
+<section class="chef-hero">
+<div class="ch-head"><span class="ch-owner">{{ _("Chantier de") }} {{ people[p.owner_id].name }} · {{ p.address }}</span><h1>{{ p.name }}</h1></div>
+<span class="ch-kicker">{{ _("Étape %(i)s sur %(n)s", i=(s.steps|map(attribute='id')|list).index(c.id) + 1, n=s.steps|length) }}</span>
+
+<span class="ch-sub">{% if c.status == 'declare' %}{{ _("Étape déclarée terminée : en attente de la validation du propriétaire") }}{% elif c.status == 'versement' %}{{ _("Étape validée : paiement en cours") }}{% else %}{{ _("Étape en cours") }}{% endif %}</span>
+<h2 class="ch-title">{{ c.name }}</h2>
+<span class="ch-sub">{{ _("Paiement à la validation :") }} {{ fcfa(c.amount) }} FCFA{% if s.sequestre %} · {{ _('fonds déjà bloqués') if s.escrow.balance >= c.amount else _('fonds pas encore déposés') }}{% elif s.suivi %} · {{ _("payé par le propriétaire, vous confirmez la réception") }}{% endif %}</span>
+{% if schedule.get(c.id) %}<span class="ch-sub">{{ _("Fin prévue le") }} {{ d(schedule[c.id]) }}</span>{% endif %}
+
+<span class="ch-count"><b>{{ okc }}</b> {{ pl(okc, "preuve(s) vérifiée(s)") }} {{ _("pour cette étape") }}</span>
+{% if c.status == 'en_cours' %}
+<button type="button" class="shoot-big" onclick="var b=document.getElementById('shoot'); if (b) { b.scrollIntoView({block:'center'}); b.click(); }">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+<span>{{ _("Photo") }}</span>
+</button>
+<span class="ch-hint">{{ _("La position et l'heure sont vérifiées automatiquement.") }}</span>
+{% endif %}
+</section>
 
 {% if c.status == 'en_cours' %}
 {{ capture_form(url_for('upload_proof', project_id=p.id), _('Envoyer une preuve'),

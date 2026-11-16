@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Indice de confiance") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
 <h1>{{ _("Indice de confiance du chantier") }}</h1>
 <div class="card">
 <div class="row"><span class="score {{ t.level }}">{{ t.score if t.score is not none else '–' }}<span style="font-size:22px;font-weight:600">/100</span></span></div>

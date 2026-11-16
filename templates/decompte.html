@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Situation des travaux") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a class="noprint" href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
+<a class="noprint backlink" href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
 <h1>{{ _("Situation des travaux et décompte") }}</h1>
 <div class="row"><span class="muted">{{ p.name }}{% if p.marche_ref %} · {{ _("marché") }} {{ p.marche_ref }}{% endif %} · {{ _("arrêtée le") }} {{ d(today) }}</span><button class="btn ghost small" onclick="window.print()">{{ _("Imprimer") }}</button></div>
 <div class="grid3">

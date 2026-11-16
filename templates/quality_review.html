@@ -3,7 +3,7 @@
 {% block title %}{{ o.name }} · {{ _("Contrôle qualité") }}{% endblock %}
 {% block content %}
 {% set tagcls = {'ok': 'green', 'a_verifier': 'amber', 'probleme': 'bad', 'non_visible': 'grey', 'a_controler': 'blue'} %}
-<a class="noprint" href="{{ url_for('quality_list', project_id=p.id) }}">← {{ _("Contrôles qualité") }} · {{ p.name }}</a>
+<a class="noprint backlink" href="{{ url_for('quality_list', project_id=p.id) }}">← {{ _("Contrôles qualité") }} · {{ p.name }}</a>
 <h1>{{ o.name }}{% if r.label %} · {{ r.label }}{% endif %}</h1>
 <div class="muted">{{ p.name }}{% if step %} · {{ _("étape") }} {{ step.name }}{% endif %}{% if zone %} · {{ zone.name }}{% endif %} · {{ _("ouvert le") }} {{ d(r.created_at) }}{% if r.analysed_at %} · {{ _("analysé le") }} {{ dt(r.analysed_at) }}{% endif %}</div>
 {% if prev %}<div class="card"><span>{{ _("Contre-visite du") }} <a href="{{ url_for('quality_page', rid=prev.id) }}">{{ _("contrôle précédent") }}</a> : {{ _("les points signalés sont recontrôlés.") }}</span></div>{% endif %}

@@ -4,7 +4,7 @@
 {% block content %}
 {% set cls = {'ok': 'green', 'ecart': 'bad', 'a_verifier': 'amber', 'a_faire': 'grey'} %}
 {% set lbl = {'ok': _("Conforme au plan"), 'ecart': _("Écart avec le plan"), 'a_verifier': _("À vérifier : la photo ne confirme pas"), 'a_faire': _("À compter")} %}
-<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
 <h1>{{ _("Plan et réalité") }}</h1>
 <p class="muted">{{ _("On compte sur place ce que prévoit le plan : fenêtres, portes, pièces, poteaux… Le chef photographie chaque élément et indique le nombre ; la photo est comptée par l'IA quand elle est activée. Un écart est signalé tout de suite.") }}</p>
 

@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Calculateur de matériaux") }}{% if p %} · {{ p.name }}{% endif %}{% endblock %}
 {% block content %}
-{% if p %}<a href="{{ url_for('project_stock', project_id=p.id) }}">← {{ _("Stock et matériaux") }} · {{ p.name }}</a>{% endif %}
+{% if p %}<a class="backlink" href="{{ url_for('project_stock', project_id=p.id) }}">← {{ _("Stock et matériaux") }} · {{ p.name }}</a>{% endif %}
 <h1>{{ _("Calculateur de matériaux") }}</h1>
 <p class="muted">{{ _("Quantités à acheter selon les dimensions, pertes comprises. Les dosages sont des valeurs courantes de chantier : la formulation du béton structurel, les dimensions des éléments porteurs et le ferraillage viennent des études techniques, validées par un ingénieur.") }}</p>
 

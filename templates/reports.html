@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Fil d'actualité ·") }} {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
 <h1>{{ _("Fil d'actualité") }}</h1>
 <p class="muted">{{ _("Un compte rendu est créé automatiquement chaque semaine et envoyé par WhatsApp, SMS ou e-mail selon vos réglages.") }}</p>
 <form method="post">{{ csrf() }}<button class="btn ghost">{{ _("Générer le compte rendu maintenant") }}</button></form>

@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Maquette numérique") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
 <h1>{{ _("Maquette numérique") }}</h1>
 <p class="muted">{{ _("La maquette IFC de l'architecte ou du bureau d'études, niveau par niveau, face à l'avancement vérifié du chantier. Chaque nouvelle version est comparée à la précédente pour repérer les modifications.") }}</p>
 

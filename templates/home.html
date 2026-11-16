@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block bodyclass %}{% if portfolio %}top-dark{% endif %}{% endblock %}
 {% from "_macros.html" import risk_pill, csrf with context %}
 {% block content %}
 {% if me.role == 'inspecteur' %}
@@ -54,7 +55,18 @@
 {% if not me.phone %}<div class="card alert"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b><span class="muted">{{ _("Il sert à recevoir les paiements automatiques.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>{% endif %}
 
 {% else %}
-<h1>{{ _("Mes chantiers") }}</h1>
+{% if portfolio %}
+<section class="band" aria-label="{{ _("Résumé de vos chantiers") }}">
+<span class="band-kicker">{{ _("Argent suivi sur votre chantier") if portfolio.n == 1 else _("Argent suivi sur vos %(n)s chantiers", n=portfolio.n) }}</span>
+<span class="band-big">{{ compact(portfolio.paid) }} <small>FCFA</small></span>
+<span class="band-sub">{{ _("sur un budget de") }} {{ compact(portfolio.total) }} FCFA</span>
+<div class="band-stats">
+<a href="{{ url_for('project', project_id=cards[0][0].id, onglet='etapes') if portfolio.to_validate else '#chantiers' }}"><span>{{ _("À valider") }}</span><b>{{ portfolio.to_validate }} {{ pl(portfolio.to_validate, "étape(s)") }}</b></a>
+<div><span>{{ _("Confiance moyenne") }}</span><b>{{ portfolio.trust if portfolio.trust is not none else '–' }}{% if portfolio.trust is not none %}<small>/100</small>{% endif %}</b></div>
+</div>
+</section>
+{% endif %}
+<h1 class="section-title" id="chantiers">{{ _("Vos chantiers") if me.role == 'proprio' else _("Mes chantiers") }}</h1>
 {% if onboarding %}
 <section class="card onboard" aria-labelledby="onboard-title">
 <div class="row"><b id="onboard-title">{{ _("Bien démarrer") }}</b><span class="muted">{{ onboarding.done }} / {{ onboarding.total }}</span></div>
@@ -69,27 +81,42 @@
 <form method="post" action="{{ url_for('hide_onboarding') }}">{{ csrf() }}<button class="btn ghost small">{{ _("Masquer cette liste") }}</button></form>
 </section>
 {% endif %}
-{% if portfolio and portfolio.n > 1 %}
-<div class="grid2">
-<div class="card"><span class="muted">{{ _("Chantiers") }}</span><span class="big">{{ portfolio.n }}</span><span class="muted">{{ portfolio.late }} {{ _("en retard prévu") }}</span></div>
-<div class="card"><span class="muted">{{ _("Budget total") }}</span><span class="big">{{ fcfa(portfolio.total) }}</span><span class="muted">{{ fcfa(portfolio.paid) }} {{ _("FCFA versés") }}</span></div>
-<div class="card"><span class="muted">{{ _("Paiements à valider") }}</span><span class="big">{{ portfolio.to_validate }}</span><span class="muted">{{ _("étape(s) déclarée(s) terminée(s)") }}</span></div>
-<div class="card"><span class="muted">{{ _("Indice de confiance moyen") }}</span><span class="big">{{ portfolio.trust if portfolio.trust is not none else '–' }}</span><span class="muted">{{ portfolio.low_trust }} {{ pl(portfolio.low_trust, "chantier(s) sous 60") }}</span></div>
-</div>
-{% endif %}
-<div class="cards">
+<div class="photo-cards{% if cards|length == 1 %} single{% endif %}">
 {% for p, s, pred in cards %}
-<a class="card" href="{{ url_for('project', project_id=p.id) }}" style="text-decoration:none;color:inherit">
-<div class="row"><b>{{ p.name }}</b>{% if s.to_validate %}<span class="pill warn">{{ _("À valider") }}</span>{% else %}{{ risk_pill(pred) }}{% endif %}</div>
-<span class="muted">{{ p.address }}{% if p.kind == 'public' %} {{ _("· Chantier public") }}{% if p.marche_ref %} {{ _("· Marché") }} {{ p.marche_ref }}{% endif %}{% endif %}</span>
-<div class="row"><span class="muted">{{ _("Avancement vérifié") }}</span><b>{{ s.verified_pct }} %</b></div>
-<div class="bar"><div style="width:{{ s.verified_pct }}%"></div></div>
-{% set tt = trusts.get(p.id) %}{% if tt and tt.score is not none %}<div class="row"><span class="muted">{{ _("Indice de confiance") }}</span><b class="score {{ tt.level }}" style="font-size:20px">{{ tt.score }}/100</b></div>{% endif %}
+{% set cov = covers.get(p.id) %}{% set tt = trusts.get(p.id) %}
+<a class="pcard" href="{{ url_for('project', project_id=p.id) }}">
+{% if cov %}<img src="{{ url_for('proof_thumb', proof_id=cov) }}" alt="{{ _("Dernière photo vérifiée :") }} {{ p.name }}" loading="lazy">
+{% else %}<span class="pcard-empty" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>{% endif %}
+<span class="pcard-chip">{% if cov %}{{ _("Photo") }} {{ ago(covers.get('at' ~ p.id)) }} · {{ _("vérifiée") }}{% else %}{{ _("Pas encore de photo") }}{% endif %}</span>
+<span class="pcard-body">
+<b class="pcard-name">{{ p.name }}</b>
+<span class="pcard-prog"><span class="pcard-bar"><span style="width:{{ s.verified_pct }}%"></span></span><b>{{ s.verified_pct }} %</b></span>
+<span class="pcard-tags">
+{% if s.to_validate %}<span class="pcard-tag hot">{{ _("Étape à valider") }}</span>
+{% elif pred and pred.delay > 7 and not pred.done %}<span class="pcard-tag hot">{{ _("Retard prévu") }} {{ pred.delay }} {{ _("j") }}</span>
+{% elif pred and pred.done %}<span class="pcard-tag">{{ _("Terminé") }}</span>
+{% else %}<span class="pcard-tag">{{ _("Dans les temps") }}</span>{% endif %}
+{% if tt and tt.score is not none %}<span class="pcard-tag ghost">{{ _("Confiance") }} {{ tt.score }}/100</span>{% endif %}
+</span>
+</span>
 </a>
 {% else %}
 <div class="card muted">{{ _("Aucun chantier pour l'instant.") }}</div>
 {% endfor %}
 </div>
+
+{% if activity %}
+<section class="card feed" aria-labelledby="feed-h">
+<b id="feed-h">{{ _("Activité récente") }}</b>
+{% for a in activity %}
+<a class="feed-item" href="{{ a.link or (url_for('project', project_id=a.project_id) if a.project_id else url_for('notifications')) }}">
+<span class="feed-dot{% if not a.is_read %} new{% endif %}" aria-hidden="true"></span>
+<span class="feed-txt"><b>{{ a.title|tr }}</b><span class="muted">{{ (a.body|tr)|truncate(90) }}</span></span>
+<span class="feed-when muted">{{ ago(a.created_at) }}</span>
+</a>
+{% endfor %}
+</section>
+{% endif %}
 
 {% if me.role == 'proprio' %}
 <a class="btn" href="{{ url_for('new_project') }}">{{ _("Créer un chantier") }}</a>

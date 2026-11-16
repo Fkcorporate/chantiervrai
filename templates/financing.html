@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Plan de financement") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id, onglet='etapes') }}">← {{ p.name }}</a>
 <div class="row"><h1>{{ _("Plan de financement") }}</h1><a class="btn ghost small" href="{{ url_for('financing_file', project_id=p.id) }}">{{ _("Dossier de crédit") }}</a></div>
 <p class="muted">{{ _("D'où vient l'argent du chantier, quand il arrive, et s'il suffira pour payer chaque étape à temps. Vous saisissez vos sources ; ChantierVrai les confronte au planning. Aucun lien avec votre banque.") }}</p>
 <nav class="chips anchors" aria-label="{{ _("Sur cette page") }}">{% if pl.months|length > 1 %}<a class="chip" href="#mois">{{ _("Mois par mois") }}</a>{% endif %}<a class="chip" href="#sources">{{ _("Sources") }} ({{ pl.sources|length }})</a><a class="chip" href="#couts">{{ _("Autres coûts") }} ({{ costs|length }})</a><a class="chip" href="#revenus">{{ _("Revenus") }}</a></nav>

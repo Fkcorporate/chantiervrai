@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Dossier de crédit") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a class="noprint" href="{{ url_for('financing', project_id=p.id) }}">← {{ _("Plan de financement") }}</a>
+<a class="noprint backlink" href="{{ url_for('financing', project_id=p.id) }}">← {{ _("Plan de financement") }}</a>
 <div class="row"><h1>{{ _("Dossier de financement") }}</h1><button class="btn ghost small noprint" type="button" onclick="window.print()">{{ _("Imprimer ou enregistrer en PDF") }}</button></div>
 <div class="muted">{{ p.name }} · {{ p.address }} · {{ _("préparé le") }} {{ d(today) }} {{ _("avec ChantierVrai") }}</div>
 

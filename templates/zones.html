@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Avancement par zone") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
 <h1>{{ _("Avancement par zone") }}</h1>
 <p class="muted">{{ _("Découpez le chantier en bâtiments, étages et zones. Chaque photo, visite 360° et quantité posée se rattache à une zone : on voit où le chantier avance et où il est à l'arrêt.") }}</p>
 <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">

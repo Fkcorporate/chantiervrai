@@ -2,7 +2,7 @@
 {% from "_macros.html" import proof_card, csrf, capture_form with context %}
 {% block title %}{{ _("Commande") }} {{ o.ref }}{% endblock %}
 {% block content %}
-{% if role == 'fournisseur' %}<a href="{{ url_for('home') }}">{{ _("← Mes commandes") }}</a>{% elif role == 'admin' %}<a href="{{ url_for('admin') }}">{{ _("← Administration") }}</a>{% else %}<a href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else 'factures', _anchor='commandes') }}">← {{ p.name }}</a>{% endif %}
+{% if role == 'fournisseur' %}<a href="{{ url_for('home') }}">{{ _("← Mes commandes") }}</a>{% elif role == 'admin' %}<a href="{{ url_for('admin') }}">{{ _("← Administration") }}</a>{% else %}<a class="backlink" href="{{ url_for('project', project_id=p.id, onglet='dossier' if role == 'owner' else 'factures', _anchor='commandes') }}">← {{ p.name }}</a>{% endif %}
 <h1>{{ _("Commande") }} {{ o.ref }}</h1>
 <div class="row"><span class="muted">{{ p.name }} · {{ _("étape") }} « {{ step.name }} » · {{ supplier.name }}</span>
 <span class="pill{% if o.status in ('proposee','envoyee','livree','a_payer') %} warn{% endif %}">{{ ORDER_STATUS[o.status] }}</span></div>

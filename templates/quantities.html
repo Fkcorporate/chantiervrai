@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Quantités installées") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('zones_page', project_id=p.id) }}">← {{ _("Avancement par zone") }}</a>
+<a class="backlink" href="{{ url_for('zones_page', project_id=p.id) }}">← {{ _("Avancement par zone") }}</a>
 <h1>{{ _("Quantités installées") }}</h1>
 <p class="muted">{{ _("Ce qui est réellement posé, zone par zone, face à ce qui est prévu dans la maquette ou le devis. Le chef déclare avec une photo vérifiée, le propriétaire ou le contrôleur valide : seules les quantités validées comptent.") }}</p>
 <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('physical_report', project_id=p.id) }}">{{ _("Rapport d'avancement physique") }}</a><a class="btn ghost small" href="{{ url_for('physical_report', project_id=p.id, fmt='csv') }}">{{ _("Télécharger en CSV") }}</a></div>

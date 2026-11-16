@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Rapport d'avancement physique") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a class="noprint" href="{{ url_for('quantities', project_id=p.id) }}">← {{ _("Quantités installées") }}</a>
+<a class="noprint backlink" href="{{ url_for('quantities', project_id=p.id) }}">← {{ _("Quantités installées") }}</a>
 <h1>{{ _("Rapport d'avancement physique") }}</h1>
 <div class="row"><span class="muted">{{ p.name }} · {{ _("arrêté le") }} {{ d(today) }}</span><span class="noprint row" style="gap:8px"><a class="btn ghost small" href="{{ url_for('physical_report', project_id=p.id, fmt='csv') }}">CSV</a><button class="btn ghost small" onclick="window.print()">{{ _("Imprimer") }}</button></span></div>
 <div class="grid3">

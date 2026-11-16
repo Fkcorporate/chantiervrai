@@ -3,7 +3,7 @@
 {% import "_diagrams.html" as diag with context %}
 {% block title %}{{ c.title }} · {{ _("Académie du BTP") }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('academy') }}">← {{ _("Académie du BTP") }}</a>
+<a class="backlink" href="{{ url_for('academy') }}">← {{ _("Académie du BTP") }}</a>
 <h1>{{ c.title }}</h1>
 <span class="muted">{{ c.audience }} · {{ c.minutes }} min</span>
 

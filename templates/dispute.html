@@ -2,7 +2,7 @@
 {% from "_macros.html" import proof_card, csrf with context %}
 {% block title %}{{ _("Litige ·") }} {{ p.name }}{% endblock %}
 {% block content %}
-{% if role == 'admin' %}<a href="{{ url_for('admin') }}">{{ _("← Administration") }}</a>{% else %}<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>{% endif %}
+{% if role == 'admin' %}<a href="{{ url_for('admin') }}">{{ _("← Administration") }}</a>{% else %}<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>{% endif %}
 <h1>{{ _("Litige :") }} {{ d.subject }}</h1>
 <div class="row"><span class="muted">{{ p.name }}{% if st %} {{ _("· étape «") }} {{ st.name }} » ({{ STATUS[st.status] }}, {{ fcfa(st.amount) }} {{ _("FCFA)") }}{% endif %}</span>
 <span class="pill{% if d.status in ('ouvert', 'en_appel') %} warn{% endif %}">{{ STAGES[d.stage or 'echanges'] }}</span></div>

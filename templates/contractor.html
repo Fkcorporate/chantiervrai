@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ u.name }} · ChantierVrai{% endblock %}
 {% block content %}
-<a href="{{ url_for('contractors') }}">← {{ _("Entrepreneurs vérifiés") }}</a>
+<a class="backlink" href="{{ url_for('contractors') }}">← {{ _("Entrepreneurs vérifiés") }}</a>
 <h1>{{ u.name }}</h1>
 <div class="row"><span class="muted">{{ u.company or '' }}{% if u.zone %} · {{ u.zone }}{% endif %}</span>{% if listed %}<span class="tag blue">{{ _("Entreprise vérifiée") }}</span>{% else %}<span class="tag grey">{{ _("Non vérifiée") }}</span>{% endif %}</div>
 {% if u.bio %}<div class="card"><span>{{ u.bio }}</span></div>{% endif %}

@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("API et webhooks") }} · ChantierVrai{% endblock %}
 {% block content %}
-<a href="{{ url_for('account') }}">← {{ _("Mon compte") }}</a>
+<a class="backlink" href="{{ url_for('account') }}">← {{ _("Mon compte") }}</a>
 <h1>{{ _("API et webhooks") }}</h1>
 <p class="muted">{{ _("Connectez vos chantiers à votre logiciel de gestion, de comptabilité ou à un tableur : il lit les données par l'API et reçoit les événements par webhook.") }} <a href="{{ url_for('api_docs') }}">{{ _("Documentation de l'API") }}</a></p>
 

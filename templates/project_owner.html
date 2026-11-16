@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block bodyclass %}{% if tab == 'accueil' %}top-photo{% endif %}{% endblock %}
 {% from "_macros.html" import proof_card, tabs, csrf, risk_pill with context %}
 {% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
 {% block head %}
@@ -11,8 +12,28 @@
 
 {# ======================================================== ACCUEIL #}
 {% if tab == 'accueil' %}
+{% set cur = s.current %}{% set decl = s.steps|selectattr('status', 'equalto', 'declare')|list %}
+<section class="phero{% if not cover %} empty{% endif %}">
+{% if cover %}<img src="{{ url_for('proof_thumb', proof_id=cover.id) }}" alt="{{ _("Dernière photo vérifiée du chantier") }}">
+{% else %}<span class="pcard-empty" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>{% endif %}
+{% if cover %}<a class="phero-chip" href="{{ url_for('project', project_id=p.id, onglet='preuves') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>{{ _("Photo vérifiée") }} · {{ ago(cover.created_at) }}</a>{% endif %}
+<div class="phero-body">
+<span class="phero-kicker">{% if cur %}{{ _("Étape %(i)s sur %(n)s", i=(s.steps|map(attribute='id')|list).index(cur.id) + 1, n=s.steps|length) }}{% else %}{{ _("Chantier") }}{% endif %}</span>
 <h1>{{ p.name }}</h1>
-<div class="muted">{{ p.address }}{% if p.kind == 'public' %} {{ _("· Chantier public") }}{% if p.is_public %} · <a href="{{ url_for('portal_project', project_id=p.id) }}">{{ _("page publique") }}</a>{% endif %}{% endif %}</div>
+{% if cur %}<span class="phero-step">{{ cur.name }} · {{ STATUS[cur.status] }}</span>{% endif %}
+</div>
+</section>
+<div class="phero-stats">
+<a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}"><span>{{ _("Avancement vérifié") }}</span><b>{{ s.verified_pct }} %</b></a>
+<a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}"><span>{{ _("Déjà versé") }}</span><b>{{ compact(s.paid) }}</b></a>
+<a href="#confiance"><span>{{ _("Confiance") }}</span><b>{{ trust.score if trust and trust.score is not none else '–' }}{% if trust and trust.score is not none %}<small>/100</small>{% endif %}</b></a>
+</div>
+{% if decl %}{% set dst = decl[0] %}<a class="actionbar" href="{{ url_for('project', project_id=p.id, onglet='etapes') }}">
+<span class="ab-txt"><span>{{ _("Étape déclarée terminée") }}</span><b>{{ _("Vérifier et valider « %(name)s »", name=dst.name) }}</b></span>
+<span class="ab-amount">{{ compact(dst.amount) }}<small> FCFA</small></span>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+</a>{% endif %}
+<div class="muted phero-meta">{{ p.address }}{% if p.kind == 'public' %} {{ _("· Chantier public") }}{% if p.is_public %} · <a href="{{ url_for('portal_project', project_id=p.id) }}">{{ _("page publique") }}</a>{% endif %}{% endif %}</div>
 {% if alerts %}<section class="card alert todo-list" aria-labelledby="todo-h">
 <h2 id="todo-h">{{ _("%(n)s point(s) à voir", n=alerts|length) }}</h2>
 {% for title, target, sub in alerts %}
@@ -24,7 +45,7 @@
 
 <div class="dash"><div class="dash-main">
 <div class="card">
-<div class="row"><b>{{ _("Avancement vérifié") }}</b><b style="color:#0E5A3A">{{ s.verified_pct }} %</b></div>
+<div class="row"><b>{{ _("Avancement vérifié") }}</b><b style="color:#0F6E45">{{ s.verified_pct }} %</b></div>
 <div class="bar"><div style="width:{{ s.verified_pct }}%"></div></div>
 <div class="row"><span class="muted">{{ _("Déclaré par le chantier") }}</span><b style="color:#9A3F12">{{ s.declared_pct }} %</b></div>
 <div class="bar o"><div style="width:{{ s.declared_pct }}%"></div></div>
@@ -53,7 +74,7 @@
 
 </div><div class="dash-side">
 {% if trust %}
-<a class="card" href="{{ url_for('trust_page', project_id=p.id) }}" style="text-decoration:none;color:inherit">
+<a class="card" id="confiance" href="{{ url_for('trust_page', project_id=p.id) }}" style="text-decoration:none;color:inherit">
 <span class="muted">{{ _("Indice de confiance") }}</span>
 <span class="score {{ trust.level }}" style="font-size:44px">{{ trust.score if trust.score is not none else '–' }}<span style="font-size:18px;font-weight:600">/100</span></span>
 <b>{{ trust.level_label }}</b>

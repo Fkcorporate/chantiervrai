@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ _("Lecture du plan") }} · {{ p.name }}{% endblock %}
 {% block content %}
-<a href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id) }}">← {{ p.name }}</a>
 <h1>{{ _("Lecture du plan") }}</h1>
 <p class="muted">{{ _("L'IA lit le plan de l'architecte : pièces, surfaces, longueurs de murs, portes et fenêtres. Vous corrigez si besoin, puis les quantités de maçonnerie, enduit, carrelage et peinture s'ajoutent au prévu du chantier. Elle ne dessine rien et ne dit rien sur la structure : c'est le travail de l'architecte et de l'ingénieur.") }}</p>
 

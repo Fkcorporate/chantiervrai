@@ -3,7 +3,7 @@
 {% block title %}{{ _("Terrain") }} · {{ p.name }}{% endblock %}
 {% block content %}
 {% set riskcls = {0: 'green', 1: 'blue', 2: 'amber', 3: 'bad', 4: 'bad'} %}
-<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}">← {{ p.name }}</a>
+<a class="backlink" href="{{ url_for('project', project_id=p.id, onglet='dossier') }}">← {{ p.name }}</a>
 <h1>{{ _("Terrain : vérifier avant de construire") }}</h1>
 <p class="muted">{{ _("Double vente, faux titre, bornes déplacées : la plupart des litiges fonciers se voient avant le premier franc versé. Ce guide vous dit ce que vaut votre document, ce qu'il faut vérifier et auprès de qui.") }}</p>
 
