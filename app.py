@@ -1559,7 +1559,7 @@ def inject_globals():
             "lang": I18N.current_lang(), "LANGS": I18N.LANGS, "JS_T": {k: _(k) for k in JS_STRINGS},
             "GLOSS": GLOSS.for_lang(I18N.current_lang()),
             "fcfa": lambda n: f"{int(round(n or 0)):,}".replace(",", " "),
-            "dt": format_dt, "dts": format_dt_short, "d": format_d, "unread": unread, "INSP_STATUS": tr(INSP_STATUS), "VERDICTS": tr(VERDICTS),
+            "dt": format_dt, "dts": format_dt_short, "project_functions": project_functions, "d": format_d, "unread": unread, "INSP_STATUS": tr(INSP_STATUS), "VERDICTS": tr(VERDICTS),
             "ai_on": VISION.ai_enabled(), "sat_on": SAT.configured(), "SAT_LAYERS": tr(SAT.LAYERS),
             "DOC_CATEGORIES": DOC_CATEGORIES, "MATERIALS": list(MAT.CATALOG), "ORDER_STATUS": tr(ORDER_STATUS), "MEMBER_ROLES": tr(MEMBER_ROLES), "PROFESSIONS": tr(PROFESSIONS), "IMAGERY_PROVIDERS": IMAGERY_PROVIDERS,
             "IMAGERY_STATUS": tr(IMAGERY_STATUS), "sigomap_portal": env("SIGOMAP_URL"),
@@ -1590,6 +1590,151 @@ def project_role(p, user=None):
     if can("projects", user):
         return "admin"
     return None
+
+
+
+# ---------------------------------------------------------------------------
+# Toutes les fonctions d'un chantier, rangées par famille et filtrées selon le profil.
+# Un seul endroit à maintenir : le panneau « Toutes les fonctions » (web) et l'API mobile le lisent.
+# ---------------------------------------------------------------------------
+def project_functions(p, role=None, advanced=None):
+    role = role or g.get("project_role") or project_role(p)
+    if advanced is None:
+        advanced = g.get("advanced", True)
+    pid = p["id"]
+    u = lambda ep, **kw: url_for(ep, project_id=pid, **kw)
+    tab = lambda t, anchor=None: url_for("project", project_id=pid, onglet=t) + (f"#{anchor}" if anchor else "")
+    G = []
+
+    def grp(key, title, items):
+        items = [it for it in items if it]
+        if items:
+            G.append({"key": key, "title": title, "items": items})
+
+    def it(label, desc, url, ic):
+        return {"label": label, "desc": desc, "url": url, "ic": ic}
+
+    if role == "intervenant":          # architecte, famille, comptable… : seulement ce que son rôle autorise
+        rights = MEMBER_RIGHTS.get(g.get("member_role"), set())
+        grp("suivi", _("Suivi du chantier"), [
+            it(_("Vue d'ensemble"), _("Avancement, étapes, dernières photos"), url_for("project", project_id=pid), "steps"),
+            it(_("Notes du chantier"), _("Messages vocaux et écrits du chef"), u("site_notes_page"), "note"),
+            it(_("Avancement par zone"), _("Pièce par pièce, niveau par niveau"), u("zones_page"), "zones"),
+        ])
+        grp("controle", _("Contrôle et qualité"), [
+            it(_("Contrôle qualité des ouvrages"), _("Défauts repérés sur les photos"), u("quality_list"), "quality"),
+            it(_("Plan et réalité"), _("Ce qui est bâti face au plan"), u("plan_real"), "plan"),
+            it(_("Quantités installées"), _("Mètres, m² et m³ réellement posés"), u("quantities"), "qty"),
+            it(_("Indice de confiance"), _("Les 6 critères qui le composent"), u("trust_page"), "trust"),
+        ])
+        grp("argent", _("Argent"), [
+            "decompte" in rights and it(_("Situation des travaux et décompte"), _("Ce qui est fait, payé, restant"), u("decompte"), "money"),
+            "finances" in rights and it(_("Plan de financement"), _("Apport, crédit, échéances"), u("financing"), "bank"),
+            "export" in rights and it(_("Export comptable (CSV)"), _("Pour le comptable ou le tableur"), u("accounting_export"), "csv"),
+        ])
+        grp("materiaux", _("Matériaux"), [
+            "stock" in rights and it(_("Stock et matériaux"), _("Livraisons, consommations, inventaire"), u("project_stock"), "stock"),
+            it(_("Calculateur de matériaux"), _("Béton, fer, parpaings, enduit"), url_for("calculator_public"), "calc"),
+        ])
+        grp("documents", _("Documents"), [
+            it(_("Fiche du projet"), _("Plans, adresse, contacts"), u("project_sheet"), "sheet"),
+            "documents" in rights and it(_("Lire un plan avec l'IA"), _("Surfaces et quantités à partir d'un plan"), u("plan_reading"), "ai"),
+        ])
+        grp("avance", _("Outils avancés"), [
+            it(_("Maquette numérique"), _("Fichier IFC et avancement en 3D"), u("bim"), "bim"),
+            it(_("Visites 360°"), _("Se déplacer dans le chantier"), u("panos"), "pano"),
+            it(_("Capteurs et météo"), _("Pluie, température, humidité du béton"), u("sensors_page"), "sensor"),
+        ])
+    elif role in ("owner", "admin"):
+        owner = True
+        grp("suivi", _("Suivi du chantier"), [
+            it(_("Preuves photo et vidéo"), _("Tout ce qui a été vérifié sur le terrain"), tab("preuves"), "cam"),
+            it(_("Étapes et paiements"), _("Avancement, validations, bons à payer"), tab("etapes"), "steps"),
+            it(_("Vues satellite et plan"), _("Comparer le terrain dans le temps"), tab("vues"), "sat"),
+            it(_("Notes du chantier"), _("Messages vocaux et écrits du chef"), u("site_notes_page"), "note"),
+            it(_("Comptes rendus"), _("Résumé de la semaine à partager"), u("reports"), "doc"),
+            advanced and it(_("Avancement par zone"), _("Pièce par pièce, niveau par niveau"), u("zones_page"), "zones"),
+        ])
+        grp("controle", _("Contrôle et qualité"), [
+            it(_("Contrôle qualité des ouvrages"), _("Défauts repérés sur les photos"), u("quality_list"), "quality"),
+            it(_("Plan et réalité"), _("Ce qui est bâti face au plan"), u("plan_real"), "plan"),
+            owner and it(_("Inspection indépendante"), _("Faire passer un inspecteur sur place"), tab("dossier", "inspections"), "insp"),
+            it(_("Indice de confiance"), _("Les 6 critères qui le composent"), u("trust_page"), "trust"),
+            advanced and it(_("Quantités installées"), _("Mètres, m² et m³ réellement posés"), u("quantities"), "qty"),
+        ])
+        grp("argent", _("Argent"), [
+            it(_("Situation des travaux et décompte"), _("Ce qui est fait, payé, restant"), u("decompte"), "money"),
+            owner and it(_("Historique des paiements"), _("Chaque versement et sa référence"), u("payments_ledger"), "card"),
+            it(_("Plan de financement"), _("Apport, crédit, échéances"), u("financing"), "bank"),
+            owner and it(_("Dossier de crédit"), _("Pièces prêtes pour la banque"), u("financing_file"), "folder"),
+            it(_("Export comptable (CSV)"), _("Pour le comptable ou le tableur"), u("accounting_export"), "csv"),
+        ])
+        grp("materiaux", _("Matériaux"), [
+            it(_("Stock du chantier"), _("Livraisons, consommations, inventaire"), u("project_stock"), "stock"),
+            it(_("Matériaux prévus"), _("Quantités par étape et alertes d'écart"), tab("dossier", "materiaux"), "list"),
+            it(_("Calculateur de matériaux"), _("Béton, fer, parpaings, enduit"),
+               u("calculator") if owner else url_for("calculator_public"), "calc"),
+        ])
+        grp("documents", _("Documents et terrain"), [
+            it(_("Fiche du projet et parcelle"), _("Plans, permis, terrain dessiné"), u("project_sheet"), "sheet"),
+            it(_("Documents du chantier"), _("Contrats, factures, PV"), tab("dossier", "documents"), "doc"),
+            owner and it(_("Terrain : vérifier avant de construire"), _("Titre foncier, litiges, zone"), u("land_page"), "land"),
+            it(_("Lire un plan avec l'IA"), _("Surfaces et quantités à partir d'un plan"), u("plan_reading"), "ai"),
+        ])
+        grp("equipe", _("Équipe"), [
+            owner and it(_("Intervenants et accès"), _("Inviter la famille, l'architecte, le contrôleur"), tab("dossier", "membres"), "team"),
+            owner and it(_("Litiges"), _("Ouvrir ou suivre un désaccord"), tab("dossier", "litiges"), "flag"),
+            it(_("Entrepreneurs vérifiés"), _("Trouver ou noter une entreprise"), url_for("contractors"), "pro"),
+        ])
+        if advanced:
+            grp("avance", _("Outils avancés"), [
+                it(_("Maquette numérique"), _("Fichier IFC et avancement en 3D"), u("bim"), "bim"),
+                it(_("Visites 360°"), _("Se déplacer dans le chantier"), u("panos"), "pano"),
+                it(_("Capteurs et météo"), _("Pluie, température, humidité du béton"), u("sensors_page"), "sensor"),
+            ])
+    elif role == "chef":
+        grp("travail", _("Mon travail"), [
+            it(_("Envoyer une preuve"), _("Photo ou vidéo de l'étape en cours"), tab("accueil", "proof-form"), "cam"),
+            it(_("Mes preuves"), _("Acceptées, refusées et pourquoi"), tab("preuves"), "check"),
+            it(_("Matériaux et factures"), _("Factures, bons de livraison"), tab("factures"), "bill"),
+            it(_("Mes paiements"), _("Ce qui a été versé et quand"), url_for("payments_received"), "card"),
+        ])
+        grp("materiaux", _("Matériaux"), [
+            it(_("Stock : livraisons et consommations"), _("Ce qui arrive, ce qui sert, ce qui reste"), u("project_stock"), "stock"),
+            it(_("Calculateur de matériaux"), _("Béton, fer, parpaings, enduit"), u("calculator"), "calc"),
+        ])
+        grp("controle", _("Contrôle et qualité"), [
+            it(_("Contrôle qualité"), _("Points à corriger signalés"), u("quality_list"), "quality"),
+            it(_("Plan et réalité"), _("Ce qui est bâti face au plan"), u("plan_real"), "plan"),
+            advanced and it(_("Quantités posées"), _("Déclarer ce qui est posé"), u("quantities"), "qty"),
+            advanced and it(_("Zones"), _("Avancement pièce par pièce"), u("zones_page"), "zones"),
+        ])
+        grp("documents", _("Documents"), [
+            it(_("Fiche du projet"), _("Plans, adresse, contacts"), u("project_sheet"), "sheet"),
+            it(_("Lire un plan avec l'IA"), _("Surfaces et quantités à partir d'un plan"), u("plan_reading"), "ai"),
+        ])
+        if advanced:
+            grp("avance", _("Outils avancés"), [
+                it(_("Maquette numérique"), _("Fichier IFC et avancement en 3D"), u("bim"), "bim"),
+                it(_("Visites 360°"), _("Se déplacer dans le chantier"), u("panos"), "pano"),
+                it(_("Capteurs et météo"), _("Pluie, température, humidité du béton"), u("sensors_page"), "sensor"),
+            ])
+    elif role == "inspecteur":
+        grp("controle", _("Contrôle et qualité"), [
+            it(_("Contrôle qualité"), _("Points à vérifier sur les photos"), u("quality_list"), "quality"),
+            it(_("Plan et réalité"), _("Ce qui est bâti face au plan"), u("plan_real"), "plan"),
+            it(_("Quantités à valider"), _("Mètres, m² et m³ déclarés"), u("quantities"), "qty"),
+        ])
+        grp("documents", _("Documents et matériaux"), [
+            it(_("Fiche du projet"), _("Plans, adresse, contacts"), u("project_sheet"), "sheet"),
+            it(_("Stock et matériaux"), _("Livraisons et consommations"), u("project_stock"), "stock"),
+        ])
+        grp("avance", _("Outils avancés"), [
+            it(_("Maquette numérique"), _("Fichier IFC et avancement en 3D"), u("bim"), "bim"),
+            it(_("Visites 360°"), _("Se déplacer dans le chantier"), u("panos"), "pano"),
+            it(_("Capteurs et météo"), _("Pluie, température, humidité du béton"), u("sensors_page"), "sensor"),
+        ])
+    return G
 
 
 def load_project(project_id, roles=("owner", "chef", "inspecteur")):
@@ -11192,6 +11337,10 @@ def api_project(project_id):
         out["inspections"] = [{"id": i["id"], "status": i["status"], "step_id": i["step_id"]}
                               for i in db.execute("SELECT * FROM inspections WHERE project_id = ? AND inspector_id = ?",
                                                   (project_id, current_user()["id"]))] if role == "inspecteur" else []
+    # Le même catalogue que le panneau « Toutes les fonctions » du site, pour l'application
+    out["functions"] = [{"key": grp_["key"], "title": grp_["title"],
+                         "items": [{"label": i["label"], "desc": i["desc"], "path": i["url"], "icon": i["ic"]} for i in grp_["items"]]}
+                        for grp_ in project_functions(p, role, show_advanced(db, current_user(), project_id))]
     return jsonify(ok=True, project=out)
 
 

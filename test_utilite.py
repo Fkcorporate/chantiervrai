@@ -93,11 +93,18 @@ if pub:
     h = html(A.app.test_client().get(f"/portail/{pub[0]}"))
     check('class="btn report-fab" href="#signaler"' in h, "portail public : bouton « Signaler un problème » toujours visible")
 
+def url_for_home_in_drawer(h):
+    """Le pied du panneau « Toutes les fonctions » reprend le menu de l'application (retour aux chantiers compris)."""
+    foot = h[h.index('class="dr-foot"'):]
+    return 'href="/"' in foot[:foot.index("</div>")]
+
+
 h = html(own.get(f"/chantiers/{pid}"))
 check('class="card alert todo-list"' in h and h.count('class="card alert"') == 0, "accueil : les points à voir regroupés dans une seule carte")
 check("(s)" not in re.sub(r"<script.*?</script>", "", h, flags=re.S), "accueil : pluriels accordés (« 1 preuve refusée », pas « 1 preuve(s) refusée(s) »)")
-check('class="appbar"' in h and 'class="tabs"' in h and 'class="bottombar"' not in h and 'data-sheet="nav-sheet"' in h,
-      "chantier sur téléphone : barre du haut (retour, menu, alertes), sections du chantier en bas")
+check('class="appbar"' in h and 'class="tabs"' in h and 'class="bottombar"' not in h and 'data-sheet="fn-drawer"' in h
+      and 'class="dr-foot"' in h and url_for_home_in_drawer(h),
+      "chantier sur téléphone : barre du haut (retour, toutes les fonctions + menu de l'application, alertes), sections du chantier en bas")
 h_home = html(own.get("/"))
 bb = re.search(r'<nav class="bottombar".*?</nav>', h_home, re.S).group(0)
 check(len(re.findall(r"<a href=", bb)) == 4 and "bb-more" in bb and 'class="on" aria-current="page"' in bb,
