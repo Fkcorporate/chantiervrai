@@ -70,6 +70,24 @@
 </div>
 </section>
 {% endif %}
+{% if me.role == 'chef' %}
+<div class="decide-list">
+{% for p, s, pred in cards %}{% set cur = (s.steps|selectattr('status', 'in', ['en_cours', 'declare'])|list)[:1] %}{% if cur %}{% set c = cur[0] %}
+{% if c.status == 'en_cours' %}
+<a class="decide-card todo-chef" href="{{ url_for('project', project_id=p.id) }}#proof-form">
+<span class="decide-ico chef-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+<span class="decide-txt"><span class="decide-kicker chef-kicker">{{ _("À faire") }}</span><b>{{ _("Photographier : %(name)s", name=c.name) }}</b><span class="muted">{{ p.name }}</span></span>
+<span class="decide-amt">{{ compact(c.amount) }}<small>FCFA</small></span>
+</a>
+{% else %}
+<a class="decide-card" href="{{ url_for('project', project_id=p.id) }}">
+<span class="decide-ico wait-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+<span class="decide-txt"><span class="decide-kicker wait-kicker">{{ _("En attente") }}</span><b>{{ _("%(name)s : validation du propriétaire", name=c.name) }}</b><span class="muted">{{ p.name }}</span></span>
+<span class="decide-amt">{{ compact(c.amount) }}<small>FCFA</small></span>
+</a>
+{% endif %}{% endif %}{% endfor %}
+</div>
+{% endif %}
 {% if me.role == 'proprio' %}{% set ns = namespace(n=0) %}
 <div class="decide-list">
 {% for p, s, pred in cards %}{% for st in s.steps if st.status == 'declare' %}{% set ns.n = ns.n + 1 %}

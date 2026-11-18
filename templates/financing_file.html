@@ -54,7 +54,7 @@
 <div class="card">
 <div class="row"><span>{{ _("Chantier") }}</span><b>{{ p.name }}</b></div>
 <div class="row"><span>{{ _("Adresse") }}</span><span>{{ p.address }}{% if p.commune %}, {{ p.commune }}{% endif %}</span></div>
-{% if p.building_type %}<div class="row"><span>{{ _("Type de bâtiment") }}</span><span>{{ p.building_type }}{% if p.levels %} · {{ p.levels }} {{ pl(p.levels, "niveau(x)") }}{% endif %}</span></div>{% endif %}
+{% if p.building_type %}<div class="row"><span>{{ _("Type de bâtiment") }}</span><span>{{ p.building_type }}{% if p.levels %} · {{ _("%(n)s niveau(x)", n=p.levels) }}{% endif %}</span></div>{% endif %}
 {% if p.surface_floor %}<div class="row"><span>{{ _("Surface de plancher") }}</span><span>{{ p.surface_floor|int }} m²</span></div>{% endif %}
 {% if p.land_title or p.land_ref %}<div class="row"><span>{{ _("Terrain") }}</span><span>{{ p.land_title or '' }} {{ p.land_ref or '' }}</span></div>{% endif %}
 {% if p.permit_ref %}<div class="row"><span>{{ _("Permis de construire") }}</span><span>{{ p.permit_ref }}</span></div>{% endif %}

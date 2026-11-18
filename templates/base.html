@@ -17,6 +17,7 @@
 {% if false %}{% block tabs %}{% endblock %}{% endif %}
 {% set ep = request.endpoint or '' %}
 {% set ptabs = self.tabs()|trim %}
+{% set fn_groups = project_functions(p) if (me and p is defined and p and p.owner_id is defined) else [] %}
 <body class="{% if me %}has-app{% endif %}{% if ptabs %} has-ptabs{% endif %} {% block bodyclass %}{% endblock %}">
 <div class="wrap{% block wrapclass %}{% endblock %}">
 {% if me %}
@@ -37,7 +38,8 @@
 {% if ep == 'project' and p is defined %}<span class="ab-kicker">{{ _("Chantier") }}</span>{% elif p is defined and p and p.name is defined and ep not in root_eps %}<span class="ab-kicker">{{ p.name }}</span>{% endif %}
 <b>{{ page_title if page_title != 'ChantierVrai' else NAV.primary[0].label }}</b>
 </div>
-{% if ptabs %}<button type="button" class="ab-btn" data-sheet="nav-sheet" aria-haspopup="dialog" aria-label="{{ _("Menu") }}">{{ _ico('more') }}</button>{% endif %}
+{% if fn_groups %}<button type="button" class="ab-btn ab-fn" data-sheet="fn-drawer" aria-haspopup="dialog" aria-label="{{ _("Toutes les fonctions") }}">{{ _ico('grid') }}</button>
+{% elif ptabs %}<button type="button" class="ab-btn" data-sheet="nav-sheet" aria-haspopup="dialog" aria-label="{{ _("Menu") }}">{{ _ico('more') }}</button>{% endif %}
 <a class="ab-btn{% if ep == 'notifications' %} on{% endif %}" href="{{ url_for('notifications') }}" aria-label="{{ _("Alertes") }}{% if unread %} ({{ unread }}){% endif %}">{{ _ico('bell') }}{% if unread %}<span class="ab-dot">{{ unread if unread < 10 else '9+' }}</span>{% endif %}</a>
 </div>
 {% endif %}
@@ -64,6 +66,7 @@
 {% endif %}
 </header>
 <main>
+{% if fn_groups and not ptabs %}<div class="fn-bar"><a class="fn-bar-back" href="{{ url_for('project', project_id=p.id) }}">{{ _ico('back') }}<span>{{ p.name }}</span></a><button type="button" class="tabs-fn" data-sheet="fn-drawer" aria-haspopup="dialog">{{ _ico('grid') }}<span>{{ _("Toutes les fonctions") }}</span></button></div>{% endif %}
 {% for cat, msg in get_flashed_messages(with_categories=true) %}
 <div class="flash {{ cat }}" role="status">{{ msg }}</div>
 {% endfor %}
@@ -86,6 +89,7 @@
 </nav>
 {% endif %}
 </div>
+{% if fn_groups %}{% include "_functions.html" %}{% endif %}
 {% if me %}
 <dialog class="sheet" id="nav-sheet" aria-label="{{ _("Menu") }}">
 <div class="sheet-grip" aria-hidden="true"></div>

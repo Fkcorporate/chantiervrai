@@ -12,24 +12,18 @@
 {% if pred %}<span class="muted">{{ _("Fin estimée le") }} {{ d(pred.predicted_end) }}{% if pred.delay > 0 %} · {{ _("retard prévu de") }} {{ pred.delay }} {{ _("jours") }}{% endif %}</span>{% endif %}
 </div>
 
-<h2>{{ _("Étapes") }}</h2>
-<div class="card">
-{% for st in s.steps %}{% set cs = checks_by_step.get(st.id) %}
-<a class="row" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><span>{{ loop.index }}. {{ st.name }}</span><span class="muted">{{ STATUS[st.status] }}{% if cs and cs.missing and st.status not in ('paye', 'versement') %} · <span class="tag amber">{{ cs.missing }} {{ pl(cs.missing, "contrôle(s) à faire") }}</span>{% endif %}</span></a>
+<section class="card" aria-labelledby="tl-h">
+<h2 id="tl-h" style="margin:0;font-size:17px">{{ _("Étapes") }}</h2>
+<ol class="timeline">
+{% for st in s.steps %}{% set cs = checks_by_step.get(st.id) %}{% set done = st.status in ('paye', 'versement') %}
+<li><span class="tl-dot {{ 'tl-done' if done else ('tl-decl' if st.status == 'declare' else ('tl-now' if st.status == 'en_cours' else 'tl-todo')) }}" aria-hidden="true">{% if done %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7"/></svg>{% else %}{{ loop.index }}{% endif %}</span>
+<a class="tl-name" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><span{% if st.status in ('declare', 'en_cours') %} style="font-weight:600"{% endif %}>{{ st.name }}</span><small style="color:var(--muted);font-weight:500">{{ STATUS[st.status] }}</small></a>
+{% if cs and cs.missing and not done %}<span class="tag amber">{{ cs.missing }} {{ pl(cs.missing, "contrôle(s) à faire") }}</span>{% endif %}</li>
 {% endfor %}
-</div>
+</ol>
+</section>
 
-<h2>{{ _("Outils") }}</h2>
-<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
-<a class="btn ghost small" href="{{ url_for('project_sheet', project_id=p.id) }}">{{ _("Fiche du projet") }}</a>
-{% if 'finances' in rights %}<a class="btn ghost small" href="{{ url_for('financing', project_id=p.id) }}">{{ _("Plan de financement") }}</a>{% endif %}<a class="btn ghost small" href="{{ url_for('site_notes_page', project_id=p.id) }}">{{ _("Notes du chantier") }}</a>{% if 'stock' in rights %}<a class="btn ghost small" href="{{ url_for('project_stock', project_id=p.id) }}">{{ _("Stock et matériaux") }}</a>{% endif %}
-<a class="btn ghost small" href="{{ url_for('bim', project_id=p.id) }}">{{ _("Maquette numérique") }}</a><a class="btn ghost small" href="{{ url_for('zones_page', project_id=p.id) }}">{{ _("Avancement par zone") }}</a><a class="btn ghost small" href="{{ url_for('panos', project_id=p.id) }}">{{ _("Visites 360°") }}</a><a class="btn ghost small" href="{{ url_for('quantities', project_id=p.id) }}">{{ _("Quantités installées") }}</a><a class="btn ghost small" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Contrôle qualité") }}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a>
-<a class="btn ghost small" href="{{ url_for('sensors_page', project_id=p.id) }}">{{ _("Capteurs et météo") }}</a>
-{% if 'documents' in rights %}<a class="btn ghost small" href="{{ url_for('plan_reading', project_id=p.id) }}">{{ _("Lire un plan avec l'IA") }}</a>{% endif %}
-{% if 'decompte' in rights %}<a class="btn ghost small" href="{{ url_for('decompte', project_id=p.id) }}">{{ _("Situation des travaux et décompte") }}</a>{% endif %}
-{% if 'export' in rights %}<a class="btn ghost small" href="{{ url_for('accounting_export', project_id=p.id) }}">{{ _("Export comptable (CSV)") }}</a>{% endif %}
-<a class="btn ghost small" href="{{ url_for('calculator_public') }}">{{ _("Calculateur de matériaux") }}</a>
-</div>
+<button type="button" class="fn-cta" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fn-cta-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span><span class="fn-cta-txt"><b>{{ _("Toutes les fonctions du chantier") }}</b><span>{{ _("Fiche, notes, qualité, plan et réalité, maquette…") }}</span></span><span class="fn-cta-chev" aria-hidden="true">›</span></button>
 
 <h2>{{ _("Documents") }}</h2>
 <div class="card">

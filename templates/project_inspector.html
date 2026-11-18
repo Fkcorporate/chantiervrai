@@ -19,14 +19,10 @@
 </section>
 <div class="tools">
 {{ tool(url_for('quality_list', project_id=p.id), _("Contrôle qualité"), 'quality', _("Points à vérifier sur les photos"), primary=True) }}
-{{ tool(url_for('project_sheet', project_id=p.id), _("Fiche du projet"), 'sheet') }}
-{{ tool(url_for('plan_real', project_id=p.id), _("Plan et réalité"), 'plan') }}
-{{ tool(url_for('project_stock', project_id=p.id), _("Stock et matériaux"), 'stock') }}
-{{ tool(url_for('quantities', project_id=p.id), _("Quantités à valider"), 'qty') }}
-{{ tool(url_for('bim', project_id=p.id), _("Maquette numérique"), 'bim') }}
-{{ tool(url_for('panos', project_id=p.id), _("Visites 360°"), 'pano') }}
-{{ tool(url_for('sensors_page', project_id=p.id), _("Capteurs et météo"), 'sensor') }}
+{{ tool(url_for('project_sheet', project_id=p.id), _("Fiche du projet"), 'sheet', _("Plans, adresse, contacts")) }}
+{{ tool(url_for('plan_real', project_id=p.id), _("Plan et réalité"), 'plan', _("Ce qui est bâti face au plan")) }}
 </div>
+<button type="button" class="fn-cta" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fn-cta-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span><span class="fn-cta-txt"><b>{{ _("Toutes les fonctions du chantier") }}</b><span>{{ _("Quantités, stock, maquette, visites 360°, capteurs…") }}</span></span><span class="fn-cta-chev" aria-hidden="true">›</span></button>
 <span class="muted">{{ _("Ouvrez une étape pour saisir vos contrôles : ferraillage, coffrage, validation avant bétonnage, essais du béton. Les contrôles obligatoires bloquent le paiement tant qu'ils ne sont pas conformes.") }}</span>
 
 {% for i in mine %}

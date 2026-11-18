@@ -12,15 +12,6 @@
 <div class="tools">
 {{ tool(url_for('project_stock', project_id=p.id), _("Stock : livraisons et consommations"), 'stock', _("Ce qui arrive, ce qui sert, ce qui reste"), primary=True) }}
 {{ tool(url_for('calculator', project_id=p.id), _("Calculateur de matériaux"), 'calc', _("Béton, fer, parpaings, enduit")) }}
-{{ tool(url_for('project_sheet', project_id=p.id), _("Fiche du projet"), 'sheet') }}
-{{ tool(url_for('plan_reading', project_id=p.id), _("Lire un plan avec l'IA"), 'ai') }}
-{% if advanced %}
-{{ tool(url_for('zones_page', project_id=p.id), _("Zones"), 'zones') }}
-{{ tool(url_for('quantities', project_id=p.id), _("Quantités posées"), 'qty') }}
-{{ tool(url_for('panos', project_id=p.id), _("Visites 360°"), 'pano') }}
-{{ tool(url_for('bim', project_id=p.id), _("Maquette numérique"), 'bim') }}
-{{ tool(url_for('sensors_page', project_id=p.id), _("Capteurs et météo"), 'sensor') }}
-{% endif %}
 </div>
 {% set role = 'chef' %}{% include "_orders.html" %}
 <h2>{{ _("Factures d'achats faits ailleurs") }}</h2>
@@ -96,7 +87,6 @@
 {% if open_disputes %}<h2>{{ _("Litiges") }}</h2>{% include "_disputes.html" %}{% endif %}
 <details class="card more-actions"><summary><b>{{ _("Autres actions") }}</b><span class="muted">{{ _("WhatsApp, contrôle qualité, drone, litige, règles du chantier") }}</span></summary>
 {% if c %}<div class="stack"><b>{{ _("Envoyer par WhatsApp") }}</b><span class="muted">{{ _("Pas envie d'ouvrir l'application ? Envoyez vos photos, votre position et vos notes vocales au WhatsApp de ChantierVrai, depuis le numéro de votre compte.") }}</span>{% if wa_number %}<a class="btn small" href="{{ wa_link }}" target="_blank" rel="noopener">{{ _("Ouvrir WhatsApp") }} · {{ wa_number }}</a>{% else %}<a class="btn ghost small" href="{{ url_for('whatsapp_simulator') }}">{{ _("Essayer avec le simulateur") }}</a>{% endif %}</div>
-<div class="row toolrow" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Contrôle qualité des ouvrages") }}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a></div>
 <details class="sub"><summary><b>{{ _("Règles de ce chantier") }}</b> <span class="muted">· {{ _("validation, inspection") }}</span></summary>
 <span class="muted">{% if p.auto_validate and auto_validate_on %}{{ _("Validation automatique : une étape déclarée terminée est validée si le propriétaire ne répond pas sous %(n)s jours (contrôles faits).", n=AUTO_VALIDATE_DAYS) }}{% else %}{{ _("Pas de validation automatique : sans réponse du propriétaire, vous pouvez ouvrir un litige.") }}{% endif %}</span>
 <span class="muted">{% if p.require_inspection %}{{ _("Inspection indépendante obligatoire avant la validation des étapes critiques (fondations, structure, dalle, toiture).") }}{% else %}{{ _("Inspection indépendante au choix du propriétaire.") }}{% endif %}</span></details>

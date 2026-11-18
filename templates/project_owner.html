@@ -169,7 +169,7 @@
 {# ======================================================== ETAPES #}
 {% if tab == 'etapes' %}
 <h1>{{ _("Étapes et paiements") }}</h1>
-<div class="row toolrow" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('decompte', project_id=p.id) }}">{{ _("Situation des travaux et décompte") }}</a><a class="btn ghost small" href="{{ url_for('trust_page', project_id=p.id) }}">{{ _("Indice de confiance") }}</a><a class="btn ghost small" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Contrôle qualité des ouvrages") }}</a><a class="btn ghost small" href="{{ url_for('financing', project_id=p.id) }}">{{ _("Plan de financement") }}</a><a class="btn ghost small" href="{{ url_for('site_notes_page', project_id=p.id) }}">{{ _("Notes du chantier") }}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a></div>
+<button type="button" class="fn-cta" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fn-cta-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span><span class="fn-cta-txt"><b>{{ _("Toutes les fonctions du chantier") }}</b><span>{{ _("Décompte, confiance, qualité, financement, notes, plan et réalité…") }}</span></span><span class="fn-cta-chev" aria-hidden="true">›</span></button>
 <div class="steps-list">
 {% for st in s.steps %}
 {% set okc = ok_by_step.get(st.id, 0) %}
@@ -421,22 +421,7 @@
 {% if tab == 'dossier' %}
 <h1>{{ _("Dossier du chantier") }}</h1>
 {% if me.id == p.owner_id %}<a class="btn" href="#membres" style="margin-bottom:10px">{{ _("Inviter quelqu'un (famille, architecte, comptable…)") }}</a>{% endif %}
-<h2 class="sec-title" style="margin-top:6px">{{ _("Outils du chantier") }}</h2>
-<div class="tools">
-{{ tool(url_for('project_sheet', project_id=p.id), _("Fiche du projet et parcelle"), 'sheet', _("Plans, permis, terrain dessiné"), primary=True) }}
-{{ tool(url_for('land_page', project_id=p.id), _("Terrain : vérifier avant de construire"), 'land', land_label if land_level is not none else '') }}
-{{ tool(url_for('plan_real', project_id=p.id), _("Plan et réalité"), 'plan') }}
-{{ tool(url_for('plan_reading', project_id=p.id), _("Lire un plan avec l'IA"), 'ai') }}
-{{ tool(url_for('financing_file', project_id=p.id), _("Dossier de crédit"), 'bank') }}
-{{ tool(url_for('accounting_export', project_id=p.id), _("Export comptable (CSV)"), 'csv') }}
-{% if advanced %}
-{{ tool(url_for('zones_page', project_id=p.id), _("Avancement par zone"), 'zones') }}
-{{ tool(url_for('panos', project_id=p.id), _("Visites 360°"), 'pano') }}
-{{ tool(url_for('quantities', project_id=p.id), _("Quantités installées"), 'qty') }}
-{{ tool(url_for('bim', project_id=p.id), _("Maquette numérique"), 'bim') }}
-{{ tool(url_for('sensors_page', project_id=p.id), _("Capteurs et météo"), 'sensor') }}
-{% endif %}
-</div>
+<button type="button" class="fn-cta" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fn-cta-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span><span class="fn-cta-txt"><b>{{ _("Toutes les fonctions du chantier") }}</b><span>{{ _("Fiche du projet, terrain, crédit, export, plan et réalité…") }}</span></span><span class="fn-cta-chev" aria-hidden="true">›</span></button>
 
 {# --- Matériaux --- #}
 <h2 id="materiaux">{{ _("Contrôle des matériaux") }}</h2>
