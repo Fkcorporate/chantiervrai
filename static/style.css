@@ -1159,3 +1159,84 @@ body.has-app .side-logout .btn.ghost:hover{color:#fff;background:none}
   main>.flash{animation:cv-drop .25s ease-out}
 }
 @keyframes cv-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ===================================================================
+   Panneau « Toutes les fonctions » : s'ouvre à droite, rangé par famille
+   =================================================================== */
+.tabs-fn{display:none}
+.fn-bar{display:none}
+@media (min-width:1000px){
+  .tabs div{align-items:center}
+  .tabs-fn{display:inline-flex;align-items:center;gap:8px;margin-left:auto;min-height:40px;padding:0 16px;border-radius:999px;border:1px solid #DCD6CA;
+    background:#fff;color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:background-color .15s ease,border-color .15s ease}
+  .tabs-fn:hover{border-color:var(--forest);background:#fff}
+  .tabs-fn svg{width:17px;height:17px}
+  .fn-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:-4px}
+  .fn-bar-back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;font-weight:500;text-decoration:none;min-height:40px}
+  .fn-bar-back:hover{color:var(--ink)}
+  .fn-bar-back svg{width:18px;height:18px}
+  /* sur une page d'onglets, le chantier a déjà son en-tête : la barre ne garde que le bouton */
+}
+/* Le panneau : à droite, pleine hauteur, sur ordinateur comme sur téléphone */
+dialog.sheet.drawer{display:none}
+dialog.sheet.drawer[open]{display:flex;flex-direction:column;position:fixed;inset:0 0 0 auto;margin:0;height:100%;max-height:none;
+  width:min(440px,92vw);max-width:none;padding:0;border:0;border-radius:24px 0 0 24px;background:var(--sand);color:var(--ink);
+  box-shadow:-24px 0 60px rgba(11,34,25,.18);transform:translateX(104%);transition:transform .28s cubic-bezier(.2,.8,.2,1);overflow:hidden}
+dialog.sheet.drawer.is-open{transform:none}
+dialog.sheet.drawer.is-closing{transform:translateX(104%);transition-duration:.2s}
+dialog.sheet.drawer::backdrop{background:rgba(11,34,25,.32);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+@media (prefers-reduced-motion:reduce){dialog.sheet.drawer[open]{transition:none}}
+.dr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:calc(env(safe-area-inset-top) + 22px) 20px 12px 22px}
+.dr-titles{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dr-kicker{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dr-head h2{margin:0;font-size:24px;font-weight:600;letter-spacing:-.03em}
+.dr-close{flex:0 0 44px;width:44px;height:44px;border-radius:50%;border:0;background:#ECE8DF;color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;min-height:0;padding:0}
+.dr-close svg{width:18px;height:18px}
+.dr-close:hover{background:#E2DDD1}
+.dr-search{display:flex;align-items:center;gap:10px;margin:4px 20px 10px;padding:0 14px;min-height:48px;border-radius:14px;background:#fff;
+  border:1px solid #E4E0D6;font-weight:400}
+.dr-search:focus-within{border-color:var(--forest);box-shadow:0 0 0 3px rgba(11,34,25,.08)}
+.dr-search svg{flex:0 0 18px;width:18px;height:18px;color:var(--muted)}
+.dr-search input{border:0;background:none;padding:0;min-height:46px;font-size:16px;box-shadow:none;outline:0;width:100%}
+.dr-body{flex:1;overflow-y:auto;padding:4px 20px 18px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.dr-group{margin-top:14px}
+.dr-group h3{margin:0 0 6px 4px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.dr-group ul{list-style:none;margin:0;padding:4px 12px;background:#fff;border-radius:18px;box-shadow:0 1px 2px rgba(17,26,21,.04)}
+.dr-group li+li .dr-item{border-top:1px solid #F2EFE8}
+.dr-item{display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 0;text-decoration:none;color:var(--ink);font-weight:400}
+.dr-item:hover .dr-txt b{color:var(--accent)}
+.dr-item:focus-visible{outline:3px solid var(--forest);outline-offset:2px;border-radius:10px}
+.dr-ico{flex:0 0 38px;width:38px;height:38px;border-radius:12px;background:#F1F5F2;color:var(--accent);display:flex;align-items:center;justify-content:center}
+.dr-ico svg{width:20px;height:20px}
+.dr-txt{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.dr-txt b{font-size:15px;font-weight:600;transition:color .12s ease}
+.dr-txt span{font-size:13px;color:var(--muted);line-height:1.35}
+.dr-chev{flex:0 0 16px;color:#B7BCB9}
+.dr-chev svg{width:16px;height:16px}
+.dr-empty{padding:24px 4px;text-align:center}
+.dr-foot{display:flex;gap:4px;overflow-x:auto;padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid #E4E0D6;background:var(--sand)}
+.dr-foot a{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:68px;min-height:52px;justify-content:center;
+  padding:6px 8px;border-radius:12px;font-size:11px;font-weight:600;color:var(--muted);text-decoration:none}
+.dr-foot a:hover{background:#ECE8DF;color:var(--ink)}
+.dr-foot svg{width:20px;height:20px}
+.ab-fn svg{width:22px;height:22px}
+/* Accès « Toutes les fonctions » dans la page */
+.fn-cta{display:flex;align-items:center;gap:14px;width:100%;min-height:72px;padding:14px 16px;border:0;border-radius:20px;background:#fff;color:var(--ink);
+  font:inherit;text-align:left;cursor:pointer;box-shadow:0 1px 2px rgba(17,26,21,.04),0 6px 20px rgba(17,26,21,.035);transition:transform .15s ease,box-shadow .15s ease}
+@media (hover:hover){.fn-cta:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(17,26,21,.05),0 12px 26px rgba(17,26,21,.08)}}
+.fn-cta:active{transform:scale(.99)}
+.fn-cta-ico{flex:0 0 44px;width:44px;height:44px;border-radius:14px;background:var(--forest);color:#fff;display:flex;align-items:center;justify-content:center}
+.fn-cta-ico svg{width:22px;height:22px}
+.fn-cta-txt{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.fn-cta-txt b{font-size:15px;font-weight:600}
+.fn-cta-txt span{font-size:13px;color:var(--muted);line-height:1.35}
+.fn-cta-chev{font-size:24px;color:#9AA09C}
+label.dr-search{flex-direction:row;align-items:center;gap:10px}
+.dr-foot{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));overflow:visible;gap:2px}
+.dr-foot a{min-width:0}
+@media (min-width:1000px){.fn-cta{display:none}}
+.timeline .tag{flex:none;white-space:nowrap}
+.chef-ico{background:var(--forest);color:#fff}
+.chef-kicker{color:var(--accent)}
+.wait-ico{background:#EEF1EF;color:var(--muted)}
+.wait-kicker{color:var(--muted)}
