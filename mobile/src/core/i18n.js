@@ -2,6 +2,7 @@
 // Les messages venant du serveur (refus, statuts, alertes) arrivent deja traduits.
 
 const EN = {
+  'chaque franc justifié par une preuve vérifiée': 'every franc backed by a verified proof',
   'Fermer': 'Close',
   'Toutes les fonctions': 'All functions',
   'Toutes les fonctions du chantier': 'All project functions',

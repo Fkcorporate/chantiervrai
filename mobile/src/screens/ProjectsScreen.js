@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Screen, Card, T, Pill, Row, Button, Field, Banner, Band, PhotoCard, DecisionCard } from '../components/ui';
+import { Screen, Card, T, Pill, Row, Button, Field, Banner, Band, PhotoCard, DecisionCard, NightGreeting } from '../components/ui';
 import { api, current, queue, setCounts } from '../services/session';
 import { t, getLang } from '../core/i18n';
+import { C } from '../theme';
 import { fcfa } from '../core/format';
 
 // « Bonsoir » / « Bonjour » et la date du jour, dans la langue de l'application
@@ -55,10 +56,13 @@ export default function ProjectsScreen({ go }) {
     try { await api.joinProject(code.trim().toUpperCase()); setCode(''); load(); } catch (e) { setError(e.message); }
   }
 
+  // Accueil du propriétaire : édition nuit (fond sombre, chiffres fins, doré pour décider)
+  const night = user.role === 'proprio' && projects.length > 0;
   return (
-    <Screen large kicker={user.role === 'proprio' ? todayLabel() : undefined}
-      title={user.role === 'fournisseur' ? t('Mes commandes') : user.role === 'proprio' ? `${hello()}, ${(user.name || '').split(' ')[0]}` : 'ChantierVrai'}
+    <Screen large dark={night}
+      title={night ? '' : user.role === 'fournisseur' ? t('Mes commandes') : user.role === 'proprio' ? `${hello()}, ${(user.name || '').split(' ')[0]}` : 'ChantierVrai'}
       refreshing={loading} onRefresh={load}>
+      {night ? <NightGreeting name={user.name} hello={`${hello()} · ${todayLabel()}`} onPress={() => go('settings')} /> : null}
       <Banner text={error} tone="error" />
       {pending ? <Banner text={t('%(n)s preuve(s) en attente de réseau', { n: pending })} /> : null}
       {toConfirm ? (
@@ -68,17 +72,17 @@ export default function ProjectsScreen({ go }) {
         </Card>
       ) : null}
       {user.role === 'proprio' && summary && projects.length ? (
-        <Band kicker={projects.length > 1 ? t('Argent suivi sur vos %(n)s chantiers', { n: projects.length }) : t('Argent suivi sur votre chantier')}
-          value={summary.paid_short} unit={t('FCFA versés')} sub={`${t('sur un budget de')} ${summary.total_short} FCFA`}
+        <Band night months={summary.months} kicker={projects.length > 1 ? t('Argent suivi sur vos %(n)s chantiers', { n: projects.length }) : t('Argent suivi sur votre chantier')}
+          value={summary.paid_short} unit={t('FCFA versés')} sub={`${t('sur un budget de')} ${summary.total_short} FCFA · ${t('chaque franc justifié par une preuve vérifiée')}`}
           progress={summary.total ? (100 * summary.paid) / summary.total : 0}
           stats={[{ label: t('À valider'), value: t('%(n)s étape(s)', { n: summary.to_validate }),
             onPress: summary.to_validate ? () => go('project', { id: (projects.find((x) => x.to_validate) || projects[0]).id }) : undefined }]} />
       ) : null}
       {user.role === 'proprio' ? projects.filter((p) => p.current && p.current.status === 'declare').map((p) => (
-        <DecisionCard key={`d${p.id}`} kicker={t('Votre décision')} title={t('%(name)s terminée', { name: p.current.name })}
+        <DecisionCard night key={`d${p.id}`} kicker={t('Votre décision')} title={t('%(name)s terminée', { name: p.current.name })}
           sub={p.name} amount={compactAmount(p.current.amount)} onPress={() => go('project', { id: p.id })} />
       )) : null}
-      {projects.length ? <T bold style={{ fontSize: 19, fontWeight: '600', letterSpacing: -0.3, marginTop: 6 }}>{user.role === 'proprio' ? t('Vos chantiers') : t('Mes chantiers')}</T> : null}
+      {projects.length ? <T bold style={{ fontSize: 19, fontWeight: '600', letterSpacing: -0.3, marginTop: 6, color: night ? '#fff' : C.text }}>{user.role === 'proprio' ? t('Vos chantiers') : t('Mes chantiers')}</T> : null}
       {projects.map((p) => {
         const late = p.prediction && !p.prediction.done && p.prediction.delay > 7;
         const tags = p.to_validate ? [{ text: t('Étape à valider'), hot: true }]

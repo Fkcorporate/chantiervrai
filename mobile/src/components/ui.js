@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { C, R } from '../theme';
 import { t } from '../core/i18n';
+import { fcfa } from '../core/format';
 
 export function Screen({ title, kicker, onBack, right, children, refreshing, onRefresh, scroll = true, large, dark }) {
   // En-tête d'application : retour (chevron) à gauche, titre, actions à droite. Grand titre sur les écrans d'onglet.
@@ -70,13 +71,23 @@ export function TabBar({ tabs, active, onChange }) {
 }
 
 // Bandeau vert profond : un grand chiffre et deux indicateurs (accueil du propriétaire).
-export function Band({ kicker, value, unit, sub, stats, progress }) {
+export function Band({ kicker, value, unit, sub, stats, progress, months, night }) {
+  const hasMonths = months && months.some((m) => m.amount);
   return (
-    <View style={s.band}>
-      <Text style={s.bandKickerUp}>{kicker}</Text>
-      <Text style={s.bandBig}>{value} <Text style={s.bandUnit}>{unit}</Text></Text>
+    <View style={[s.band, night && s.bandNight]}>
+      <Text style={[s.bandKickerUp, night && { letterSpacing: 1.6 }]}>{kicker}</Text>
+      <Text style={[s.bandBig, night && s.bandBigNight]}>{value} <Text style={s.bandUnit}>{unit}</Text></Text>
       {sub ? <Text style={s.bandKicker}>{sub}</Text> : null}
-      {progress != null ? <View style={s.bandLine}><View style={[s.bandLineFill, { width: `${Math.max(0, Math.min(100, progress))}%` }]} /></View> : null}
+      {hasMonths ? (
+        <View accessible accessibilityLabel={months.map((m) => `${m.label} : ${fcfa(m.amount)} FCFA`).join(', ')} style={{ marginTop: 16, gap: 6 }}>
+          <View style={s.monthsBars}>
+            {months.map((m) => <View key={m.label} style={[s.monthBar, m.current && s.monthBarNow, { height: `${Math.max(6, m.pct)}%` }]} />)}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {months.map((m) => <Text key={m.label} style={[s.monthLabel, m.current && { color: C.gold, fontWeight: '600' }]}>{m.label}</Text>)}
+          </View>
+        </View>
+      ) : progress != null ? <View style={s.bandLine}><View style={[s.bandLineFill, { width: `${Math.max(0, Math.min(100, progress))}%` }]} /></View> : null}
       {stats ? (
         <View style={s.bandStats}>
           {stats.map((x) => (
@@ -169,19 +180,19 @@ export function Field({ label, secureTextEntry, onFocus, onBlur, ...props }) {
 }
 
 // Carte « Votre décision » : une étape terminée attend le propriétaire.
-export function DecisionCard({ kicker, title, sub, amount, onPress }) {
+export function DecisionCard({ kicker, title, sub, amount, onPress, night }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${kicker} : ${title}, ${amount} FCFA`}
-      style={({ pressed }) => [s.decide, pressed && { transform: [{ scale: 0.985 }] }]}>
-      <View style={s.decideIco}><Ionicons name="checkmark-circle-outline" size={24} color={C.goldText} /></View>
+      style={({ pressed }) => [s.decide, night && s.decideNight, pressed && { transform: [{ scale: 0.985 }] }]}>
+      <View style={[s.decideIco, night && { backgroundColor: C.gold }]}><Ionicons name="checkmark-circle-outline" size={24} color={night ? C.goldInk : C.goldText} /></View>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={s.decideKicker}>{kicker}</Text>
-        <Text style={s.decideTitle} numberOfLines={1}>{title}</Text>
-        {sub ? <Text style={s.muted} numberOfLines={1}>{sub}</Text> : null}
+        <Text style={[s.decideKicker, night && { color: C.gold }]}>{kicker}</Text>
+        <Text style={[s.decideTitle, night && { color: '#fff' }]} numberOfLines={1}>{title}</Text>
+        {sub ? <Text style={[s.muted, night && { color: '#8FA79A' }]} numberOfLines={1}>{sub}</Text> : null}
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={s.decideAmt}>{amount}</Text>
-        <Text style={[s.muted, { fontSize: 11 }]}>FCFA</Text>
+        <Text style={[s.decideAmt, night && { color: '#fff' }]}>{amount}</Text>
+        <Text style={[s.muted, { fontSize: 11 }, night && { color: '#8FA79A' }]}>FCFA</Text>
       </View>
     </Pressable>
   );
@@ -219,6 +230,21 @@ export function SlideToConfirm({ label, onConfirm, disabled, loading }) {
         {loading ? <ActivityIndicator color={C.goldInk} /> : <Ionicons name="arrow-forward" size={22} color={C.goldInk} />}
       </Animated.View>
     </View>
+  );
+}
+
+// En-tête de l'accueil du propriétaire, édition nuit : initiales dorées, salutation, nom complet.
+export function NightGreeting({ name, hello, onPress }) {
+  const parts = (name || '?').split(' ');
+  const initials = `${parts[0][0] || ''}${parts[1] ? parts[1][0] : ''}`.toUpperCase();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${hello}, ${name}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={s.nightAv}><Text style={s.nightAvText}>{initials}</Text></View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: '#8FA79A', fontSize: 13 }}>{hello}</Text>
+        <Text style={{ color: '#fff', fontSize: 20, fontWeight: '600', letterSpacing: -0.4 }} numberOfLines={1}>{name}</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -321,6 +347,15 @@ const s = StyleSheet.create({
   btnTextGhost: { color: C.text },
   label: { fontSize: 13, fontWeight: '600', color: C.text },
   input: { borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12, minHeight: 48, fontSize: 16, backgroundColor: '#fff', color: C.text },
+  bandNight: { backgroundColor: 'transparent', paddingHorizontal: 0, paddingTop: 8 },
+  bandBigNight: { fontSize: 60, letterSpacing: -3, fontWeight: '300' },
+  monthsBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 64 },
+  monthBar: { flex: 1, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.12)' },
+  monthBarNow: { backgroundColor: C.gold },
+  monthLabel: { flex: 1, textAlign: 'center', fontSize: 11, color: '#5F7769' },
+  decideNight: { backgroundColor: 'rgba(201,164,106,0.08)', borderWidth: 1, borderColor: 'rgba(201,164,106,0.38)', shadowOpacity: 0, elevation: 0 },
+  nightAv: { width: 46, height: 46, borderRadius: 23, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
+  nightAvText: { color: C.goldInk, fontSize: 15, fontWeight: '700' },
   decide: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.card, borderRadius: 22, padding: 16,
     shadowColor: '#111A15', shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   decideIco: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.goldSoft, alignItems: 'center', justifyContent: 'center' },
