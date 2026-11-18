@@ -78,7 +78,11 @@ with sync_playwright() as pw:
     ok("autorisée" in geo.lower(), f"position autorisée reconnue ({geo})")
     p.click("#shoot"); p.wait_for_timeout(1200)
     ok(p.locator("#camera").is_visible(), "caméra de l'application ouverte")
-    p.click("#cam-snap"); p.wait_for_timeout(500)
+    p.click("#cam-snap")
+    try:   # l'encodage de l'image est asynchrone : on attend le résultat plutôt qu'un délai fixe
+        p.wait_for_function("!document.getElementById('send').disabled", timeout=4000)
+    except Exception:
+        pass
     ok(not p.locator("#send").is_disabled(), "photo prise : bouton d'envoi actif")
     p.route("**/preuves**", lambda r: r.abort("timedout") if r.request.method == "POST" else r.continue_())
     p.route("**/upload**", lambda r: r.abort("timedout") if r.request.method == "POST" else r.continue_())

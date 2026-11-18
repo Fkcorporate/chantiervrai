@@ -181,3 +181,120 @@
     back.removeAttribute('onclick');
   }
 })();
+
+/* Envoi de fichiers : une zone claire, dans la langue de la page, au lieu du « Choose Files / No file chosen » du navigateur.
+   Le vrai champ reste en place (transparent, par-dessus la zone) : clic, clavier, glisser-déposer et validation restent ceux du navigateur. */
+(function () {
+  var T = function (m, n) { var s = (window.CV_T && window.CV_T[m]) || m; return n == null ? s : s.replace('%(n)s', n); };
+  var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>';
+  function enhance(inp) {
+    if (inp.dataset.fz || inp.classList.contains('hidden') || inp.closest('.camera, .filezone')) return;
+    if (getComputedStyle(inp).display === 'none') return;
+    inp.dataset.fz = '1';
+    var zone = document.createElement('span');
+    zone.className = 'filezone';
+    var multi = inp.multiple;
+    zone.innerHTML = '<span class="fz-ico">' + ICON + '</span><span class="fz-txt"><b></b><span class="fz-name"></span></span>';
+    var title = zone.querySelector('b'), name = zone.querySelector('.fz-name');
+    function update() {
+      var f = inp.files || [];
+      zone.classList.toggle('has-file', f.length > 0);
+      title.textContent = f.length ? T('Changer') : T(multi ? 'Choisir des fichiers' : 'Choisir un fichier');
+      name.textContent = !f.length ? T('Aucun fichier choisi') : f.length === 1 ? f[0].name : T('%(n)s fichiers choisis', f.length);
+    }
+    inp.parentNode.insertBefore(zone, inp);
+    zone.appendChild(inp);
+    inp.addEventListener('change', update);
+    ['dragenter', 'dragover'].forEach(function (e) { inp.addEventListener(e, function () { zone.classList.add('is-drag'); }); });
+    ['dragleave', 'drop'].forEach(function (e) { inp.addEventListener(e, function () { zone.classList.remove('is-drag'); }); });
+    var form = inp.form;
+    if (form) form.addEventListener('reset', function () { setTimeout(update, 0); });
+    update();
+  }
+  document.querySelectorAll('main input[type=file]').forEach(enhance);
+
+  /* Mot de passe : un œil pour vérifier ce qu'on a tapé (utile sur téléphone) */
+  var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+  document.querySelectorAll('main input[type=password]').forEach(function (inp) {
+    if (inp.closest('.pw-wrap')) return;
+    var wrap = document.createElement('span');
+    wrap.className = 'pw-wrap';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'pw-eye'; b.innerHTML = EYE;
+    b.setAttribute('aria-label', T('Afficher le mot de passe'));
+    b.addEventListener('click', function () {
+      var show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      b.innerHTML = show ? EYE_OFF : EYE;
+      b.setAttribute('aria-label', T(show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'));
+      b.setAttribute('aria-pressed', show ? 'true' : 'false');
+      inp.focus();
+    });
+    wrap.appendChild(b);
+  });
+})();
+
+/* Glisser pour payer : un geste volontaire avant de verser de l'argent, comme dans une application bancaire.
+   Le vrai bouton reste dans le formulaire (masqué visuellement) : au clavier, Tab puis Entrée valide comme avant. */
+(function () {
+  var ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>';
+  var CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7"/></svg>';
+  document.querySelectorAll('main button[data-slide]').forEach(function (btn) {
+    var form = btn.form; if (!form) return;
+    var track = document.createElement('div');
+    track.className = 'slide-pay' + (btn.disabled ? ' is-disabled' : '');
+    track.setAttribute('aria-hidden', 'true');
+    track.innerHTML = '<span class="sp-fill"></span><span class="sp-label"></span><span class="sp-knob">' + ARROW + '</span>';
+    track.querySelector('.sp-label').textContent = btn.dataset.slide;
+    btn.parentNode.insertBefore(track, btn);
+    btn.classList.add('sr-pay');
+    var knob = track.querySelector('.sp-knob'), fill = track.querySelector('.sp-fill');
+    var startX = 0, x = 0, max = 0, dragging = false;
+    function place(v) { x = Math.max(0, Math.min(max, v)); knob.style.transform = 'translateX(' + x + 'px)'; fill.style.width = (x + 58) + 'px'; }
+    function reset() { knob.style.transition = 'transform .25s ease'; fill.style.transition = 'width .25s ease'; place(0);
+      setTimeout(function () { knob.style.transition = ''; fill.style.transition = ''; }, 260); }
+    knob.addEventListener('pointerdown', function (e) {
+      if (btn.disabled || track.classList.contains('is-done')) return;
+      dragging = true; track.classList.add('is-dragging');
+      max = track.clientWidth - knob.offsetWidth - 12; startX = e.clientX - x;
+      knob.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    knob.addEventListener('pointermove', function (e) { if (dragging) place(e.clientX - startX); });
+    function end() {
+      if (!dragging) return; dragging = false; track.classList.remove('is-dragging');
+      if (x >= max * 0.92) {
+        place(max); track.classList.add('is-done'); knob.innerHTML = CHECK;
+        if (form.requestSubmit) form.requestSubmit(btn); else btn.click();
+      } else reset();
+    }
+    knob.addEventListener('pointerup', end);
+    knob.addEventListener('pointercancel', end);
+    // Un simple appui ne paie pas : il montre le geste attendu
+    knob.addEventListener('click', function () {
+      if (btn.disabled || track.classList.contains('is-done') || x > 4) return;
+      max = track.clientWidth - knob.offsetWidth - 12;
+      knob.style.transition = 'transform .3s ease'; place(Math.min(48, max)); setTimeout(reset, 320);
+    });
+  });
+})();
+
+/* Caméra plein écran : la position trouvée s'affiche aussi par-dessus le viseur */
+(function () {
+  var src = document.getElementById('gps-status'), dst = document.querySelector('#camera .cam-gps');
+  if (!src || !dst) return;
+  function sync() {
+    var t = (src.textContent || '').trim();
+    dst.textContent = t;
+    dst.classList.toggle('is-ok', /(trouvée|found|précision|accuracy)/i.test(t) && !/(refus|denied)/i.test(t));
+  }
+  sync();
+  new MutationObserver(sync).observe(src, { childList: true, characterData: true, subtree: true });
+  // Échap ferme la caméra comme le bouton Annuler
+  document.addEventListener('keydown', function (e) {
+    var cam = document.getElementById('camera'), close = document.getElementById('cam-close');
+    if (e.key === 'Escape' && cam && !cam.classList.contains('hidden') && close) close.click();
+  });
+})();

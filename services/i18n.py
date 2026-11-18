@@ -39,7 +39,8 @@ def current_lang():
     return DEFAULT
 
 
-_PLURAL = re.compile(r"\((s|x|es)\)")
+# « (?<!%) » : ne pas prendre le paramètre « %(s)s » pour une marque de pluriel « (s) »
+_PLURAL = re.compile(r"(?<!%)\((s|x|es)\)")
 
 
 def pluralize(text, n, lang):
