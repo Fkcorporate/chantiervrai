@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block bodyclass %}{% if portfolio %}top-dark{% endif %}{% endblock %}
+{% block bodyclass %}{% if portfolio %}top-dark night{% endif %}{% endblock %}
 {% from "_macros.html" import risk_pill, csrf with context %}
 {% block content %}
 {% if me.role == 'inspecteur' %}
@@ -56,14 +56,25 @@
 
 {% else %}
 {% if me.role == 'proprio' %}
-<div class="greet"><span class="greet-date">{{ today_label }}</span><p class="greet-hello">{{ greeting }}, {{ (me.name or '').split(' ')[0] }}</p></div>
+<div class="greet greet-n">
+<a class="greet-av" href="{{ url_for('account') }}" aria-label="{{ _("Mon compte") }}">{{ (me.name or '?')[:1]|upper }}{{ ((me.name or '').split(' ')[1] if (me.name or '').split(' ')|length > 1 else '')[:1]|upper }}</a>
+<span class="greet-txt"><span class="greet-date">{{ greeting }} · {{ today_label }}</span><p class="greet-hello">{{ me.name }}</p></span>
+</div>
 {% endif %}
 {% if portfolio %}
 <section class="band" aria-label="{{ _("Résumé de vos chantiers") }}">
 <span class="band-kicker">{{ _("Argent suivi sur votre chantier") if portfolio.n == 1 else _("Argent suivi sur vos %(n)s chantiers", n=portfolio.n) }}</span>
 <span class="band-big">{{ compact(portfolio.paid) }} <small>{{ _("FCFA versés") }}</small></span>
-<span class="band-sub">{{ _("sur un budget de") }} {{ compact(portfolio.total) }} FCFA · {{ _("chaque franc justifié") }}</span>
+<span class="band-sub">{{ _("sur un budget de") }} {{ compact(portfolio.total) }} FCFA · {{ _("chaque franc justifié par une preuve vérifiée") }}</span>
+{% if portfolio.months and portfolio.months|sum(attribute='amount') %}
+<figure class="months" aria-label="{{ _("Versements des 6 derniers mois") }}">
+<div class="months-bars">{% for m in portfolio.months %}<span class="mb{% if m.current %} now{% endif %}" style="height:{{ [m.pct, 6]|max }}%" title="{{ m.label }} : {{ fcfa(m.amount) }} FCFA"></span>{% endfor %}</div>
+<figcaption class="months-labels">{% for m in portfolio.months %}<span{% if m.current %} class="now"{% endif %}>{{ m.label }}</span>{% endfor %}</figcaption>
+<span class="sr-only">{% for m in portfolio.months %}{{ m.label }} : {{ fcfa(m.amount) }} FCFA. {% endfor %}</span>
+</figure>
+{% else %}
 <div class="band-line" aria-hidden="true"><span style="width:{{ (100 * portfolio.paid / portfolio.total)|round(1) if portfolio.total else 0 }}%"></span></div>
+{% endif %}
 <div class="band-stats">
 <a href="{{ url_for('project', project_id=cards[0][0].id, onglet='etapes') if portfolio.to_validate else '#chantiers' }}"><span>{{ _("À valider") }}</span><b>{{ portfolio.to_validate }} {{ pl(portfolio.to_validate, "étape(s)") }}</b></a>
 <div><span>{{ _("Confiance moyenne") }}</span><b>{{ portfolio.trust if portfolio.trust is not none else '–' }}{% if portfolio.trust is not none %}<small>/100</small>{% endif %}</b></div>

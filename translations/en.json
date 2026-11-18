@@ -3299,5 +3299,9 @@
  "Trouver ou noter une entreprise": "Find or rate a company",
  "Vue d'ensemble": "Overview",
  "Vues satellite et plan": "Satellite and plan views",
- "%(n)s niveau(x)": "%(n)s floor(s)"
+ "%(n)s niveau(x)": "%(n)s floor(s)",
+ "Patrimoine en construction": "Property under construction",
+ "%(n)s chantiers": "%(n)s projects",
+ "chaque franc justifié par une preuve vérifiée": "every franc backed by a verified proof",
+ "Versements des 6 derniers mois": "Payments over the last 6 months"
 }
