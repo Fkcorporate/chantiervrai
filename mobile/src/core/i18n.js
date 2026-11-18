@@ -2,6 +2,27 @@
 // Les messages venant du serveur (refus, statuts, alertes) arrivent deja traduits.
 
 const EN = {
+  '%(n)s point(s) à voir': '%(n)s point(s) to review',
+  'Voir les %(n)s autres': 'See the other %(n)s',
+  'Réduire': 'Show less',
+  'Votre décision': 'Your decision',
+  '%(name)s terminée': '%(name)s completed',
+  '%(n)s photo(s) vérifiée(s) sur le terrain': '%(n)s photo(s) verified on site',
+  '%(n)s contrôle(s) obligatoire(s) à faire': '%(n)s mandatory check(s) to do',
+  'Contrôles techniques conformes': 'Technical checks passed',
+  'Glisser pour valider': 'Slide to approve',
+  'Glisser pour payer': 'Slide to pay',
+  'Refuser avec un motif': 'Reject with a reason',
+  'Bonsoir': 'Good evening',
+  'Bonjour': 'Good morning',
+  'FCFA versés': 'FCFA paid',
+  'Masquer le mot de passe': 'Hide password',
+  'Afficher le mot de passe': 'Show password',
+  'Enregistrement…': 'Recording…',
+  'Faites construire au pays. Payez seulement ce qui est bâti.': 'Build back home. Pay only for what is built.',
+  'Étape %(i)s sur %(n)s': 'Stage %(i)s of %(n)s',
+  '%(n)s preuve(s) vérifiée(s) pour cette étape': '%(n)s verified proof(s) for this stage',
+  'Étape déclarée terminée': 'Stage declared complete',
   'Connexion': 'Sign in',
   'E-mail': 'Email',
   'Mot de passe': 'Password',
@@ -174,7 +195,8 @@ export function getLang() {
 // Français : singulier pour 0 et 1 ; anglais : singulier pour 1 seulement.
 function pluralize(s, n) {
   const one = current === 'en' ? n === 1 : Math.abs(n) < 2;
-  return s.replace(/\((s|x|es)\)/g, (m, g) => (one ? '' : g));
+  // « %(s)s » est un paramètre, pas une marque de pluriel : on garde le caractère qui précède et on saute les « %( ».
+  return s.replace(/(^|[^%])\((s|x|es)\)/g, (m, pre, g) => pre + (one ? '' : g));
 }
 
 export function t(msg, params) {

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Screen, Card, T, Bar, Pill, Row, Button, Field, Banner } from '../components/ui';
+import { Ionicons } from '@expo/vector-icons';
+import { Screen, Card, T, Bar, Pill, Row, Button, Field, Banner, SlideToConfirm } from '../components/ui';
 import { api, current, queue } from '../services/session';
 import { t, getLang } from '../core/i18n';
 import { fcfa, date, dateTime } from '../core/format';
@@ -15,6 +16,7 @@ export default function ProjectScreen({ go, back, params }) {
   const [dialog, setDialog] = useState(null);       // { action, stepId }
   const [field, setField] = useState('');
   const [viewer, setViewer] = useState(null);
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
   const [pending, setPending] = useState(0);
   const { token } = current();
 
@@ -59,74 +61,49 @@ export default function ProjectScreen({ go, back, params }) {
   const openWeb = () => Linking.openURL(api.url(`/chantiers/${p.id}?lang=${getLang()}`));
   const accepted = (p.inspections || []).filter((i) => i.status === 'acceptee');
   const cover = (p.proofs || []).find((x) => x.ok && (x.kind !== 'video' || x.thumb_url));
+  const missingChecks = cur ? (p.checks || []).filter((c) => c.required && c.status !== 'conforme' && c.step_id === cur.id) : [];
 
   return (
-    <Screen title={p.name} kicker={t('Chantier')} onBack={back} refreshing={loading} onRefresh={load}>
-      {cover ? (
-        <View style={st.hero}>
+    <Screen title={t('Chantier')} onBack={back} refreshing={loading} onRefresh={load}>
+      <View style={st.hero}>
+        {cover ? (
           <Image source={{ uri: api.url(cover.thumb_url || cover.url), headers: { Authorization: `Bearer ${current().token}` } }}
             style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityLabel={t('Dernière photo vérifiée du chantier')} />
-          <View style={st.heroChip}><T bold style={{ fontSize: 12 }}>✓ {t('Photo vérifiée')} · {dateTime(cover.created_at, getLang())}</T></View>
-          <View style={st.heroBody}>
-            {cur ? <T style={{ color: '#CFE3D8', fontSize: 13, fontWeight: '600' }}>{cur.name} · {cur.status_label}</T> : null}
-            <T style={{ color: '#fff', fontSize: 15 }}>{p.address}</T>
-          </View>
+        ) : null}
+        {cover ? <View style={st.heroChip}><T bold style={{ fontSize: 12 }}>✓ {t('Photo vérifiée')} · {dateTime(cover.created_at, getLang())}</T></View> : null}
+        <View style={st.heroBody}>
+          {cur ? <T style={st.heroKicker}>{t('Étape %(i)s sur %(n)s', { i: p.steps.findIndex((x) => x.id === cur.id) + 1, n: p.steps.length })}</T> : null}
+          <T style={st.heroTitle} numberOfLines={2}>{p.name}</T>
+          {cur ? <T style={st.heroStep}>{cur.name} · {cur.status_label}</T> : <T style={st.heroStep}>{t('Toutes les étapes sont terminées.')}</T>}
+          {p.address ? <T style={st.heroAddr} numberOfLines={1}>{p.address}</T> : null}
         </View>
-      ) : <T muted>{p.address}</T>}
+      </View>
       <Banner text={error} tone="error" />
       <Banner text={info} />
       {pending ? <Banner text={t('%(n)s preuve(s) en attente de réseau', { n: pending })} /> : null}
 
-      <Card>
-        <Row><T bold>{t('Avancement vérifié')}</T><T bold style={{ color: C.green }}>{p.verified_pct} %</T></Row>
-        <Bar pct={p.verified_pct} />
-        <Row><T muted>{t('Déclaré par le chantier')}</T><T bold style={{ color: '#9A3F12' }}>{p.declared_pct} %</T></Row>
-        <Bar pct={p.declared_pct} color="#D98B5F" />
-        {p.prediction ? <T muted>{t('Fin estimée le %(d)s', { d: date(p.prediction.predicted_end, getLang()) })}</T> : null}
-      </Card>
-
-      {p.role === 'owner' ? (
-        <Row style={{ alignItems: 'stretch' }}>
-          <Card tone="green" style={{ flex: 1 }}>
-            <T white muted style={{ color: '#D4E6DB' }}>{p.sequestre ? t('Bloqué sur le séquestre') : t('Reste à payer')}</T>
-            <T white big>{fcfa(p.locked)}</T>
-          </Card>
-          <Card style={{ flex: 1 }}>
-            <T muted>{t('Déjà versé')}</T>
-            <T big>{fcfa(p.paid)}</T>
-          </Card>
-        </Row>
-      ) : null}
-
-      {(p.alerts || []).map((a, i) => (
-        <Card key={i} tone="alert"><T bold>{a.title}</T>{a.detail ? <T muted>{a.detail}</T> : null}</Card>
-      ))}
-
-      {cur ? (
-        <Card tone="green">
-          <T white muted style={{ color: '#D4E6DB' }}>{t('Étape en cours')}</T>
-          <T white big>{cur.name}</T>
-          <T white style={{ color: '#D4E6DB' }}>{t('Paiement à la validation : %(n)s', { n: fcfa(cur.amount) })}</T>
-          <Pill text={cur.status_label} tone={cur.status === 'declare' ? 'warn' : undefined} />
-        </Card>
-      ) : <Card><T>{t('Toutes les étapes sont terminées.')}</T></Card>}
-
       {p.role === 'chef' && cur ? (
-        <Card>
-          {cur.status === 'en_cours' ? (
-            <>
-              <Button kind="orange" title={t('Prendre une photo')}
-                onPress={() => go('capture', { project: p, mode: 'picture' })} />
-              <Button kind="orange" title={t('Filmer (90 s max)')}
-                onPress={() => go('capture', { project: p, mode: 'video' })} />
-              <Button kind="ghost" title={t('Déclarer l\'étape terminée')} disabled={!verifiedForCurrent}
-                loading={busy === 'declarer'} onPress={() => act('declarer', cur.id)} />
-              {!verifiedForCurrent ? <T muted>{t('Envoyez au moins une preuve vérifiée d\'abord.')}</T> : null}
-            </>
-          ) : <T muted>{t('En attente de validation par le propriétaire.')}</T>}
-        </Card>
+        cur.status === 'en_cours' ? (
+          <Card>
+            <View style={st.shootRow}>
+              <Pressable onPress={() => go('capture', { project: p, mode: 'picture' })} accessibilityRole="button"
+                style={({ pressed }) => [st.shoot, st.shootMain, pressed && st.shootPressed]}>
+                <Ionicons name="camera" size={30} color="#FFFFFF" />
+                <T style={st.shootMainText}>{t('Prendre une photo')}</T>
+              </Pressable>
+              <Pressable onPress={() => go('capture', { project: p, mode: 'video' })} accessibilityRole="button"
+                style={({ pressed }) => [st.shoot, st.shootAlt, pressed && st.shootPressed]}>
+                <Ionicons name="videocam" size={26} color={C.forest} />
+                <T style={st.shootAltText}>{t('Filmer (90 s max)')}</T>
+              </Pressable>
+            </View>
+            <T muted style={{ textAlign: 'center' }}>{t('%(n)s preuve(s) vérifiée(s) pour cette étape', { n: verifiedForCurrent })}</T>
+            <Button kind="ghost" title={t('Déclarer l\'étape terminée')} disabled={!verifiedForCurrent}
+              loading={busy === 'declarer'} onPress={() => act('declarer', cur.id)} />
+            {!verifiedForCurrent ? <T muted>{t('Envoyez au moins une preuve vérifiée d\'abord.')}</T> : null}
+          </Card>
+        ) : <Card><T muted>{t('En attente de validation par le propriétaire.')}</T></Card>
       ) : null}
-
       {p.role === 'inspecteur' && accepted.length ? (
         <Card>
           <T bold>{t('Photos d\'inspection')}</T>
@@ -135,16 +112,66 @@ export default function ProjectScreen({ go, back, params }) {
           <T muted>{t('Rédigez le rapport sur le site web.')}</T>
         </Card>
       ) : null}
-
       {p.role === 'owner' && cur && cur.status === 'declare' ? (
-        <Card tone="alert">
-          <T bold>{cur.name}</T>
-          <Button title={`${t('Valider et payer')} ${fcfa(cur.amount)}`} loading={busy === 'valider'}
-            onPress={() => { setField(''); setDialog({ action: 'valider', stepId: cur.id }); }} />
-          <Button kind="ghost" title={t('Refuser')} loading={busy === 'refuser'}
-            onPress={() => { setField(''); setDialog({ action: 'refuser', stepId: cur.id }); }} />
+        <View style={st.decide}>
+          <T style={st.decideKicker}>{t('Votre décision')}</T>
+          <T style={st.decideTitle}>{t('%(name)s terminée', { name: cur.name })}</T>
+          <T style={st.decideAmount}>{fcfa(cur.amount)} <T style={st.decideUnit}>FCFA</T></T>
+          <View style={st.decideChecks}>
+            <View style={st.decideCheck}><Ionicons name="checkmark-circle" size={18} color="#9FE0BC" /><T style={st.decideCheckText}>{t('%(n)s photo(s) vérifiée(s) sur le terrain', { n: verifiedForCurrent })}</T></View>
+            {missingChecks.length ? (
+              <View style={st.decideCheck}><Ionicons name="alert-circle" size={18} color="#F6B48A" /><T style={st.decideCheckText}>{t('%(n)s contrôle(s) obligatoire(s) à faire', { n: missingChecks.length })}</T></View>
+            ) : (
+              <View style={st.decideCheck}><Ionicons name="checkmark-circle" size={18} color="#9FE0BC" /><T style={st.decideCheckText}>{t('Contrôles techniques conformes')}</T></View>
+            )}
+          </View>
+          <SlideToConfirm label={`${p.pay_mode === 'suivi' ? t('Glisser pour valider') : t('Glisser pour payer')} ${fcfa(cur.amount)}`}
+            loading={busy === 'valider'} disabled={!!busy}
+            onConfirm={() => { if (!p.sequestre && p.pay_mode !== 'suivi') { setField(''); setDialog({ action: 'valider', stepId: cur.id }); } else act('valider', cur.id, {}); }} />
+          <Pressable onPress={() => { setField(''); setDialog({ action: 'refuser', stepId: cur.id }); }} accessibilityRole="button"
+            style={{ alignSelf: 'center', minHeight: 44, justifyContent: 'center' }}>
+            <T style={{ color: C.mint, fontWeight: '600' }}>{t('Refuser avec un motif')}</T>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <View style={st.stats}>
+        <View style={st.stat}><T style={st.statLabel}>{t('Avancement vérifié')}</T><T style={st.statValue}>{p.verified_pct} %</T></View>
+        {p.role === 'owner' ? (
+          <View style={st.stat}><T style={st.statLabel}>{p.sequestre ? t('Bloqué sur le séquestre') : t('Reste à payer')}</T><T style={st.statValue} numberOfLines={1} adjustsFontSizeToFit>{fcfa(p.locked)}</T></View>
+        ) : (
+          <View style={st.stat}><T style={st.statLabel}>{t('Déclaré par le chantier')}</T><T style={st.statValue}>{p.declared_pct} %</T></View>
+        )}
+      </View>
+      <Card>
+        <Row><T bold>{t('Avancement vérifié')}</T><T bold style={{ color: C.green }}>{p.verified_pct} %</T></Row>
+        <Bar pct={p.verified_pct} />
+        <Row><T muted>{t('Déclaré par le chantier')}</T><T bold style={{ color: '#9A3F12' }}>{p.declared_pct} %</T></Row>
+        <Bar pct={p.declared_pct} color="#D98B5F" />
+        {p.role === 'owner' ? <T muted>{t('Déjà versé')} : {fcfa(p.paid)}</T> : null}
+        {p.prediction ? <T muted>{t('Fin estimée le %(d)s', { d: date(p.prediction.predicted_end, getLang()) })}</T> : null}
+      </Card>
+
+      {(p.alerts || []).length ? (
+        <Card style={{ gap: 0, paddingVertical: 8 }}>
+          <View style={st.alertHead}>
+            <View style={st.alertCount}><T style={st.alertCountText}>{p.alerts.length}</T></View>
+            <T bold style={{ fontSize: 16 }}>{t('%(n)s point(s) à voir', { n: p.alerts.length })}</T>
+          </View>
+          {(showAllAlerts ? p.alerts : p.alerts.slice(0, 2)).map((a, i) => (
+            <View key={i} style={st.alertRow}><T bold>{a.title}</T>{a.detail ? <T muted>{a.detail}</T> : null}</View>
+          ))}
+          {p.alerts.length > 2 ? (
+            <Pressable onPress={() => setShowAllAlerts((v) => !v)} accessibilityRole="button" style={st.alertMore}>
+              <T style={{ color: C.green, fontWeight: '600' }}>{showAllAlerts ? t('Réduire') : t('Voir les %(n)s autres', { n: p.alerts.length - 2 })}</T>
+            </Pressable>
+          ) : null}
         </Card>
       ) : null}
+
+
+
+
 
       {p.trust && p.trust.score != null ? (
         <Card onPress={() => Linking.openURL(api.url(`/chantiers/${p.id}/confiance?lang=${getLang()}`))}>
@@ -194,12 +221,24 @@ export default function ProjectScreen({ go, back, params }) {
       {!p.proofs.length ? <T muted>{t('Aucune preuve.')}</T> : null}
 
       <T bold style={{ fontSize: 18 }}>{t('Étapes')}</T>
-      {p.steps.map((st, i) => (
-        <Card key={st.id} style={st.status === 'en_cours' ? s.cur : st.status === 'declare' ? s.decl : null}>
-          <Row><T bold style={{ flex: 1 }}>{i + 1}. {st.name}</T><Pill text={st.status_label} tone={st.status === 'declare' ? 'warn' : st.status === 'attente' ? 'grey' : undefined} /></Row>
-          <T muted>{fcfa(st.amount)}{st.pay_ref ? ` · ${st.pay_ref}` : ''}</T>
-        </Card>
-      ))}
+      <Card style={{ gap: 0, paddingVertical: 6 }}>
+        {p.steps.map((stp, i) => {
+          const done = stp.status === 'paye' || stp.status === 'versement';
+          const now = stp.status === 'en_cours' || stp.status === 'declare';
+          return (
+            <View key={stp.id} style={[s.stepRow, i > 0 && s.stepSep]}>
+              <View style={[s.stepDot, done && s.stepDotDone, now && s.stepDotNow, stp.status === 'declare' && s.stepDotDecl]}>
+                {done ? <Ionicons name="checkmark" size={15} color="#fff" /> : <T style={[s.stepNum, now && { color: '#fff' }]}>{i + 1}</T>}
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <T bold={now} numberOfLines={2}>{stp.name}</T>
+                <T muted>{fcfa(stp.amount)}{stp.pay_ref ? ` · ${stp.pay_ref}` : ''}</T>
+              </View>
+              <Pill text={stp.status_label} tone={stp.status === 'declare' ? 'warn' : stp.status === 'attente' ? 'grey' : undefined} />
+            </View>
+          );
+        })}
+      </Card>
 
       <Button kind="ghost" title={t('Ouvrir sur le site web')} onPress={openWeb} />
       <T muted>{t('Satellite, documents, matériaux et inspections sont sur le site web.')}</T>
@@ -252,14 +291,47 @@ const s = StyleSheet.create({
   badge: { position: 'absolute', right: 6, bottom: 6, backgroundColor: C.green, borderRadius: 999, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   badgeBad: { backgroundColor: C.orange },
   badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  cur: { borderWidth: 2, borderColor: C.green },
-  decl: { borderWidth: 2, borderColor: C.orange },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  stepSep: { borderTopWidth: 1, borderTopColor: '#F0EDE6' },
+  stepDot: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  stepDotDone: { backgroundColor: C.accentFill, borderColor: C.accentFill },
+  stepDotNow: { backgroundColor: C.forest, borderColor: C.forest },
+  stepDotDecl: { backgroundColor: C.orange, borderColor: C.orange },
+  stepNum: { fontSize: 13, fontWeight: '700', color: C.muted },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,.45)', justifyContent: 'center', padding: 18 },
   full: { width: '100%', aspectRatio: 0.75, borderRadius: 12, backgroundColor: '#D9D4CA' },
 });
 
 const st = StyleSheet.create({
-  hero: { height: 220, borderRadius: 24, overflow: 'hidden', backgroundColor: C.forest },
+  hero: { height: 280, borderRadius: 28, overflow: 'hidden', backgroundColor: C.forest },
   heroChip: { position: 'absolute', left: 12, top: 12, backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  heroBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, gap: 2, backgroundColor: 'rgba(12,42,30,0.78)' },
+  heroBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 18, paddingTop: 28, gap: 3, backgroundColor: 'rgba(12,42,30,0.80)' },
+  heroKicker: { color: C.mint, fontSize: 12, fontWeight: '700' },
+  heroTitle: { color: '#fff', fontSize: 28, fontWeight: '600', letterSpacing: -1, lineHeight: 32 },
+  heroStep: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  heroAddr: { color: '#CFE3D8', fontSize: 13 },
+  stats: { flexDirection: 'row', gap: 10 },
+  stat: { flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 14, gap: 2 },
+  statLabel: { fontSize: 12, color: C.muted },
+  statValue: { fontSize: 22, fontWeight: '300', letterSpacing: -0.8, color: C.text },
+  shootRow: { flexDirection: 'row', gap: 10 },
+  shoot: { borderRadius: 20, alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 18, paddingHorizontal: 8 },
+  shootMain: { flex: 1.6, backgroundColor: C.forest, minHeight: 112 },
+  shootAlt: { flex: 1, backgroundColor: C.greenSoft, minHeight: 112 },
+  shootPressed: { transform: [{ scale: 0.97 }], opacity: 0.92 },
+  shootMainText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16, textAlign: 'center' },
+  shootAltText: { color: C.forest, fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  alertHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  alertCount: { minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 7, backgroundColor: '#FBE3DA', alignItems: 'center', justifyContent: 'center' },
+  alertCountText: { color: '#A63A12', fontSize: 13, fontWeight: '700' },
+  alertRow: { paddingVertical: 11, borderTopWidth: 1, borderTopColor: '#F2EFE8', gap: 2 },
+  alertMore: { minHeight: 44, justifyContent: 'center', borderTopWidth: 1, borderTopColor: '#F2EFE8' },
+  decide: { backgroundColor: C.forest, borderRadius: 26, padding: 20, gap: 10 },
+  decideKicker: { color: C.gold, fontWeight: '700', fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
+  decideTitle: { color: '#fff', fontSize: 20, fontWeight: '600', letterSpacing: -0.4 },
+  decideAmount: { fontSize: 38, fontWeight: '300', letterSpacing: -1.6, color: '#fff' },
+  decideUnit: { fontSize: 14, fontWeight: '500', color: C.mint, letterSpacing: 0 },
+  decideChecks: { gap: 8, marginBottom: 6 },
+  decideCheck: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  decideCheckText: { color: '#DCE8E1', fontSize: 14, flex: 1 },
 });

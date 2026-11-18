@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { Linking, Platform, Pressable } from 'react-native';
 import * as Device from 'expo-device';
-import { Screen, Card, T, Button, Field, Banner } from '../components/ui';
+import { Screen, Card, T, Button, Field, Banner, BrandHeader } from '../components/ui';
 import { api, signIn, current } from '../services/session';
 import { t, getLang } from '../core/i18n';
+import { C } from '../theme';
 
 export default function LoginScreen({ go, reset, params }) {
   const [email, setEmail] = useState('');
@@ -31,7 +32,9 @@ export default function LoginScreen({ go, reset, params }) {
 
   const web = (path) => Linking.openURL(`${current().serverUrl}${path}?lang=${getLang()}`);
   return (
-    <Screen title="ChantierVrai">
+    <Screen title="" right={null}>
+      <BrandHeader pitch={t('Faites construire au pays. Payez seulement ce qui est bâti.')} />
+      <T bold style={{ fontSize: 26, fontWeight: '800', letterSpacing: -0.6, marginTop: 6 }} accessibilityRole="header">{t('Connexion')}</T>
       <T muted>{t('Suivez votre chantier à distance, avec des preuves vérifiées.')}</T>
       <Banner text={params && params.message} />
       <Banner text={error} tone="error" />
@@ -46,9 +49,13 @@ export default function LoginScreen({ go, reset, params }) {
         ) : null}
         <Button title={t('Se connecter')} onPress={submit} loading={busy} disabled={!email || !password} />
       </Card>
-      <Button kind="ghost" title={t('Mot de passe oublié ?')} onPress={() => web('/mot-de-passe-oublie')} />
+      <Pressable onPress={() => web('/mot-de-passe-oublie')} hitSlop={8} accessibilityRole="link" style={{ alignSelf: 'center', paddingVertical: 8 }}>
+        <T style={{ color: C.green, fontWeight: '700' }}>{t('Mot de passe oublié ?')}</T>
+      </Pressable>
       <Button kind="ghost" title={t('Créer un compte')} onPress={() => web('/inscription')} />
-      <Button kind="ghost" small title={t('Réglages')} onPress={() => go('settings')} />
+      <Pressable onPress={() => go('settings')} hitSlop={8} accessibilityRole="button" style={{ alignSelf: 'center', paddingVertical: 8 }}>
+        <T muted>{t('Réglages')}</T>
+      </Pressable>
     </Screen>
   );
 }

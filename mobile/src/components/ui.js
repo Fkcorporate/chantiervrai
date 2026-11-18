@@ -1,10 +1,11 @@
 import React from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, RefreshControl } from 'react-native';
+import { ActivityIndicator, Animated, Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, RefreshControl } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { C, R } from '../theme';
+import { t } from '../core/i18n';
 
-export function Screen({ title, kicker, onBack, right, children, refreshing, onRefresh, scroll = true, large }) {
+export function Screen({ title, kicker, onBack, right, children, refreshing, onRefresh, scroll = true, large, dark }) {
   // En-tête d'application : retour (chevron) à gauche, titre, actions à droite. Grand titre sur les écrans d'onglet.
   const body = scroll ? (
     <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled"
@@ -13,17 +14,17 @@ export function Screen({ title, kicker, onBack, right, children, refreshing, onR
     </ScrollView>
   ) : <View style={[s.body, { flex: 1 }]}>{children}</View>;
   return (
-    <SafeAreaView style={s.screen} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[s.screen, dark && { backgroundColor: '#050E0A' }]} edges={['top', 'left', 'right']}>
       <View style={[s.header, large && s.headerLarge]}>
         {onBack ? (
-          <Pressable onPress={onBack} hitSlop={10} accessibilityRole="button" accessibilityLabel="Retour"
+          <Pressable onPress={onBack} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('Retour')}
             style={({ pressed }) => [s.iconBtn, pressed && s.pressed]}>
-            <Ionicons name="chevron-back" size={26} color={C.text} />
+            <Ionicons name="chevron-back" size={26} color={dark ? '#FFFFFF' : C.text} />
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }}>
           {kicker ? <Text style={s.kicker} numberOfLines={1}>{kicker}</Text> : null}
-          <Text style={[s.title, large && s.titleLarge]} numberOfLines={1} accessibilityRole="header">{title}</Text>
+          <Text style={[s.title, large && s.titleLarge, dark && { color: '#FFFFFF' }]} numberOfLines={1} accessibilityRole="header">{title}</Text>
         </View>
         <View style={s.right}>{right}</View>
       </View>
@@ -69,12 +70,13 @@ export function TabBar({ tabs, active, onChange }) {
 }
 
 // Bandeau vert profond : un grand chiffre et deux indicateurs (accueil du propriétaire).
-export function Band({ kicker, value, unit, sub, stats }) {
+export function Band({ kicker, value, unit, sub, stats, progress }) {
   return (
     <View style={s.band}>
-      <Text style={s.bandKicker}>{kicker}</Text>
+      <Text style={s.bandKickerUp}>{kicker}</Text>
       <Text style={s.bandBig}>{value} <Text style={s.bandUnit}>{unit}</Text></Text>
       {sub ? <Text style={s.bandKicker}>{sub}</Text> : null}
+      {progress != null ? <View style={s.bandLine}><View style={[s.bandLineFill, { width: `${Math.max(0, Math.min(100, progress))}%` }]} /></View> : null}
       {stats ? (
         <View style={s.bandStats}>
           {stats.map((x) => (
@@ -105,7 +107,7 @@ export function PhotoCard({ uri, headers, chip, title, pct, tags, onPress }) {
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {(tags || []).map((tg) => (
-            <View key={tg.text} style={[s.pcardTag, tg.hot && s.pcardTagHot]}><Text style={[s.pcardTagText, tg.hot && { color: '#2A1305' }]}>{tg.text}</Text></View>
+            <View key={tg.text} style={[s.pcardTag, tg.hot && s.pcardTagHot]}><Text style={[s.pcardTagText, tg.hot && { color: C.goldInk }]}>{tg.text}</Text></View>
           ))}
         </View>
       </View>
@@ -142,11 +144,93 @@ export function Button({ title, onPress, kind = 'primary', disabled, loading, sm
   );
 }
 
-export function Field({ label, ...props }) {
+// Champ de saisie : bordure verte quand il est actif ; pour un mot de passe, un œil pour vérifier ce qu'on a tapé.
+export function Field({ label, secureTextEntry, onFocus, onBlur, ...props }) {
+  const [focused, setFocused] = React.useState(false);
+  const [shown, setShown] = React.useState(false);
+  const secret = !!secureTextEntry && !shown;
   return (
     <View style={{ gap: 6 }}>
       <Text style={s.label}>{label}</Text>
-      <TextInput style={s.input} placeholderTextColor="#8A8F8C" accessibilityLabel={label} {...props} />
+      <View>
+        <TextInput style={[s.input, focused && s.inputFocus, secureTextEntry && { paddingRight: 50 }]} placeholderTextColor="#8A8F8C"
+          accessibilityLabel={label} secureTextEntry={secret}
+          onFocus={(e) => { setFocused(true); if (onFocus) onFocus(e); }}
+          onBlur={(e) => { setFocused(false); if (onBlur) onBlur(e); }} {...props} />
+        {secureTextEntry ? (
+          <Pressable onPress={() => setShown((v) => !v)} hitSlop={8} style={s.eye} accessibilityRole="button"
+            accessibilityLabel={shown ? t('Masquer le mot de passe') : t('Afficher le mot de passe')}>
+            <Ionicons name={shown ? 'eye-off-outline' : 'eye-outline'} size={22} color={C.muted} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+// Carte « Votre décision » : une étape terminée attend le propriétaire.
+export function DecisionCard({ kicker, title, sub, amount, onPress }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${kicker} : ${title}, ${amount} FCFA`}
+      style={({ pressed }) => [s.decide, pressed && { transform: [{ scale: 0.985 }] }]}>
+      <View style={s.decideIco}><Ionicons name="checkmark-circle-outline" size={24} color={C.goldText} /></View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={s.decideKicker}>{kicker}</Text>
+        <Text style={s.decideTitle} numberOfLines={1}>{title}</Text>
+        {sub ? <Text style={s.muted} numberOfLines={1}>{sub}</Text> : null}
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={s.decideAmt}>{amount}</Text>
+        <Text style={[s.muted, { fontSize: 11 }]}>FCFA</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// Glisser pour payer : un geste volontaire avant de verser de l'argent. Les lecteurs d'écran
+// gardent une action directe (« activer ») grâce à accessibilityActions.
+export function SlideToConfirm({ label, onConfirm, disabled, loading }) {
+  const [width, setWidth] = React.useState(0);
+  const x = React.useRef(new Animated.Value(0)).current;
+  const max = Math.max(0, width - 64);
+  const maxRef = React.useRef(0); maxRef.current = max;
+  const done = React.useRef(false);
+  const pan = React.useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => !disabled && !done.current,
+    onMoveShouldSetPanResponder: () => !disabled && !done.current,
+    onPanResponderMove: (e, g) => x.setValue(Math.max(0, Math.min(maxRef.current, g.dx))),
+    onPanResponderRelease: (e, g) => {
+      if (g.dx >= maxRef.current * 0.92) {
+        done.current = true;
+        Animated.timing(x, { toValue: maxRef.current, duration: 120, useNativeDriver: true }).start(() => onConfirm && onConfirm());
+      } else {
+        Animated.spring(x, { toValue: 0, useNativeDriver: true }).start();
+      }
+    },
+  }), [disabled, onConfirm]);
+  React.useEffect(() => { if (!loading) { done.current = false; x.setValue(0); } }, [loading]);
+  return (
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={[s.slide, disabled && { opacity: 0.45 }]}
+      accessible accessibilityRole="adjustable" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }}
+      accessibilityActions={[{ name: 'activate', label }]}
+      onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'activate' && !disabled && onConfirm) onConfirm(); }}>
+      <Text style={s.slideLabel} numberOfLines={1}>{label}</Text>
+      <Animated.View {...pan.panHandlers} style={[s.slideKnob, disabled && { backgroundColor: '#8C918E' }, { transform: [{ translateX: x }] }]}>
+        {loading ? <ActivityIndicator color={C.goldInk} /> : <Ionicons name="arrow-forward" size={22} color={C.goldInk} />}
+      </Animated.View>
+    </View>
+  );
+}
+
+// Bandeau de marque (écran de connexion) : logo, nom, promesse.
+export function BrandHeader({ pitch }) {
+  return (
+    <View style={s.brand}>
+      <View style={s.brandRow}>
+        <View style={s.brandLogo}><Ionicons name="home" size={20} color="#fff" /></View>
+        <Text style={s.brandName}>ChantierVrai</Text>
+      </View>
+      {pitch ? <Text style={s.brandPitch}>{pitch}</Text> : null}
     </View>
   );
 }
@@ -179,8 +263,8 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, gap: 4, minHeight: 56 },
   headerLarge: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 8 },
   kicker: { fontSize: 12, fontWeight: '600', color: C.muted },
-  title: { fontSize: 18, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
-  titleLarge: { fontSize: 30, fontWeight: '800', letterSpacing: -0.8 },
+  title: { fontSize: 18, fontWeight: '600', color: C.text, letterSpacing: -0.3 },
+  titleLarge: { fontSize: 28, fontWeight: '600', letterSpacing: -0.9 },
   right: { flexDirection: 'row', gap: 4, alignItems: 'center' },
   iconBtn: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   pressed: { backgroundColor: 'rgba(14,90,58,0.08)', transform: [{ scale: 0.95 }] },
@@ -188,36 +272,39 @@ const s = StyleSheet.create({
     backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.bg },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   tabWrap: { backgroundColor: C.bg, paddingHorizontal: 12, paddingTop: 6 },
-  tabbar: { flexDirection: 'row', backgroundColor: C.forest, borderRadius: 26, padding: 6, gap: 4,
+  tabbar: { flexDirection: 'row', backgroundColor: C.forest, borderRadius: 999, padding: 6, gap: 4,
     shadowColor: C.forest, shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 56, borderRadius: 20 },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 56, borderRadius: 999 },
   tabOn: { backgroundColor: '#FFFFFF' },
   tabBadge: { top: -4, left: 14, borderColor: C.forest },
   tabLabel: { fontSize: 11, fontWeight: '600', color: C.mint },
   tabLabelOn: { color: C.forest, fontWeight: '800' },
-  band: { backgroundColor: C.forest, borderRadius: 24, padding: 20, gap: 4 },
+  band: { backgroundColor: C.forest, borderRadius: 28, padding: 22, gap: 4 },
   bandKicker: { color: C.mint, fontSize: 13 },
-  bandBig: { color: '#fff', fontSize: 38, fontWeight: '800', letterSpacing: -1 },
+  bandKickerUp: { color: C.mint, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
+  bandBig: { color: '#fff', fontSize: 48, fontWeight: '300', letterSpacing: -2 },
+  bandLine: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.12)', overflow: 'hidden', marginTop: 10 },
+  bandLineFill: { height: 4, backgroundColor: C.gold },
   bandUnit: { color: C.mint, fontSize: 15, fontWeight: '700', letterSpacing: 0 },
   bandStats: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  bandStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 12, gap: 2 },
+  bandStat: { flex: 1, gap: 2 },
   bandStatLabel: { color: C.mint, fontSize: 12 },
-  bandStatValue: { color: '#fff', fontSize: 19, fontWeight: '800' },
+  bandStatValue: { color: '#fff', fontSize: 20, fontWeight: '500' },
   pcard: { height: 250, borderRadius: 24, overflow: 'hidden', backgroundColor: C.forest },
   pcardEmpty: { alignItems: 'center', justifyContent: 'center', paddingBottom: 70, backgroundColor: C.forest2 },
   pcardChip: { position: 'absolute', left: 14, top: 14, backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   pcardChipText: { fontSize: 12, fontWeight: '700', color: C.text },
   pcardBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, paddingTop: 40, gap: 8, backgroundColor: 'rgba(12,42,30,0.78)' },
-  pcardTitle: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  pcardBar: { flex: 1, height: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
-  pcardFill: { height: 6, borderRadius: 999, backgroundColor: '#fff' },
+  pcardTitle: { color: '#fff', fontSize: 19, fontWeight: '600', letterSpacing: -0.4 },
+  pcardBar: { flex: 1, height: 3, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
+  pcardFill: { height: 3, borderRadius: 999, backgroundColor: '#fff' },
   pcardPct: { color: '#fff', fontWeight: '700', fontSize: 14 },
   pcardTag: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.16)' },
-  pcardTagHot: { backgroundColor: C.warm },
+  pcardTagHot: { backgroundColor: C.gold },
   pcardTagText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   body: { padding: 18, paddingTop: 4, gap: 14, paddingBottom: 40 },
-  card: { backgroundColor: C.card, borderRadius: R.card, padding: 16, gap: 10, shadowColor: '#1B1F1D', shadowOpacity: 0.04,
-    shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  card: { backgroundColor: C.card, borderRadius: R.card, padding: 16, gap: 10, shadowColor: '#111A15', shadowOpacity: 0.05,
+    shadowRadius: 12, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   cardGreen: { backgroundColor: C.forest },
   cardAlert: { borderWidth: 2, borderColor: C.orange, backgroundColor: '#FFF7F1' },
   t: { fontSize: 15, color: C.text, lineHeight: 21 },
@@ -230,10 +317,27 @@ const s = StyleSheet.create({
   btnOrange: { backgroundColor: C.orange },
   btnSmall: { minHeight: 40 },
   btnDisabled: { opacity: 0.5 },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  btnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   btnTextGhost: { color: C.text },
   label: { fontSize: 13, fontWeight: '600', color: C.text },
-  input: { borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12, fontSize: 15, backgroundColor: '#fff', color: C.text },
+  input: { borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12, minHeight: 48, fontSize: 16, backgroundColor: '#fff', color: C.text },
+  decide: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.card, borderRadius: 22, padding: 16,
+    shadowColor: '#111A15', shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  decideIco: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.goldSoft, alignItems: 'center', justifyContent: 'center' },
+  decideKicker: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: C.goldText, textTransform: 'uppercase' },
+  decideTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+  decideAmt: { fontSize: 18, fontWeight: '600', color: C.text },
+  slide: { height: 64, borderRadius: 32, backgroundColor: C.forest, justifyContent: 'center', overflow: 'hidden' },
+  slideLabel: { color: '#fff', fontSize: 16, fontWeight: '600', textAlign: 'center', paddingLeft: 64, paddingRight: 16 },
+  slideKnob: { position: 'absolute', left: 6, top: 6, width: 52, height: 52, borderRadius: 26, backgroundColor: C.gold,
+    alignItems: 'center', justifyContent: 'center' },
+  inputFocus: { borderColor: C.green, borderWidth: 1.5 },
+  eye: { position: 'absolute', right: 4, top: 0, bottom: 0, width: 44, alignItems: 'center', justifyContent: 'center' },
+  brand: { backgroundColor: C.forest, borderRadius: 24, padding: 20, paddingTop: 22, gap: 12 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brandLogo: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.accentFill, alignItems: 'center', justifyContent: 'center' },
+  brandName: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  brandPitch: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: -0.6, lineHeight: 29 },
   bar: { height: 10, borderRadius: 999, backgroundColor: C.line, overflow: 'hidden' },
   barFill: { height: '100%', backgroundColor: C.accentFill, borderRadius: 999 },
   pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: C.greenSoft, alignSelf: 'flex-start' },

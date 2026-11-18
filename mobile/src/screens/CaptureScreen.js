@@ -1,7 +1,9 @@
 // Prise de vue dans l'application : pas d'acces a la galerie. L'heure de prise, la position
 // et le jeton de capture du serveur sont joints a la photo.
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { C } from '../theme';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { Screen, Card, T, Button, Field, Banner } from '../components/ui';
 import { api, sendProof, platform, buildForm } from '../services/session';
@@ -115,21 +117,43 @@ export default function CaptureScreen({ back, go, params }) {
   }
 
   return (
-    <Screen title={project.name} onBack={back} scroll={false}>
+    <Screen dark title={project ? project.name : t('Prendre une photo')} onBack={back} scroll={false}>
       <View style={s.camBox}>
         <CameraView ref={cam} style={s.cam} facing="back" mode={mode === 'video' ? 'video' : 'picture'} />
+        <View style={[s.gps, coords ? s.gpsOk : null]} accessibilityLiveRegion="polite">
+          <Ionicons name={coords ? 'location' : 'location-outline'} size={15} color={coords ? '#fff' : C.text} />
+          <T style={[s.gpsText, coords ? { color: '#fff' } : null]} numberOfLines={2}>{gpsMsg}</T>
+        </View>
+        {recording ? <View style={s.rec}><View style={s.recDot} /><T style={s.recText}>{t('Enregistrement…')}</T></View> : null}
       </View>
-      <T muted>{gpsMsg}</T>
       <Banner text={error} tone="error" />
-      {mode === 'video'
-        ? <Button kind="orange" title={recording ? t('Arrêter') : t('Filmer (90 s max)')} onPress={toggleVideo} />
-        : <Button kind="orange" title={t('Prendre une photo')} onPress={takePicture} />}
+      <View style={s.shutterRow}>
+        <Pressable onPress={mode === 'video' ? toggleVideo : takePicture} accessibilityRole="button"
+          accessibilityLabel={mode === 'video' ? (recording ? t('Arrêter') : t('Filmer (90 s max)')) : t('Prendre une photo')}
+          style={({ pressed }) => [s.shutter, pressed && { transform: [{ scale: 0.93 }] }]}>
+          <View style={[s.shutterIn, mode === 'video' && s.shutterVideo, recording && s.shutterStop]} />
+        </Pressable>
+        <T style={{ textAlign: 'center', color: C.mint, fontSize: 13, fontWeight: '600', letterSpacing: 0.6 }}>{mode === 'video' ? (recording ? t('Arrêter') : t('Filmer (90 s max)')) : t('Prendre une photo')}</T>
+      </View>
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  camBox: { flex: 1, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', minHeight: 300 },
+  camBox: { flex: 1, borderRadius: 28, overflow: 'hidden', backgroundColor: '#000', minHeight: 300 },
+  gps: { position: 'absolute', left: 12, right: 12, top: 12, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  gpsOk: { backgroundColor: 'rgba(31,122,77,0.94)' },
+  gpsText: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  rec: { position: 'absolute', bottom: 14, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#E5484D' },
+  recText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  shutterRow: { alignItems: 'center', gap: 6, paddingVertical: 6 },
+  shutter: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
+  shutterIn: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#FFFFFF' },
+  shutterVideo: { backgroundColor: '#E5484D' },
+  shutterStop: { width: 30, height: 30, borderRadius: 6 },
   cam: { flex: 1 },
   preview: { width: '100%', aspectRatio: 0.75, borderRadius: 16, backgroundColor: '#D9D4CA' },
 });

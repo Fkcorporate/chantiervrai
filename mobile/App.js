@@ -108,7 +108,7 @@ export default function App() {
   ];
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={top.name === 'capture' ? 'light' : 'dark'} />
       <View style={{ flex: 1, backgroundColor: C.bg }}>
         <Screen key={`${top.name}-${stack.length}-${JSON.stringify(top.params)}`} params={top.params} go={go}
           back={stack.length > 1 ? back : undefined} reset={reset} pushToken={pushToken} isTab={showTabs} />
