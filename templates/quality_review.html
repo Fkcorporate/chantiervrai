@@ -5,7 +5,7 @@
 {% set tagcls = {'ok': 'green', 'a_verifier': 'amber', 'probleme': 'bad', 'non_visible': 'grey', 'a_controler': 'blue'} %}
 <a class="noprint backlink" href="{{ url_for('quality_list', project_id=p.id) }}">← {{ _("Contrôles qualité") }} · {{ p.name }}</a>
 <h1>{{ o.name }}{% if r.label %} · {{ r.label }}{% endif %}</h1>
-<div class="muted">{{ p.name }}{% if step %} · {{ _("étape") }} {{ step.name }}{% endif %}{% if zone %} · {{ zone.name }}{% endif %} · {{ _("ouvert le") }} {{ d(r.created_at) }}{% if r.analysed_at %} · {{ _("analysé le") }} {{ dt(r.analysed_at) }}{% endif %}</div>
+<div class="muted">{{ p.name }}{% if step %} · {{ _("étape") }} {{ step.name }}{% endif %}{% if zone %} · {{ zone.name }}{% endif %} · {{ _("ouvert le") }} {{ d(r.created_at) }}{% if r.analysed_at %} · {{ _("analysé le") }} {{ dts(r.analysed_at) }}{% endif %}</div>
 {% if prev %}<div class="card"><span>{{ _("Contre-visite du") }} <a href="{{ url_for('quality_page', rid=prev.id) }}">{{ _("contrôle précédent") }}</a> : {{ _("les points signalés sont recontrôlés.") }}</span></div>{% endif %}
 {% if nxt %}<div class="card alert"><span>{{ _("Une contre-visite a été ouverte : c'est elle qui compte désormais.") }} <a href="{{ url_for('quality_page', rid=nxt.id) }}">{{ _("Voir la contre-visite") }}</a></span></div>{% endif %}
 
@@ -100,7 +100,7 @@
 {% for ph in photos %}
 <figure class="qfig">
 {% if ph.ok %}<a href="{{ url_for('quality_annotated', rid=r.id, proof_id=ph.proof_id) }}" target="_blank"><img src="{{ url_for('quality_annotated', rid=r.id, proof_id=ph.proof_id) }}" alt="{{ ph.shot_label }}" loading="lazy"></a>{% endif %}
-<figcaption><b>{{ ph.shot_label }}</b><span class="muted">{{ dt(ph.taken) }}</span>
+<figcaption><b>{{ ph.shot_label }}</b><span class="muted">{{ dts(ph.taken) }}</span>
 {% if not ph.ok %}<span class="tag bad">{{ _("Refusée") }} : {{ ph.reasons_txt }}</span>{% endif %}
 {% for i in ph.issues %}<span class="tag amber">{{ i }}</span>{% endfor %}
 {% for u in extras.unusable or [] %}{% if u.proof_id == ph.proof_id %}<span class="tag amber">{{ _("Inutilisable selon l'IA") }} : {{ u.reason }}</span>{% endif %}{% endfor %}
@@ -135,7 +135,7 @@
 
 <h2 id="echanges">{{ _("Échanges") }}</h2>
 <div class="card">
-{% for m in messages %}<div><b>{{ m.author }}</b> <span class="muted">{{ dt(m.created_at) }}{% if m.point_id %} · {{ _("point") }} {% for pt in points %}{% if pt.id == m.point_id %}{{ pt.num }}{% endif %}{% endfor %}{% endif %}</span><br>{{ m.body }}</div>{% else %}<span class="muted">{{ _("Aucun message.") }}</span>{% endfor %}
+{% for m in messages %}<div><b>{{ m.author }}</b> <span class="muted">{{ dts(m.created_at) }}{% if m.point_id %} · {{ _("point") }} {% for pt in points %}{% if pt.id == m.point_id %}{{ pt.num }}{% endif %}{% endfor %}{% endif %}</span><br>{{ m.body }}</div>{% else %}<span class="muted">{{ _("Aucun message.") }}</span>{% endfor %}
 {% if is_owner or shooter or expert %}
 <form method="post" action="{{ url_for('quality_message', rid=r.id) }}" class="stack noprint">{{ csrf() }}
 <label>{{ _("Message") }}<textarea name="body" maxlength="1500" required></textarea></label>

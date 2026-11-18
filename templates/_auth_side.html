@@ -1,0 +1,10 @@
+{# Panneau de marque des pages Connexion et Inscription : bandeau sur téléphone, colonne à gauche sur ordinateur #}
+<aside class="auth-side" aria-label="ChantierVrai">
+<a class="auth-brand" href="{{ url_for('product') }}"><img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="36" height="36"><span>ChantierVrai</span></a>
+<p class="auth-pitch">{{ _("Faites construire au pays. Payez seulement ce qui est bâti.") }}</p>
+<ul class="auth-points">
+<li>{{ _("Chaque photo vérifiée : position, date, jamais déjà envoyée") }}</li>
+<li>{{ _("L'argent est versé après votre validation") }}</li>
+<li>{{ _("Contrôles techniques et inspection indépendante") }}</li>
+</ul>
+</aside>

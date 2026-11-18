@@ -16,7 +16,7 @@
 {% else %}<div class="card muted">{{ _("Aucun compte rendu pour l'instant.") }}</div>{% endfor %}
 <h2>{{ _("Historique complet") }}</h2>
 <div class="card log">
-{% for a in activity %}<div><span>{{ dt(a.created_at) }}</span><span>{{ a.author or '' }} : {{ a.text|tr }}</span></div>
+{% for a in activity %}<div><span title="{{ dt(a.created_at) }}">{{ dts(a.created_at) }}</span><span>{% if a.author %}<b>{{ a.author }}</b> · {% endif %}{{ a.text|tr }}</span></div>
 {% else %}<span class="muted">{{ _("Rien pour l'instant.") }}</span>{% endfor %}
 </div>
 {% endblock %}

@@ -1,15 +1,27 @@
 {% extends "base.html" %}
 {% block bodyclass %}{% if tab not in ('preuves', 'factures') %}top-dark{% endif %}{% endblock %}
-{% from "_macros.html" import proof_card, tabs, csrf, capture_form with context %}
+{% from "_macros.html" import proof_card, tabs, csrf, capture_form, tool with context %}
 {% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
 {% block content %}
 {% if tab == 'preuves' %}
 <h1>{{ _("Preuves envoyées") }}</h1>
-{% for pr in proofs %}{{ proof_card(pr, p) }}{% else %}<div class="card muted">{{ _("Aucune preuve envoyée.") }}</div>{% endfor %}
+<div class="proof-grid">{% for pr in proofs %}{{ proof_card(pr, p) }}{% else %}<div class="card muted">{{ _("Aucune preuve envoyée.") }}</div>{% endfor %}</div>
 
 {% elif tab == 'factures' %}
 <h1>{{ _("Matériaux") }}</h1>
-<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn small" href="{{ url_for('project_stock', project_id=p.id) }}">{{ _("Stock : livraisons et consommations") }}</a><a class="btn ghost small" href="{{ url_for('calculator', project_id=p.id) }}">{{ _("Calculateur de matériaux") }}</a><a class="btn ghost small" href="{{ url_for('project_sheet', project_id=p.id) }}">{{ _("Fiche du projet") }}</a>{% if advanced %}<a class="btn ghost small" href="{{ url_for('zones_page', project_id=p.id) }}">{{ _("Zones") }}</a><a class="btn ghost small" href="{{ url_for('quantities', project_id=p.id) }}">{{ _("Quantités posées") }}</a><a class="btn ghost small" href="{{ url_for('panos', project_id=p.id) }}">{{ _("Visites 360°") }}</a><a class="btn ghost small" href="{{ url_for('bim', project_id=p.id) }}">{{ _("Maquette numérique") }}</a>{% endif %}<a class="btn ghost small" href="{{ url_for('plan_reading', project_id=p.id) }}">{{ _("Lire un plan avec l'IA") }}</a>{% if advanced %}<a class="btn ghost small" href="{{ url_for('sensors_page', project_id=p.id) }}">{{ _("Capteurs et météo") }}</a>{% endif %}</div>
+<div class="tools">
+{{ tool(url_for('project_stock', project_id=p.id), _("Stock : livraisons et consommations"), 'stock', _("Ce qui arrive, ce qui sert, ce qui reste"), primary=True) }}
+{{ tool(url_for('calculator', project_id=p.id), _("Calculateur de matériaux"), 'calc', _("Béton, fer, parpaings, enduit")) }}
+{{ tool(url_for('project_sheet', project_id=p.id), _("Fiche du projet"), 'sheet') }}
+{{ tool(url_for('plan_reading', project_id=p.id), _("Lire un plan avec l'IA"), 'ai') }}
+{% if advanced %}
+{{ tool(url_for('zones_page', project_id=p.id), _("Zones"), 'zones') }}
+{{ tool(url_for('quantities', project_id=p.id), _("Quantités posées"), 'qty') }}
+{{ tool(url_for('panos', project_id=p.id), _("Visites 360°"), 'pano') }}
+{{ tool(url_for('bim', project_id=p.id), _("Maquette numérique"), 'bim') }}
+{{ tool(url_for('sensors_page', project_id=p.id), _("Capteurs et météo"), 'sensor') }}
+{% endif %}
+</div>
 {% set role = 'chef' %}{% include "_orders.html" %}
 <h2>{{ _("Factures d'achats faits ailleurs") }}</h2>
 <p class="muted">{{ _("Photographiez chaque facture d'achat. Le propriétaire compare ce qui est acheté avec ce qui est prévu et construit.") }}</p>
@@ -51,7 +63,7 @@
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
 <span>{{ _("Photo") }}</span>
 </button>
-<span class="ch-hint">{{ _("La position et l'heure sont vérifiées automatiquement.") }}</span>
+<span class="ch-gps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{{ _("La position et l'heure sont vérifiées automatiquement.") }}</span>
 {% endif %}
 </section>
 
@@ -79,15 +91,18 @@
 <span class="muted">{% if cs.missing %}{{ cs.missing }} {{ pl(cs.missing, "contrôle(s) obligatoire(s) à faire avant le paiement. Demandez le passage du contrôleur, par exemple avant de couler le béton.") }}{% else %}{{ _("Les contrôles obligatoires sont faits.") }}{% endif %}</span>
 </a>{% endif %}
 {% if qual_open %}<div class="card"><b>{{ _("Contrôles qualité en cours") }}</b>{% for q in qual_open %}<a class="row" href="{{ url_for('quality_page', rid=q.id) }}"><span>{{ q.name }}{% if q.label %} · {{ q.label }}{% endif %}</span><span class="tag {{ 'amber' if q.status == 'photos' else 'grey' }}">{% if q.status == 'photos' %}{{ _("Photos à prendre") }}{% elif q.status == 'pret' and q.score is not none %}{{ q.score }}/100{% else %}{{ _("Voir") }}{% endif %}</span></a>{% endfor %}</div>{% endif %}
-<div class="card"><b>{{ _("Envoyer par WhatsApp") }}</b><span class="muted">{{ _("Pas envie d'ouvrir l'application ? Envoyez vos photos, votre position et vos notes vocales au WhatsApp de ChantierVrai, depuis le numéro de votre compte.") }}</span>{% if wa_number %}<a class="btn small" href="{{ wa_link }}" target="_blank" rel="noopener">{{ _("Ouvrir WhatsApp") }} · {{ wa_number }}</a>{% else %}<a class="btn ghost small" href="{{ url_for('whatsapp_simulator') }}">{{ _("Essayer avec le simulateur") }}</a>{% endif %}</div>
+{% endif %}
+{% set open_disputes = disputes|selectattr("status", "equalto", "ouvert")|list %}
+{% if open_disputes %}<h2>{{ _("Litiges") }}</h2>{% include "_disputes.html" %}{% endif %}
+<details class="card more-actions"><summary><b>{{ _("Autres actions") }}</b><span class="muted">{{ _("WhatsApp, contrôle qualité, drone, litige, règles du chantier") }}</span></summary>
+{% if c %}<div class="stack"><b>{{ _("Envoyer par WhatsApp") }}</b><span class="muted">{{ _("Pas envie d'ouvrir l'application ? Envoyez vos photos, votre position et vos notes vocales au WhatsApp de ChantierVrai, depuis le numéro de votre compte.") }}</span>{% if wa_number %}<a class="btn small" href="{{ wa_link }}" target="_blank" rel="noopener">{{ _("Ouvrir WhatsApp") }} · {{ wa_number }}</a>{% else %}<a class="btn ghost small" href="{{ url_for('whatsapp_simulator') }}">{{ _("Essayer avec le simulateur") }}</a>{% endif %}</div>
 <div class="row toolrow" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Contrôle qualité des ouvrages") }}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a></div>
-<details class="card"><summary><b>{{ _("Règles de ce chantier") }}</b> <span class="muted">· {{ _("validation, inspection") }}</span></summary>
+<details class="sub"><summary><b>{{ _("Règles de ce chantier") }}</b> <span class="muted">· {{ _("validation, inspection") }}</span></summary>
 <span class="muted">{% if p.auto_validate and auto_validate_on %}{{ _("Validation automatique : une étape déclarée terminée est validée si le propriétaire ne répond pas sous %(n)s jours (contrôles faits).", n=AUTO_VALIDATE_DAYS) }}{% else %}{{ _("Pas de validation automatique : sans réponse du propriétaire, vous pouvez ouvrir un litige.") }}{% endif %}</span>
 <span class="muted">{% if p.require_inspection %}{{ _("Inspection indépendante obligatoire avant la validation des étapes critiques (fondations, structure, dalle, toiture).") }}{% else %}{{ _("Inspection indépendante au choix du propriétaire.") }}{% endif %}</span></details>
 {% endif %}
-<h2>{{ _("Litiges") }}</h2>
-{% include "_disputes.html" %}
-<form method="post" action="{{ url_for('upload_media3d', project_id=p.id) }}" enctype="multipart/form-data" class="card">
+{% if not open_disputes %}<div class="stack">{% include "_disputes.html" %}</div>{% endif %}
+<form method="post" action="{{ url_for('upload_media3d', project_id=p.id) }}" enctype="multipart/form-data" class="stack">
 {{ csrf() }}
 <b>{{ _("Photos de drone") }}</b>
 <span class="muted">{{ _("Si vous faites voler un drone, envoyez ses photos : leur position est vérifiée.") }}</span>
@@ -95,6 +110,7 @@
 <input type="file" name="files" accept="image/*" multiple required aria-label="{{ _("Photos de drone") }}">
 <button class="btn ghost" type="submit">{{ _("Envoyer") }}</button>
 </form>
+</details>
 {% endif %}
 {% endblock %}
 {% block tabs %}{{ tabs(p, [('accueil',_('Chantier'),'home'),('preuves',_('Mes preuves'),'cam'),('factures',_('Matériaux'),'bill')], tab) }}{% endblock %}

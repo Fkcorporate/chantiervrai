@@ -55,16 +55,31 @@
 {% if not me.phone %}<div class="card alert"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b><span class="muted">{{ _("Il sert à recevoir les paiements automatiques.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>{% endif %}
 
 {% else %}
+{% if me.role == 'proprio' %}
+<div class="greet"><span class="greet-date">{{ today_label }}</span><p class="greet-hello">{{ greeting }}, {{ (me.name or '').split(' ')[0] }}</p></div>
+{% endif %}
 {% if portfolio %}
 <section class="band" aria-label="{{ _("Résumé de vos chantiers") }}">
 <span class="band-kicker">{{ _("Argent suivi sur votre chantier") if portfolio.n == 1 else _("Argent suivi sur vos %(n)s chantiers", n=portfolio.n) }}</span>
-<span class="band-big">{{ compact(portfolio.paid) }} <small>FCFA</small></span>
-<span class="band-sub">{{ _("sur un budget de") }} {{ compact(portfolio.total) }} FCFA</span>
+<span class="band-big">{{ compact(portfolio.paid) }} <small>{{ _("FCFA versés") }}</small></span>
+<span class="band-sub">{{ _("sur un budget de") }} {{ compact(portfolio.total) }} FCFA · {{ _("chaque franc justifié") }}</span>
+<div class="band-line" aria-hidden="true"><span style="width:{{ (100 * portfolio.paid / portfolio.total)|round(1) if portfolio.total else 0 }}%"></span></div>
 <div class="band-stats">
 <a href="{{ url_for('project', project_id=cards[0][0].id, onglet='etapes') if portfolio.to_validate else '#chantiers' }}"><span>{{ _("À valider") }}</span><b>{{ portfolio.to_validate }} {{ pl(portfolio.to_validate, "étape(s)") }}</b></a>
 <div><span>{{ _("Confiance moyenne") }}</span><b>{{ portfolio.trust if portfolio.trust is not none else '–' }}{% if portfolio.trust is not none %}<small>/100</small>{% endif %}</b></div>
 </div>
 </section>
+{% endif %}
+{% if me.role == 'proprio' %}{% set ns = namespace(n=0) %}
+<div class="decide-list">
+{% for p, s, pred in cards %}{% for st in s.steps if st.status == 'declare' %}{% set ns.n = ns.n + 1 %}
+<a class="decide-card" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">
+<span class="decide-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg></span>
+<span class="decide-txt"><span class="decide-kicker">{{ _("Votre décision") }}</span><b>{{ _("%(name)s terminée", name=st.name) }}</b><span class="muted">{{ p.name }}</span></span>
+<span class="decide-amt">{{ compact(st.amount) }}<small>FCFA</small></span>
+</a>
+{% endfor %}{% endfor %}
+</div>
 {% endif %}
 <h1 class="section-title" id="chantiers">{{ _("Vos chantiers") if me.role == 'proprio' else _("Mes chantiers") }}</h1>
 {% if onboarding %}
@@ -101,8 +116,9 @@
 </span>
 </a>
 {% else %}
-<div class="card muted">{{ _("Aucun chantier pour l'instant.") }}</div>
+{% if me.role != 'proprio' %}<div class="card muted">{{ _("Aucun chantier pour l'instant.") }}</div>{% endif %}
 {% endfor %}
+{% if me.role == 'proprio' %}<a class="pcard pcard-new" href="{{ url_for('new_project') }}"><span class="pn-plus" aria-hidden="true">+</span><b>{{ _("Créer un chantier") }}</b><span class="muted">{{ _("Étapes, montants, terrain : 3 minutes") }}</span></a>{% endif %}
 </div>
 
 {% if activity %}
@@ -119,8 +135,7 @@
 {% endif %}
 
 {% if me.role == 'proprio' %}
-<a class="btn" href="{{ url_for('new_project') }}">{{ _("Créer un chantier") }}</a>
-<a class="btn ghost" href="{{ url_for('import_markets') }}">{{ _("Importer des marchés publics (SIGOMAP)") }}</a>
+<a class="btn ghost small home-import" href="{{ url_for('import_markets') }}">{{ _("Importer des marchés publics (SIGOMAP)") }}</a>
 {% else %}
 <form method="post" action="{{ url_for('join_project') }}" class="card">
 {{ csrf() }}

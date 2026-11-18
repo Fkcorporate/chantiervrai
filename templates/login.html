@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Connexion · ChantierVrai") }}{% endblock %}
+{% block bodyclass %}auth-page{% endblock %}
 {% block content %}
+{% include "_auth_side.html" %}
+<div class="auth-main">
 <h1>{{ _("Connexion") }}</h1>
 <p class="muted">{{ _("Suivez votre chantier à distance, avec des preuves vérifiées.") }}</p>
 <form method="post" class="card">
@@ -10,5 +13,6 @@
 <button class="btn" type="submit">{{ _("Se connecter") }}</button>
 <a href="{{ url_for('forgot_password') }}">{{ _("Mot de passe oublié ?") }}</a>
 </form>
-<p class="muted">{{ _("Pas encore de compte ?") }} <a href="{{ url_for('register') }}">{{ _("Créer un compte") }}</a></p>
+<p class="muted auth-switch">{{ _("Pas encore de compte ?") }} <a href="{{ url_for('register') }}">{{ _("Créer un compte") }}</a></p>
+</div>
 {% endblock %}

@@ -53,8 +53,8 @@
 <b>{{ trust.level_label }}</b></a>
 {% endif %}
 <h2>{{ _("Activité récente") }}</h2>
-<div class="card">
-{% for a in activity %}<div><span class="muted">{{ dt(a.created_at) }}</span><br>{% if a.author %}{{ a.author }} : {% endif %}{{ a.text|tr }}</div>{% else %}<span class="muted">{{ _("Rien pour l'instant.") }}</span>{% endfor %}
+<div class="card log">
+{% for a in activity %}<div><span title="{{ dt(a.created_at) }}">{{ dts(a.created_at) }}</span><span>{% if a.author %}<b>{{ a.author }}</b> · {% endif %}{{ a.text|tr }}</span></div>{% else %}<span class="muted">{{ _("Rien pour l'instant.") }}</span>{% endfor %}
 </div>
 </div></div>
 {% endblock %}

@@ -1,16 +1,19 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Créer un compte · ChantierVrai") }}{% endblock %}
+{% block bodyclass %}auth-page{% endblock %}
 {% block content %}
+{% include "_auth_side.html" %}
+<div class="auth-main">
 <h1>{{ _("Créer un compte") }}</h1>
 <form method="post" class="card">
 <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-<fieldset class="roles" style="border:0;padding:0;margin:0">
+<fieldset class="roles role-cards" style="border:0;padding:0;margin:0">
 <legend class="muted" style="margin-bottom:8px">{{ _("Vous êtes :") }}</legend>
-<label><input type="radio" name="role" value="proprio" required> {{ _("Propriétaire ou maître d'ouvrage") }}</label>
-<label><input type="radio" name="role" value="chef" required> {{ _("Chef de chantier") }}</label>
-<label><input type="radio" name="role" value="inspecteur" required> {{ _("Inspecteur indépendant") }}</label>
-<label><input type="radio" name="role" value="fournisseur" required> {{ _("Fournisseur de matériaux (quincaillerie, dépôt)") }}</label>
-<label><input type="radio" name="role" value="pro" required> {{ _("Professionnel du BTP (architecte, ingénieur, bureau de contrôle, conducteur de travaux, entrepreneur, comptable)") }}</label>
+<label class="role-card"><input type="radio" name="role" value="proprio" required><span class="rc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></span><span class="rc-txt"><b>{{ _("Propriétaire ou maître d'ouvrage") }}</b><small>{{ _("Je fais construire et je paie par étape.") }}</small></span></label>
+<label class="role-card"><input type="radio" name="role" value="chef" required><span class="rc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15a8 8 0 0 1 16 0"/><path d="M2 15h20v3H2z"/><path d="M12 7V4"/></svg></span><span class="rc-txt"><b>{{ _("Chef de chantier") }}</b><small>{{ _("Je photographie l'avancement et je suis payé à chaque étape.") }}</small></span></label>
+<label class="role-card"><input type="radio" name="role" value="inspecteur" required><span class="rc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/><path d="M8.5 11l2 2 3.5-3.5"/></svg></span><span class="rc-txt"><b>{{ _("Inspecteur indépendant") }}</b><small>{{ _("Je contrôle les travaux sur place.") }}</small></span></label>
+<label class="role-card"><input type="radio" name="role" value="fournisseur" required><span class="rc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="rc-txt"><b>{{ _("Fournisseur de matériaux (quincaillerie, dépôt)") }}</b><small>{{ _("Je livre les chantiers et je suis payé à la réception.") }}</small></span></label>
+<label class="role-card"><input type="radio" name="role" value="pro" required><span class="rc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M10 20v-5h4v5"/><path d="M9 11h6"/></svg></span><span class="rc-txt"><b>{{ _("Professionnel du BTP") }}</b><small>{{ _("Architecte, ingénieur, bureau de contrôle, conducteur de travaux, entrepreneur, comptable.") }}</small></span></label>
 </fieldset>
 <label>{{ _("Nom complet") }}<input name="name" required autocomplete="name"></label>
 <label>{{ _("E-mail") }}<input type="email" name="email" required autocomplete="email"></label>
@@ -26,7 +29,8 @@
 <label class="check"><input type="checkbox" name="terms" value="1" required> <span>{{ _("J'accepte les") }} <a href="{{ url_for('terms') }}" target="_blank">{{ _("conditions d'utilisation") }}</a> {{ _("et la") }} <a href="{{ url_for('privacy') }}" target="_blank">{{ _("politique de confidentialité") }}</a>{{ _(", y compris l'utilisation de ma position lors de l'envoi des preuves.") }}</span></label>
 <button class="btn" type="submit">{{ _("Créer mon compte") }}</button>
 </form>
-<p class="muted">{{ _("Déjà inscrit ?") }} <a href="{{ url_for('login') }}">{{ _("Se connecter") }}</a></p>
+<p class="muted auth-switch">{{ _("Déjà inscrit ?") }} <a href="{{ url_for('login') }}">{{ _("Se connecter") }}</a></p>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>

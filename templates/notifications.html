@@ -9,7 +9,7 @@
 <div class="card{% if n.channel == 'app' and not n.is_read %} unread{% endif %}">
 <div class="row"><b>{{ n.title|tr }}</b><span class="pill{% if n.status == 'echec' %} warn{% elif n.channel != 'app' %} grey{% endif %}">{{ labels[n.channel] }}{% if n.channel != 'app' %} · {{ st[n.status] }}{% endif %}</span></div>
 <div>{{ n.body|tr }}</div>
-<div class="row"><span class="muted">{{ dt(n.created_at) }}{% if n.detail %} · {{ n.detail }}{% endif %}</span>{% if n.link and n.channel == 'app' %}<a href="{{ n.link }}">{{ _("Ouvrir") }}</a>{% endif %}</div>
+<div class="row"><span class="muted">{{ dts(n.created_at) }}{% if n.detail %} · {{ n.detail }}{% endif %}</span>{% if n.link and n.channel == 'app' %}<a href="{{ n.link }}">{{ _("Ouvrir") }}</a>{% endif %}</div>
 </div>
 {% else %}
 <div class="card muted">{{ _("Aucune alerte.") }}</div>

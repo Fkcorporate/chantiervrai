@@ -11,7 +11,7 @@
 
 <div class="card table-wrap">
 <table><thead><tr><th>{{ _("Produit") }}</th><th>{{ _("Commandé") }}</th><th>{{ _("Reçu") }}</th><th>{{ _("Montant") }}</th></tr></thead><tbody>
-{% for ln in lines %}<tr{% if ln.qty_received is not none and ln.qty_received < ln.qty %} class="bad"{% endif %}><td>{{ ln.name }}</td><td>{{ ln.qty|qte }} {{ ln.unit }}</td><td>{{ ln.qty_received|qte }}</td><td>{{ fcfa(ln.qty * ln.unit_price) }}</td></tr>{% endfor %}
+{% for ln in lines %}<tr{% if ln.qty_received is not none and ln.qty_received < ln.qty %} class="bad"{% endif %}><td>{{ ln.name }}</td><td>{{ ln.qty|qte }} {{ unit_pl(ln.unit or '', ln.qty) }}</td><td>{{ ln.qty_received|qte }}</td><td>{{ fcfa(ln.qty * ln.unit_price) }}</td></tr>{% endfor %}
 </tbody></table>
 <div class="row"><span class="muted">{{ _("Total commandé") }}</span><b>{{ fcfa(o.total) }} FCFA</b></div>
 {% if o.received_total is not none %}
@@ -44,7 +44,7 @@
 <div class="card" id="comptage"><b>{{ _("Comptage de la livraison") }}</b>
 <span class="muted">{{ _("Trois chiffres comparés : la commande, le comptage de la photo et ce que le chef déclare reçu. Un écart suspend le paiement du fournisseur jusqu'à la décision du propriétaire.") }}</span>
 <div class="table-wrap"><table><thead><tr><th>{{ _("Produit") }}</th><th>{{ _("Commandé") }}</th><th>{{ _("Compté sur la photo") }}</th><th>{{ _("Déclaré reçu") }}</th></tr></thead><tbody>
-{% for ln in lines %}{% set c = counts.get(ln.id) %}<tr{% if count_status[ln.id] in ('ecart', 'a_verifier') %} class="bad"{% endif %}><td>{{ ln.name }}</td><td>{{ ln.qty|qte }} {{ ln.unit }}</td><td>{% if c and c.ai_count is not none %}{{ c.ai_count|qte }}{% if c.ai_conf %} <span class="muted">({{ (c.ai_conf * 100)|round|int }} %)</span>{% endif %}{% else %}—{% endif %}</td><td>{{ ln.qty_received|qte if ln.qty_received is not none else '—' }}</td></tr>{% endfor %}
+{% for ln in lines %}{% set c = counts.get(ln.id) %}<tr{% if count_status[ln.id] in ('ecart', 'a_verifier') %} class="bad"{% endif %}><td>{{ ln.name }}</td><td>{{ ln.qty|qte }} {{ unit_pl(ln.unit or '', ln.qty) }}</td><td>{% if c and c.ai_count is not none %}{{ c.ai_count|qte }}{% if c.ai_conf %} <span class="muted">({{ (c.ai_conf * 100)|round|int }} %)</span>{% endif %}{% else %}—{% endif %}</td><td>{{ ln.qty_received|qte if ln.qty_received is not none else '—' }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% for ln_id, c in counts.items() %}{% if c.remark and (ln_id == 0 or c.method) %}<span class="muted">{{ c.method }}{% if c.method and c.remark %} — {% endif %}{{ c.remark }}</span>{% endif %}{% endfor %}
 {% if not count_on %}<span class="muted">{{ _("Comptage des photos par l'IA non activé : la comparaison se fait entre la commande et le chef.") }}</span>{% endif %}
@@ -57,7 +57,7 @@
 <form method="post" class="card">{{ csrf() }}<input type="hidden" name="action" value="receive">
 <b>{{ _("Confirmer ce qui est arrivé") }}</b>
 <span class="muted">{{ _("Comptez les sacs, barres et voyages. Le fournisseur est payé seulement pour ce que vous confirmez ; le reste revient au séquestre.") }}</span>
-{% for ln in lines %}{% set c = counts.get(ln.id) %}<label>{{ ln.name }} ({{ _("commandé :") }} {{ ln.qty|qte }} {{ ln.unit }}{% if c and c.ai_count is not none %} · {{ _("compté sur la photo :") }} {{ c.ai_count|qte }}{% endif %})<input name="qty_{{ ln.id }}" value="{{ ln.qty|qte }}" inputmode="decimal"></label>{% endfor %}
+{% for ln in lines %}{% set c = counts.get(ln.id) %}<label>{{ ln.name }} ({{ _("commandé :") }} {{ ln.qty|qte }} {{ unit_pl(ln.unit or '', ln.qty) }}{% if c and c.ai_count is not none %} · {{ _("compté sur la photo :") }} {{ c.ai_count|qte }}{% endif %})<input name="qty_{{ ln.id }}" value="{{ ln.qty|qte }}" inputmode="decimal"></label>{% endfor %}
 {% if role == 'owner' and o.status == 'litige' and o.problem and 'comptage' in o.problem %}<label class="check"><input type="checkbox" name="confirm_gap" value="1"> {{ _("Je confirme ces quantités malgré l'écart avec la photo") }}</label>{% endif %}
 <button class="btn">{{ _("Confirmer la réception") }}</button>
 </form>

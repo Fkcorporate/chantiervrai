@@ -6,7 +6,7 @@
 <p class="muted">{{ _("Messages et notes vocales envoyés par le chef de chantier sur WhatsApp, transcrits et résumés.") }}{% if not can_transcribe %} {{ _("La transcription automatique n'est pas activée : les notes vocales s'écoutent telles quelles.") }}{% endif %}</p>
 {% for n in notes %}
 <div class="card{% if n.urgent %} alert{% endif %}">
-<div class="row"><b>{{ n.author }}</b><span class="muted">{{ dt(n.created_at) }}{% if n.step_name %} · {{ n.step_name }}{% endif %}</span></div>
+<div class="row"><b>{{ n.author }}</b><span class="muted">{{ dts(n.created_at) }}{% if n.step_name %} · {{ n.step_name }}{% endif %}</span></div>
 <div class="tags">{% if n.kind == 'vocal' %}<span class="tag blue">{{ _("Note vocale") }}</span>{% else %}<span class="tag grey">{{ _("Message") }}</span>{% endif %}{% if n.category %}<span class="tag {{ 'bad' if n.category == 'probleme' else 'grey' }}">{{ cats[n.category] }}</span>{% endif %}{% if n.urgent %}<span class="tag bad">{{ _("Urgent") }}</span>{% endif %}{% if n.status == 'en_cours' %}<span class="tag amber">{{ _("Transcription en cours") }}</span>{% endif %}</div>
 {% if n.summary %}<span><b>{{ n.summary }}</b></span>{% endif %}
 {% if n.transcript and n.transcript != n.summary %}<details><summary>{{ _("Texte complet") }}</summary><span>{{ n.transcript }}</span></details>{% endif %}

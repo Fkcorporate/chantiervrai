@@ -54,7 +54,7 @@
 <h2>{{ _("Historique des mouvements") }}</h2>
 <div class="card">
 {% for m in moves %}
-<div class="row"><span><b>{{ KINDS[m.kind] }}</b> · {{ _(m.material) }} {{ ('+' if m.kind in ('entree',) or (m.kind == 'inventaire' and m.qty > 0) else '−' if m.kind != 'inventaire' else '') }}{{ (m.qty if m.qty > 0 else -m.qty)|qte }} {{ m.unit or '' }}{% if m.step_name %} <span class="muted">· {{ m.step_name }}</span>{% endif %}<br><span class="muted">{{ m.author }} · {{ dt(m.created_at) }}{% if m.note %} · {{ m.note }}{% endif %}</span></span>
+<div class="row"><span><b>{{ KINDS[m.kind] }}</b> · {{ _(m.material) }} {{ ('+' if m.kind in ('entree',) or (m.kind == 'inventaire' and m.qty > 0) else '−' if m.kind != 'inventaire' else '') }}{{ (m.qty if m.qty > 0 else -m.qty)|qte }} {{ m.unit or '' }}{% if m.step_name %} <span class="muted">· {{ m.step_name }}</span>{% endif %}<br><span class="muted">{{ m.author }} · {{ dts(m.created_at) }}{% if m.note %} · {{ m.note }}{% endif %}</span></span>
 {% if m.order_id %}<a class="tag blue" href="{{ url_for('order', oid=m.order_id) }}">{{ _("Commande") }}</a>{% endif %}</div>
 {% else %}<span class="muted">{{ _("Aucun mouvement.") }}</span>{% endfor %}
 </div>

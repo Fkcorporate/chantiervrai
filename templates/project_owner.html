@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block bodyclass %}{% if tab == 'accueil' %}top-photo{% endif %}{% endblock %}
-{% from "_macros.html" import proof_card, tabs, csrf, risk_pill, project_tools with context %}
+{% from "_macros.html" import proof_card, tabs, csrf, risk_pill, tool with context %}
 {% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
 {% block head %}
 {% if tab == 'vues' %}
@@ -13,6 +13,7 @@
 {# ======================================================== ACCUEIL #}
 {% if tab == 'accueil' %}
 {% set cur = s.current %}{% set decl = s.steps|selectattr('status', 'equalto', 'declare')|list %}
+<div class="hero-row">
 <section class="phero{% if not cover %} empty{% endif %}">
 {% if cover %}<img src="{{ url_for('proof_thumb', proof_id=cover.id) }}" alt="{{ _("Dernière photo vérifiée du chantier") }}">
 {% else %}<span class="pcard-empty" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>{% endif %}
@@ -21,30 +22,45 @@
 <span class="phero-kicker">{% if cur %}{{ _("Étape %(i)s sur %(n)s", i=(s.steps|map(attribute='id')|list).index(cur.id) + 1, n=s.steps|length) }}{% else %}{{ _("Chantier") }}{% endif %}</span>
 <h1>{{ p.name }}</h1>
 {% if cur %}<span class="phero-step">{{ cur.name }} · {{ STATUS[cur.status] }}</span>{% endif %}
+<span class="phero-addr">{{ p.address }}{% if p.kind == 'public' %} {{ _("· Chantier public") }}{% endif %}</span>
 </div>
 </section>
+{% if decl %}{% set dst = decl[0] %}{% set dok = ok_by_step.get(dst.id, 0) %}{% set dcs = checks_by_step.get(dst.id) %}
+<section class="decision-panel" aria-labelledby="dp-h">
+<span class="dp-kicker">{{ _("Votre décision") }}</span>
+<h2 class="dp-title" id="dp-h">{{ _("%(name)s terminée", name=dst.name) }}</h2>
+<span class="dp-amount"><b>{{ fcfa(dst.amount) }}</b><small>FCFA</small></span>
+<ul class="dp-checks">
+<li><span class="{{ 'dp-ok' if dok else 'dp-ko' }}">{{ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7"/></svg>'|safe if dok else '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6M12 17h.01"/></svg>'|safe }}</span>{{ dok }} {{ pl(dok, "photo(s) vérifiée(s) sur le terrain") }}</li>
+{% if dcs %}<li><span class="{{ 'dp-ko' if dcs.missing else 'dp-ok' }}">{{ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6M12 17h.01"/></svg>'|safe if dcs.missing else '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7"/></svg>'|safe }}</span>{% if dcs.missing %}{{ dcs.missing }} {{ pl(dcs.missing, "contrôle(s) obligatoire(s) à faire") }}{% else %}{{ _("Contrôles techniques conformes") }}{% endif %}</li>{% endif %}
+<li><span class="dp-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7"/></svg></span>{{ _("Montant conforme au contrat") }}</li>
+</ul>
+<a class="dp-go" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">{{ _("Vérifier et valider") }}</a>
+<a class="dp-later" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">{{ _("Refuser avec un motif") }}</a>
+</section>
+{% endif %}
+</div>
 <div class="phero-stats">
 <a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}"><span>{{ _("Avancement vérifié") }}</span><b>{{ s.verified_pct }} %</b></a>
 <a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}"><span>{{ _("Déjà versé") }}</span><b>{{ compact(s.paid) }}</b></a>
+{% if pred and not pred.done %}<a class="ps-extra" href="{{ url_for('project', project_id=p.id, onglet='etapes') }}"><span>{{ _("Fin estimée") }}{% if pred.delay > 0 %} · +{{ pred.delay }} {{ _("j") }}{% endif %}</span><b>{{ d(pred.predicted_end) }}</b></a>{% endif %}
 <a href="#confiance"><span>{{ _("Confiance") }}</span><b>{{ trust.score if trust and trust.score is not none else '–' }}{% if trust and trust.score is not none %}<small>/100</small>{% endif %}</b></a>
 </div>
-{% if decl %}{% set dst = decl[0] %}<a class="actionbar" href="{{ url_for('project', project_id=p.id, onglet='etapes') }}">
-<span class="ab-txt"><span>{{ _("Étape déclarée terminée") }}</span><b>{{ _("Vérifier et valider « %(name)s »", name=dst.name) }}</b></span>
+{% if decl %}{% set dst = decl[0] %}<a class="actionbar" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">
+<span class="ab-txt"><span>{{ _("Votre décision") }}</span><b>{{ _("Vérifier et valider « %(name)s »", name=dst.name) }}</b></span>
 <span class="ab-amount">{{ compact(dst.amount) }}<small> FCFA</small></span>
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
 </a>{% endif %}
-<div class="muted phero-meta">{{ p.address }}{% if p.kind == 'public' %} {{ _("· Chantier public") }}{% if p.is_public %} · <a href="{{ url_for('portal_project', project_id=p.id) }}">{{ _("page publique") }}</a>{% endif %}{% endif %}</div>
+{% if p.kind == 'public' and p.is_public %}<div class="muted phero-meta"><a href="{{ url_for('portal_project', project_id=p.id) }}">{{ _("page publique") }}</a></div>{% endif %}
 {% if alerts %}<section class="card alert todo-list" aria-labelledby="todo-h">
-<h2 id="todo-h">{{ _("%(n)s point(s) à voir", n=alerts|length) }}</h2>
-{% for title, target, sub in alerts %}
-{% if target %}<a class="todo-item" href="{{ url_for('project', project_id=p.id, onglet=target) }}"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span><span class="chev" aria-hidden="true">›</span></a>
-{% else %}<div class="todo-item"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span></div>{% endif %}
-{% endfor %}
+<h2 id="todo-h"><span class="todo-count">{{ alerts|length }}</span>{{ _("%(n)s point(s) à voir", n=alerts|length) }}</h2>
+{% macro todo_row(title, target, sub) %}{% if target %}<a class="todo-item" href="{{ url_for('project', project_id=p.id, onglet=target) }}"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span><span class="chev" aria-hidden="true">›</span></a>
+{% else %}<div class="todo-item"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span></div>{% endif %}{% endmacro %}
+{% for title, target, sub in alerts[:2] %}{{ todo_row(title, target, sub) }}{% endfor %}
+{% if alerts|length > 2 %}<details class="todo-more"><summary>{{ _("Voir les %(n)s autres", n=alerts|length - 2) }}</summary>
+{% for title, target, sub in alerts[2:] %}{{ todo_row(title, target, sub) }}{% endfor %}
+</details>{% endif %}
 </section>{% endif %}
-<section class="tools-card" aria-labelledby="tools-h">
-<h2 id="tools-h">{{ _("Outils du chantier") }}</h2>
-{{ project_tools(p, land_label if land_level is not none else None) }}
-</section>
 {% if notes_recent %}<a class="card cardlink" href="{{ url_for('site_notes_page', project_id=p.id) }}"><div class="row"><b>{{ _("Messages du chef") }}</b>{% if notes_unread %}<span class="pill warn">{{ notes_unread }} {{ pl(notes_unread, "nouveau(x)") }}</span>{% endif %}</div>{% for n in notes_recent %}<span class="muted">{% if n.urgent %}<span class="tag bad">{{ _("Urgent") }}</span> {% endif %}{{ '🎙️ ' if n.kind == 'vocal' else '' }}{{ n.summary or n.transcript or _("Note vocale à écouter") }}</span>{% endfor %}</a>{% endif %}
 
 <div class="dash"><div class="dash-main">
@@ -55,14 +71,24 @@
 <div class="bar o"><div style="width:{{ s.declared_pct }}%"></div></div>
 </div>
 
-<div class="grid2">
-{% if s.sequestre %}
-<div class="card green"><span class="muted">{{ _("Bloqué sur le séquestre") }}</span><span class="big">{{ fcfa(s.locked) }}</span><span class="muted">FCFA{% if s.to_deposit %} · {{ fcfa(s.to_deposit) }} {{ _("à déposer") }}{% endif %}</span></div>
-{% else %}
-<div class="card green"><span class="muted">{{ _("Reste à payer") }}</span><span class="big">{{ fcfa(s.locked) }}</span><span class="muted">{{ _("FCFA, payé à chaque étape") }}{% if s.awaiting_pay %} · {{ fcfa(s.awaiting_pay) }} {{ _("validés, à payer") }}{% endif %}</span></div>
-{% endif %}
-<div class="card"><span class="muted">{{ _("Déjà versé") }}</span><span class="big">{{ fcfa(s.paid) }}</span><span class="muted">{{ _("sur") }} {{ fcfa(s.total) }} FCFA</span></div>
+{# Argent : une seule carte (le « déjà versé » est déjà en tête de page) #}
+<div class="card money">
+<div class="row"><span class="muted">{{ _("Bloqué sur le séquestre") if s.sequestre else _("Reste à payer") }}</span>{% if s.total %}<span class="muted">{{ (100 * s.paid / s.total)|round|int }} % {{ _("versé") }}</span>{% endif %}</div>
+<span class="big">{{ fcfa(s.locked) }} <small class="unit">FCFA</small></span>
+{% if s.total %}<div class="bar"><div style="width:{{ (100 * s.paid / s.total)|round|int }}%"></div></div>{% endif %}
+<span class="muted">{{ fcfa(s.paid) }} {{ _("versés sur") }} {{ fcfa(s.total) }} FCFA{% if s.sequestre and s.to_deposit %} · {{ fcfa(s.to_deposit) }} {{ _("à déposer") }}{% elif s.awaiting_pay %} · {{ fcfa(s.awaiting_pay) }} {{ _("validés, à payer") }}{% endif %}</span>
 </div>
+
+<section class="card" aria-labelledby="tl-h">
+<div class="row"><h2 id="tl-h" style="margin:0;font-size:17px">{{ _("Étapes") }}</h2><a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}" class="muted" style="font-weight:500">{{ _("Planning et contrôles") }}</a></div>
+<ol class="timeline">
+{% for st in s.steps %}{% set done = st.status in ('paye', 'versement') %}
+<li><span class="tl-dot {{ 'tl-done' if done else ('tl-decl' if st.status == 'declare' else ('tl-now' if st.status == 'en_cours' else 'tl-todo')) }}" aria-hidden="true">{% if done %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7"/></svg>{% else %}{{ loop.index }}{% endif %}</span>
+<a class="tl-name" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><span{% if st.status in ('declare', 'en_cours') %} style="font-weight:600"{% endif %}>{{ st.name }}</span>{% if st.status == 'declare' %}<small>{{ _("Terminée · à valider") }}</small>{% elif st.status == 'en_cours' %}<small style="color:var(--muted)">{{ _("En cours") }}</small>{% endif %}</a>
+<span class="tl-amt">{{ STATUS[st.status] if done else '' }}{{ ' · ' if done else '' }}{{ compact(st.amount) }}</span></li>
+{% endfor %}
+</ol>
+</section>
 
 {% if pred %}
 <a class="card" href="{{ url_for('project', project_id=p.id, onglet='etapes') }}" style="text-decoration:none;color:inherit">
@@ -75,6 +101,17 @@
 <a class="card" href="{{ url_for('project', project_id=p.id, onglet='etapes') }}" style="text-decoration:none;color:inherit"><b>{{ _("Prédiction des retards") }}</b><span class="muted">{{ _("Indiquez la date de début et la durée des étapes pour l'activer.") }}</span></a>
 {% endif %}
 
+<h2>{{ _("Compte rendu de la semaine") }}</h2>
+{% if last_report %}
+{% set c = last_report.content|fromjson %}
+<a class="card" href="{{ url_for('report', project_id=p.id, report_id=last_report.id) }}" style="text-decoration:none;color:inherit">
+<span class="muted">{{ _("Du") }} {{ d(c.period_start) }} {{ _("au") }} {{ d(c.period_end) }}</span>
+{% for line in c.summary %}<span>{{ line }}</span>{% endfor %}
+</a>
+{% else %}
+<div class="card muted">{{ _("Le premier compte rendu sera prêt 7 jours après la création du chantier.") }}</div>
+{% endif %}
+<a class="btn ghost" href="{{ url_for('reports', project_id=p.id) }}">{{ _("Fil d'actualité et tous les comptes rendus") }}</a>
 
 </div><div class="dash-side">
 {% if trust %}
@@ -108,22 +145,11 @@
 </div>
 {% endif %}
 
-<h2>{{ _("Compte rendu de la semaine") }}</h2>
-{% if last_report %}
-{% set c = last_report.content|fromjson %}
-<a class="card" href="{{ url_for('report', project_id=p.id, report_id=last_report.id) }}" style="text-decoration:none;color:inherit">
-<span class="muted">{{ _("Du") }} {{ d(c.period_start) }} {{ _("au") }} {{ d(c.period_end) }}</span>
-{% for line in c.summary %}<span>{{ line }}</span>{% endfor %}
-</a>
-{% else %}
-<div class="card muted">{{ _("Le premier compte rendu sera prêt 7 jours après la création du chantier.") }}</div>
-{% endif %}
-<a class="btn ghost" href="{{ url_for('reports', project_id=p.id) }}">{{ _("Fil d'actualité et tous les comptes rendus") }}</a>
-
 <h2>{{ _("Activité récente") }}</h2>
 <div class="card log">
-{% for a in activity %}<div><span>{{ dt(a.created_at) }}</span><span>{{ a.author or '' }} : {{ a.text|tr }}</span></div>
+{% for a in activity[:6] %}<div><span title="{{ dt(a.created_at) }}">{{ dts(a.created_at) }}</span><span>{% if a.author %}<b>{{ a.author }}</b> · {% endif %}{{ a.text|tr }}</span></div>
 {% else %}<span class="muted">{{ _("Rien pour l'instant.") }}</span>{% endfor %}
+{% if activity|length > 6 %}<a class="log-more" href="{{ url_for('reports', project_id=p.id) }}">{{ _("Tout l'historique") }}</a>{% endif %}
 </div>
 </div></div>
 {% endif %}
@@ -137,14 +163,61 @@
 <noscript><button class="btn ghost small">{{ _("Enregistrer") }}</button></noscript>
 </form>
 {% if p.kind == 'public' %}<div class="muted">{{ _("Chantier public : choisissez les photos à publier sur le portail citoyen. Les visages sont floutés automatiquement.") }}</div>{% endif %}
-{% for pr in proofs %}{{ proof_card(pr, p, publishable=p.kind == 'public') }}{% else %}<div class="card muted">{{ _("Aucune preuve reçue.") }}</div>{% endfor %}
+<div class="proof-grid">{% for pr in proofs %}{{ proof_card(pr, p, publishable=p.kind == 'public') }}{% else %}<div class="card muted">{{ _("Aucune preuve reçue.") }}</div>{% endfor %}</div>
 {% endif %}
 
 {# ======================================================== ETAPES #}
 {% if tab == 'etapes' %}
 <h1>{{ _("Étapes et paiements") }}</h1>
 <div class="row toolrow" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('decompte', project_id=p.id) }}">{{ _("Situation des travaux et décompte") }}</a><a class="btn ghost small" href="{{ url_for('trust_page', project_id=p.id) }}">{{ _("Indice de confiance") }}</a><a class="btn ghost small" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Contrôle qualité des ouvrages") }}</a><a class="btn ghost small" href="{{ url_for('financing', project_id=p.id) }}">{{ _("Plan de financement") }}</a><a class="btn ghost small" href="{{ url_for('site_notes_page', project_id=p.id) }}">{{ _("Notes du chantier") }}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a></div>
+<div class="steps-list">
+{% for st in s.steps %}
+{% set okc = ok_by_step.get(st.id, 0) %}
+<div class="step{% if st.status == 'declare' %} decl{% elif st.status == 'en_cours' %} cur{% endif %}">
+<div class="row"><b>{{ loop.index }}. {{ st.name }}</b><span class="pill{% if st.status == 'declare' %} warn{% endif %}">{{ STATUS[st.status] }}</span></div>
+<div class="muted">{{ fcfa(st.amount) }} {{ _("FCFA ·") }} {{ okc }} {{ pl(okc, "preuve(s) vérifiée(s)") }}{% if schedule.get(st.id) %} {{ _("· fin prévue") }} {{ d(schedule[st.id]) }}{% endif %}{% if st.pay_ref %} {{ _("· Réf.") }} {{ st.pay_ref }}{% endif %}</div>
+{% set cs = checks_by_step.get(st.id) %}
+<div class="tags"><a class="tag {{ 'amber' if cs and cs.missing and st.status not in ('paye','versement') else 'grey' }}" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{% if cs %}{{ _("Contrôles") }} {{ cs.ok }}/{{ cs.total }}{% if cs.missing and st.status not in ('paye','versement') %} · {{ cs.missing }} {{ pl(cs.missing, "obligatoire(s) à faire") }}{% endif %}{% else %}{{ _("Détail de l'étape") }}{% endif %}</a></div>
+{% set qs = qual_by_step.get(st.id) %}{% if qs %}<div class="tags"><a class="tag {{ 'bad' if qs.issues else 'grey' }}" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Qualité") }}{% if qs.score is not none %} {{ qs.score }}/100{% endif %}{% if qs.issues %} · {{ qs.issues }} {{ pl(qs.issues, "problème(s) probable(s)") }}{% endif %}</a></div>{% endif %}
+{% if insp_by_step.get(st.id) %}{% set ins = insp_by_step[st.id] %}
+<div class="tags"><span class="tag {{ 'bad' if ins.verdict == 'non_conforme' else 'blue' }}">{{ _("Inspection :") }} {{ VERDICTS[ins.verdict] }}</span></div>
+{% endif %}
+{% if pv_by_step.get(st.id) %}<a href="{{ url_for('document', doc_id=pv_by_step[st.id]) }}" target="_blank">{{ _("PV de réception") }}</a>{% endif %}
+{% if s.suivi and st.status in ('versement', 'paye') %}<a {% if st.status == 'versement' %}class="btn" {% endif %}href="{{ url_for('pay_order', kind='etape', ref_id=st.id) }}">{{ _("Bon à payer : déclarer le paiement") if st.status == 'versement' else _("Bon à payer") }}</a>{% endif %}
+{% if st.status == 'declare' and ((cs and cs.missing) or finance) %}
+<a class="btn" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{{ _("Vérifier avant de payer") }}</a>
+{% if cs and cs.missing %}<span class="muted">{{ _("Paiement bloqué : contrôles obligatoires manquants.") }}</span>{% endif %}
+<form method="post" action="{{ url_for('refuse_step', project_id=p.id, step_id=st.id) }}" class="stack">
+{{ csrf() }}
+<label>{{ _("Motif du refus") }}<input name="motif" placeholder="{{ _("Ex. dalle non visible sur les photos") }}"></label>
+<button class="btn ghost" type="submit">{{ _("Refuser et renvoyer au chantier") }}</button>
+</form>
+{% elif st.status == 'declare' %}
+<a href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{{ _("Vérification avant paiement (5 points)") }}</a>
+<form method="post" action="{{ url_for('validate_step', project_id=p.id, step_id=st.id) }}" class="stack">
+{{ csrf() }}
+{% if s.sequestre %}
+<button class="btn" type="submit"{% if s.escrow.balance < st.amount %} disabled{% endif %}>{{ _("Valider et verser") }} {{ fcfa(st.amount) }} FCFA</button>
+{% if s.escrow.balance < st.amount %}<span class="muted">{{ _("Solde insuffisant : déposez") }} {{ fcfa(st.amount - s.escrow.balance) }} {{ _("FCFA.") }}</span>{% endif %}
+{% elif s.suivi %}
+<button class="btn" type="submit">{{ _("Valider l'étape et émettre le bon à payer") }}</button>
+{% else %}
+<label>{{ _("Référence du paiement Mobile Money (facultatif)") }}<input name="pay_ref" placeholder="{{ _("Ex. Wave TX123456") }}"></label>
+<button class="btn" type="submit">{{ _("Valider l'étape et confirmer le paiement") }}</button>
+{% endif %}
+</form>
+<form method="post" action="{{ url_for('refuse_step', project_id=p.id, step_id=st.id) }}" class="stack">
+{{ csrf() }}
+<label>{{ _("Motif du refus") }}<input name="motif" placeholder="{{ _("Ex. dalle non visible sur les photos") }}"></label>
+<button class="btn ghost" type="submit">{{ _("Refuser et renvoyer au chantier") }}</button>
+</form>
+{% endif %}
+</div>
+{% endfor %}
+</div>
+
 {% if qual_open %}<div class="card"><b>{{ _("Contrôles qualité en cours") }}</b>{% for q in qual_open %}<a class="row" href="{{ url_for('quality_page', rid=q.id) }}"><span>{{ q.name }}{% if q.label %} · {{ q.label }}{% endif %}</span><span class="tag {{ 'amber' if q.status == 'photos' else 'grey' }}">{% if q.status == 'photos' %}{{ _("Photos à prendre") }}{% elif q.status == 'pret' and q.score is not none %}{{ q.score }}/100{% else %}{{ _("Voir") }}{% endif %}</span></a>{% endfor %}</div>{% endif %}
+<h2 class="sec-title">{{ _("Paiement et planning") }}</h2>
 
 <div class="card">
 <div class="row"><b>{{ _("Paiement") }}</b>{% if s.sequestre %}<span class="pill{% if not provider.real %} grey{% endif %}">{{ _(provider.label) }}</span>{% else %}<a class="btn ghost small" href="{{ url_for('payments_ledger', project_id=p.id) }}">{{ _("Registre des paiements") }}</a>{% endif %}</div>
@@ -239,55 +312,12 @@
 </form>
 </details>
 
-{% for st in s.steps %}
-{% set okc = ok_by_step.get(st.id, 0) %}
-<div class="step{% if st.status == 'declare' %} decl{% elif st.status == 'en_cours' %} cur{% endif %}">
-<div class="row"><b>{{ loop.index }}. {{ st.name }}</b><span class="pill{% if st.status == 'declare' %} warn{% endif %}">{{ STATUS[st.status] }}</span></div>
-<div class="muted">{{ fcfa(st.amount) }} {{ _("FCFA ·") }} {{ okc }} {{ pl(okc, "preuve(s) vérifiée(s)") }}{% if schedule.get(st.id) %} {{ _("· fin prévue") }} {{ d(schedule[st.id]) }}{% endif %}{% if st.pay_ref %} {{ _("· Réf.") }} {{ st.pay_ref }}{% endif %}</div>
-{% set cs = checks_by_step.get(st.id) %}
-<div class="tags"><a class="tag {{ 'amber' if cs and cs.missing and st.status not in ('paye','versement') else 'grey' }}" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{% if cs %}{{ _("Contrôles") }} {{ cs.ok }}/{{ cs.total }}{% if cs.missing and st.status not in ('paye','versement') %} · {{ cs.missing }} {{ pl(cs.missing, "obligatoire(s) à faire") }}{% endif %}{% else %}{{ _("Détail de l'étape") }}{% endif %}</a></div>
-{% set qs = qual_by_step.get(st.id) %}{% if qs %}<div class="tags"><a class="tag {{ 'bad' if qs.issues else 'grey' }}" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Qualité") }}{% if qs.score is not none %} {{ qs.score }}/100{% endif %}{% if qs.issues %} · {{ qs.issues }} {{ pl(qs.issues, "problème(s) probable(s)") }}{% endif %}</a></div>{% endif %}
-{% if insp_by_step.get(st.id) %}{% set ins = insp_by_step[st.id] %}
-<div class="tags"><span class="tag {{ 'bad' if ins.verdict == 'non_conforme' else 'blue' }}">{{ _("Inspection :") }} {{ VERDICTS[ins.verdict] }}</span></div>
-{% endif %}
-{% if pv_by_step.get(st.id) %}<a href="{{ url_for('document', doc_id=pv_by_step[st.id]) }}" target="_blank">{{ _("PV de réception") }}</a>{% endif %}
-{% if s.suivi and st.status in ('versement', 'paye') %}<a {% if st.status == 'versement' %}class="btn" {% endif %}href="{{ url_for('pay_order', kind='etape', ref_id=st.id) }}">{{ _("Bon à payer : déclarer le paiement") if st.status == 'versement' else _("Bon à payer") }}</a>{% endif %}
-{% if st.status == 'declare' and ((cs and cs.missing) or finance) %}
-<a class="btn" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{{ _("Vérifier avant de payer") }}</a>
-{% if cs and cs.missing %}<span class="muted">{{ _("Paiement bloqué : contrôles obligatoires manquants.") }}</span>{% endif %}
-<form method="post" action="{{ url_for('refuse_step', project_id=p.id, step_id=st.id) }}" class="stack">
-{{ csrf() }}
-<label>{{ _("Motif du refus") }}<input name="motif" placeholder="{{ _("Ex. dalle non visible sur les photos") }}"></label>
-<button class="btn ghost" type="submit">{{ _("Refuser et renvoyer au chantier") }}</button>
-</form>
-{% elif st.status == 'declare' %}
-<a href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{{ _("Vérification avant paiement (5 points)") }}</a>
-<form method="post" action="{{ url_for('validate_step', project_id=p.id, step_id=st.id) }}" class="stack">
-{{ csrf() }}
-{% if s.sequestre %}
-<button class="btn" type="submit"{% if s.escrow.balance < st.amount %} disabled{% endif %}>{{ _("Valider et verser") }} {{ fcfa(st.amount) }} FCFA</button>
-{% if s.escrow.balance < st.amount %}<span class="muted">{{ _("Solde insuffisant : déposez") }} {{ fcfa(st.amount - s.escrow.balance) }} {{ _("FCFA.") }}</span>{% endif %}
-{% elif s.suivi %}
-<button class="btn" type="submit">{{ _("Valider l'étape et émettre le bon à payer") }}</button>
-{% else %}
-<label>{{ _("Référence du paiement Mobile Money (facultatif)") }}<input name="pay_ref" placeholder="{{ _("Ex. Wave TX123456") }}"></label>
-<button class="btn" type="submit">{{ _("Valider l'étape et confirmer le paiement") }}</button>
-{% endif %}
-</form>
-<form method="post" action="{{ url_for('refuse_step', project_id=p.id, step_id=st.id) }}" class="stack">
-{{ csrf() }}
-<label>{{ _("Motif du refus") }}<input name="motif" placeholder="{{ _("Ex. dalle non visible sur les photos") }}"></label>
-<button class="btn ghost" type="submit">{{ _("Refuser et renvoyer au chantier") }}</button>
-</form>
-{% endif %}
-</div>
-{% endfor %}
 
 {% if transactions %}
 <h2>{{ _("Mouvements d'argent") }}</h2>
 <div class="card log">
 {% set tst = {'reussi': _('confirmé'), 'en_attente': _('en attente'), 'echoue': _('échoué')} %}
-{% for t in transactions %}<div><span>{{ dt(t.created_at) }}</span><span>{{ _('Dépôt') if t.kind == 'depot' else _('Versement') }} {{ fcfa(t.amount) }} {{ _("FCFA ·") }} {{ tst[t.status] }}{% if t.provider == 'simulation' %} {{ _("(simulation)") }}{% endif %}{% if t.error %} · {{ t.error }}{% endif %}</span></div>{% endfor %}
+{% for t in transactions %}<div><span title="{{ dt(t.created_at) }}">{{ dts(t.created_at) }}</span><span>{{ _('Dépôt') if t.kind == 'depot' else _('Versement') }} {{ fcfa(t.amount) }} {{ _("FCFA ·") }} {{ tst[t.status] }}{% if t.provider == 'simulation' %} {{ _("(simulation)") }}{% endif %}{% if t.error %} · {{ t.error }}{% endif %}</span></div>{% endfor %}
 </div>
 {% endif %}
 {% endif %}
@@ -368,10 +398,10 @@
 {% for m in models %}
 <div class="card"><b>{{ m.note or m.original_name }}</b>
 <model-viewer src="{{ url_for('media3d_file', media_id=m.id) }}" camera-controls auto-rotate shadow-intensity="1" alt="{{ _("Modèle 3D du chantier") }}" style="width:100%;height:320px;background:#ECE9E2;border-radius:12px"></model-viewer>
-<span class="muted">{{ dt(m.created_at) }}</span></div>
+<span class="muted">{{ dts(m.created_at) }}</span></div>
 {% endfor %}
 {% for m in orthos %}
-<div class="card"><b>{{ _("Orthophoto ·") }} {{ m.note or m.original_name }}</b><a href="{{ url_for('media3d_file', media_id=m.id) }}" target="_blank"><img class="sat" src="{{ url_for('media3d_file', media_id=m.id) }}" alt="{{ _("Orthophoto du chantier") }}" loading="lazy"></a><span class="muted">{{ dt(m.created_at) }}</span></div>
+<div class="card"><b>{{ _("Orthophoto ·") }} {{ m.note or m.original_name }}</b><a href="{{ url_for('media3d_file', media_id=m.id) }}" target="_blank"><img class="sat" src="{{ url_for('media3d_file', media_id=m.id) }}" alt="{{ _("Orthophoto du chantier") }}" loading="lazy"></a><span class="muted">{{ dts(m.created_at) }}</span></div>
 {% endfor %}
 {% if drones %}
 <div class="gallery">{% for m in drones %}<a href="{{ url_for('media3d_file', media_id=m.id) }}" target="_blank"><img src="{{ url_for('media3d_file', media_id=m.id) }}" alt="Vue de drone {{ m.original_name }}" loading="lazy"></a>{% endfor %}</div>
@@ -391,12 +421,29 @@
 {% if tab == 'dossier' %}
 <h1>{{ _("Dossier du chantier") }}</h1>
 {% if me.id == p.owner_id %}<a class="btn" href="#membres" style="margin-bottom:10px">{{ _("Inviter quelqu'un (famille, architecte, comptable…)") }}</a>{% endif %}
-<div class="row toolrow" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('land_page', project_id=p.id) }}">{{ _("Terrain : vérifier avant de construire") }}{% if land_level is not none %} · {{ land_label }}{% endif %}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a><a class="btn ghost small" href="{{ url_for('financing_file', project_id=p.id) }}">{{ _("Dossier de crédit") }}</a></div>
+<h2 class="sec-title" style="margin-top:6px">{{ _("Outils du chantier") }}</h2>
+<div class="tools">
+{{ tool(url_for('project_sheet', project_id=p.id), _("Fiche du projet et parcelle"), 'sheet', _("Plans, permis, terrain dessiné"), primary=True) }}
+{{ tool(url_for('land_page', project_id=p.id), _("Terrain : vérifier avant de construire"), 'land', land_label if land_level is not none else '') }}
+{{ tool(url_for('plan_real', project_id=p.id), _("Plan et réalité"), 'plan') }}
+{{ tool(url_for('plan_reading', project_id=p.id), _("Lire un plan avec l'IA"), 'ai') }}
+{{ tool(url_for('financing_file', project_id=p.id), _("Dossier de crédit"), 'bank') }}
+{{ tool(url_for('accounting_export', project_id=p.id), _("Export comptable (CSV)"), 'csv') }}
+{% if advanced %}
+{{ tool(url_for('zones_page', project_id=p.id), _("Avancement par zone"), 'zones') }}
+{{ tool(url_for('panos', project_id=p.id), _("Visites 360°"), 'pano') }}
+{{ tool(url_for('quantities', project_id=p.id), _("Quantités installées"), 'qty') }}
+{{ tool(url_for('bim', project_id=p.id), _("Maquette numérique"), 'bim') }}
+{{ tool(url_for('sensors_page', project_id=p.id), _("Capteurs et météo"), 'sensor') }}
+{% endif %}
+</div>
 
 {# --- Matériaux --- #}
-<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn small" href="{{ url_for('project_sheet', project_id=p.id) }}">{{ _("Fiche du projet et parcelle") }}</a>{% if advanced %}<a class="btn ghost small" href="{{ url_for('zones_page', project_id=p.id) }}">{{ _("Avancement par zone") }}</a><a class="btn ghost small" href="{{ url_for('panos', project_id=p.id) }}">{{ _("Visites 360°") }}</a><a class="btn ghost small" href="{{ url_for('quantities', project_id=p.id) }}">{{ _("Quantités installées") }}</a><a class="btn ghost small" href="{{ url_for('bim', project_id=p.id) }}">{{ _("Maquette numérique") }}</a>{% endif %}<a class="btn ghost small" href="{{ url_for('plan_reading', project_id=p.id) }}">{{ _("Lire un plan avec l'IA") }}</a>{% if advanced %}<a class="btn ghost small" href="{{ url_for('sensors_page', project_id=p.id) }}">{{ _("Capteurs et météo") }}</a>{% endif %}<a class="btn ghost small" href="{{ url_for('accounting_export', project_id=p.id) }}">{{ _("Export comptable (CSV)") }}</a></div>
 <h2 id="materiaux">{{ _("Contrôle des matériaux") }}</h2>
-<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('project_stock', project_id=p.id) }}">{{ _("Stock du chantier") }}</a><a class="btn ghost small" href="{{ url_for('calculator', project_id=p.id) }}">{{ _("Calculateur de matériaux") }}</a></div>
+<div class="tools">
+{{ tool(url_for('project_stock', project_id=p.id), _("Stock du chantier"), 'stock', _("Livraisons, consommations, inventaire")) }}
+{{ tool(url_for('calculator', project_id=p.id), _("Calculateur de matériaux"), 'calc', _("Béton, fer, parpaings, enduit")) }}
+</div>
 {% set role = 'owner' %}{% include "_orders.html" %}
 {% for a in mat_alerts %}<div class="card alert"><b>{{ a }}</b></div>{% endfor %}
 {% if mat_table %}
@@ -529,9 +576,9 @@
 <div class="row"><span>{{ owner_user.name }}</span><span class="pill">{{ _("Propriétaire principal") }}</span></div>
 {% if p.chef_id %}<div class="row"><span>{{ people[p.chef_id].name }}</span><span class="pill">{{ _("Chef de chantier : déclare") }}</span></div>{% endif %}
 {% for m in members %}
-<form method="post" action="{{ url_for('manage_members', project_id=p.id) }}" class="row">{{ csrf() }}
+<form method="post" action="{{ url_for('manage_members', project_id=p.id) }}" class="row member-row">{{ csrf() }}
 <span>{{ m.name }} <span class="muted">{{ m.email }}</span></span>
-<span class="row" style="gap:8px"><span class="pill{% if m.member_role == 'controleur' %} blue{% endif %}">{{ MEMBER_ROLES[m.member_role or 'coproprio'] }}</span>
+<span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill{% if m.member_role == 'controleur' %} blue{% endif %}">{{ MEMBER_ROLES[m.member_role or 'coproprio'] }}</span>
 {% if me.id == p.owner_id %}<input type="hidden" name="action" value="remove"><input type="hidden" name="user_id" value="{{ m.id }}"><button class="btn ghost small">{{ _("Retirer") }}</button>{% endif %}</span>
 </form>
 {% endfor %}
@@ -571,7 +618,7 @@
 <h2 id="signalements">{{ _("Signalements citoyens") }}</h2>
 {% for sg in signalements %}
 <div class="card{% if sg.status == 'nouveau' %} alert{% endif %}">
-<div class="row"><b>{{ sg.name or _('Anonyme') }}</b><span class="muted">{{ dt(sg.created_at) }}</span></div>
+<div class="row"><b>{{ sg.name or _('Anonyme') }}</b><span class="muted">{{ dts(sg.created_at) }}</span></div>
 <div>{{ sg.text }}</div>
 {% if sg.filename %}<img class="sat" src="{{ url_for('signalement_photo', sid=sg.id) }}" alt="{{ _("Photo du signalement") }}" loading="lazy">{% endif %}
 <span class="muted">{% if sg.distance is not none %}{{ _("Envoyé à") }} {{ sg.distance }} {{ _("m du chantier") }}{% else %}{{ _("Position inconnue") }}{% endif %}{% if sg.phone %} · {{ sg.phone }}{% endif %}</span>

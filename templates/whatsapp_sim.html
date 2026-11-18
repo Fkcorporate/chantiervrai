@@ -6,7 +6,7 @@
 {% if not configured %}<div class="card"><b>{{ _("Simulateur")}}</b><span class="muted">{{ _("WhatsApp n'est pas encore branché sur cette installation. Ce simulateur suit exactement les mêmes règles que le vrai fil : photos, position, notes vocales, commandes.") }}</span></div>{% endif %}
 {% if admin_sim %}<form method="get" class="card row" style="gap:8px;justify-content:flex-start"><label>{{ _("Numéro simulé") }}<input name="phone" value="{{ phone or '' }}" placeholder="+2250700000000"></label><button class="btn ghost small">{{ _("Afficher") }}</button></form>{% endif %}
 <div class="card wa-thread" id="fil">
-{% for m in msgs %}<div class="wa-msg {{ 'wa-in' if m.direction == 'in' else 'wa-out' }}"><span>{% if m.kind == 'position' %}📍 {{ _("Position partagée") }}{% elif m.kind == 'media' %}📎 {{ m.body }}{% else %}{{ m.body }}{% endif %}</span><small class="muted">{{ dt(m.created_at) }}</small></div>
+{% for m in msgs %}<div class="wa-msg {{ 'wa-in' if m.direction == 'in' else 'wa-out' }}"><span>{% if m.kind == 'position' %}📍 {{ _("Position partagée") }}{% elif m.kind == 'media' %}📎 {{ m.body }}{% else %}{{ m.body }}{% endif %}</span><small class="muted">{{ dts(m.created_at) }}</small></div>
 {% else %}<span class="muted">{{ _("Aucun message. Écrivez AIDE pour commencer.") }}</span>{% endfor %}
 </div>
 <form method="post" enctype="multipart/form-data" class="card stack" id="wa-form">{{ csrf() }}

@@ -39,7 +39,7 @@
 <a class="card" href="{{ url_for('panos', project_id=p.id, zone=v.zone_id or '', b=v.id) }}" style="text-decoration:none;color:inherit">
 <img src="{{ url_for('pano_file', vid=v.id, kind='vignette') }}" alt="" style="width:100%;border-radius:8px">
 <div class="row"><b>{{ zone_label(by_id[v.zone_id], by_id) if v.zone_id in by_id else _("Tout le chantier") }}</b>{% if not v.ok %}<span class="tag bad">{{ _("Refusée") }}</span>{% elif v.change_pct is not none %}<span class="tag grey">{{ v.change_pct|qte }} %</span>{% endif %}</div>
-<span class="muted">{{ dt(v.created_at) }} · {{ v.author }}</span>
+<span class="muted">{{ dts(v.created_at) }} · {{ v.author }}</span>
 {% if not v.ok %}<span class="muted">{{ v.reasons|reasons|join('; ') }}</span>{% endif %}
 </a>
 {% else %}<div class="card muted">{{ _("Aucune visite pour l'instant.") }}</div>{% endfor %}

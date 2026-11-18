@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Page introuvable") if code == 404 else _("Accès refusé") }} {{ _("· ChantierVrai") }}{% endblock %}
+{% block content %}
+<section class="err-page">
+<span class="err-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{% if code == 404 %}<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/><path d="M9 9l4 4M13 9l-4 4"/>{% else %}<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>{% endif %}</svg></span>
+<h1>{{ _("Page introuvable") if code == 404 else _("Accès refusé") }}</h1>
+<p class="muted">{% if code == 404 %}{{ _("Cette adresse n'existe pas ou n'existe plus. Le lien est peut-être incomplet.") }}{% else %}{{ _("Cette page est réservée à d'autres intervenants du chantier. Si vous pensez y avoir droit, demandez au propriétaire de vous ajouter.") }}{% endif %}</p>
+<a class="btn" href="{{ url_for('home') }}">{{ _("Retour à l'accueil") }}</a>
+</section>
+{% endblock %}

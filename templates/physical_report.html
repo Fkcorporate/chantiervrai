@@ -16,7 +16,7 @@
 </tbody></table></div>
 <h2>{{ _("Ouvrages") }}</h2>
 <div class="card table-wrap"><table><thead><tr><th>{{ _("Zone") }}</th><th>{{ _("Ouvrage") }}</th><th>{{ _("Prévu") }}</th><th>{{ _("Posé et validé") }}</th><th>{{ _("À valider") }}</th><th>%</th></tr></thead><tbody>
-{% for r in rows %}<tr><td>{{ r.zone }}</td><td>{{ r.label }}{% if r.step %}<br><span class="muted">{{ r.step }}</span>{% endif %}</td><td>{{ r.planned|qte }} {{ r.unit }}</td><td>{{ r.done|qte }}</td><td>{{ r.pending|qte if r.pending else '–' }}</td><td><b>{{ r.pct }}</b></td></tr>
+{% for r in rows %}<tr><td>{{ r.zone }}</td><td>{{ r.label }}{% if r.step %}<br><span class="muted">{{ r.step }}</span>{% endif %}</td><td>{{ r.planned|qte }} {{ unit_pl(r.unit or '', r.planned) }}</td><td>{{ r.done|qte }}</td><td>{{ r.pending|qte if r.pending else '–' }}</td><td><b>{{ r.pct }}</b></td></tr>
 {% else %}<tr><td colspan="6" class="muted">{{ _("Aucun ouvrage prévu.") }}</td></tr>{% endfor %}
 </tbody></table></div>
 <p class="muted">{{ _("Seules les quantités validées par le propriétaire ou le contrôleur, avec une photo vérifiée, sont comptées comme posées.") }}</p>

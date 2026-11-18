@@ -2,6 +2,53 @@
 {% from "_macros.html" import csrf with context %}
 {% block title %}{{ st.name }} · {{ p.name }}{% endblock %}
 {% block content %}
+{% set decide_first = role == 'owner' and st.status == 'declare' %}
+{% set missing = checks|selectattr('required')|rejectattr('status', 'equalto', 'conforme')|list %}
+{% set verif_block %}
+{% if role == 'owner' and st.status == 'declare' %}
+{% set mine = approvals|selectattr('user_id', 'equalto', me.id)|list %}
+<form method="post" action="{{ url_for('validate_step', project_id=p.id, step_id=st.id) }}" class="card decision" id="decision">{{ csrf() }}
+<div class="dec-head">
+<span class="dec-kicker">{{ _("Votre décision") }}</span>
+<span class="dec-amount"><b>{{ fcfa(st.amount) }}</b><small>FCFA</small></span>
+{% if payee %}<span class="dec-to">{{ _("à") }} {{ payee.name }}{% if payee.phone %} · {{ payee.phone }}{% endif %}</span>{% endif %}
+</div>
+{% if step_proofs %}<div class="dec-shots">{% for pr in step_proofs %}<a href="{{ url_for('proof_photo', proof_id=pr.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('proof_thumb', proof_id=pr.id) }}" alt="{{ _("Preuve vérifiée de l'étape") }}" loading="lazy"></a>{% endfor %}</div>{% endif %}
+{% if finance %}
+<b>{{ _("Circuit de paiement à deux niveaux") }}</b>
+{% if me.id in finance %}<span class="muted">{{ _("Vous êtes responsable financier : vous payez après l'approbation du maître d'ouvrage.") }}</span>
+{% else %}<span class="muted">{{ _("Vous approuvez en tant que maître d'ouvrage ; le responsable financier paiera ensuite.") }}</span>{% endif %}
+{% endif %}
+{% if p.pay_mode == 'manuel' and (not finance or me.id in finance) %}<label>{{ _("Référence du paiement Mobile Money (facultatif)") }}<input name="pay_ref"></label>{% endif %}
+<button class="btn" data-slide="{{ _("Glisser pour payer") if not (finance and me.id not in finance) and not s.suivi else _("Glisser pour valider") }} {{ compact(st.amount) }}"{% if missing or mine %} disabled{% endif %}>{% if finance and me.id not in finance %}{{ _("Approuver l'étape") }}{% elif s.sequestre %}{{ _("Valider et verser") }} {{ fcfa(st.amount) }} FCFA{% elif s.suivi %}{{ _("Valider l'étape et émettre le bon à payer") }}{% else %}{{ _("Valider l'étape et confirmer le paiement") }}{% endif %}</button>
+{% if mine %}<span class="muted">{{ _("Vous avez déjà approuvé cette étape.") }}</span>{% elif missing %}<span class="muted">{{ missing|length }} {{ pl(missing|length, "contrôle(s) obligatoire(s) à faire avant de payer.") }} <a href="#controles">{{ _("Voir les contrôles") }}</a></span>{% endif %}
+</form>
+<details class="card"><summary><b>{{ _("Refuser l'étape") }}</b></summary>
+<form method="post" action="{{ url_for('refuse_step', project_id=p.id, step_id=st.id) }}" class="stack">{{ csrf() }}
+<label>{{ _("Motif du refus") }}<input name="motif" placeholder="{{ _("Ex. dalle non visible sur les photos") }}"></label>
+<button class="btn ghost" type="submit">{{ _("Refuser et renvoyer au chantier") }}</button>
+</form></details>
+{% endif %}
+<h2>{{ _("Vérification avant paiement") }}</h2>
+<div class="card verif-list">
+{% set STATE_LABEL = {'ok': _('Vérifié'), 'warn': _('À regarder'), 'bad': _('Bloquant')} %}
+{% for title, state, lines, summary in verification %}
+<details class="verif v-{{ state }}"{% if state == 'bad' %} open{% endif %}>
+<summary><span class="v-dot" aria-hidden="true">{% if state == 'ok' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L19 7"/></svg>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg>{% endif %}</span>
+<span class="v-txt"><b>{{ title }}</b><span>{{ summary }}</span></span><span class="sr-only">{{ STATE_LABEL[state] }}</span></summary>
+<div class="v-more">{% for l in lines %}<span>{{ l }}</span>{% endfor %}</div>
+</details>
+{% endfor %}
+</div>
+
+{% if consumption %}
+<div class="card"><b>{{ _("Matériaux utilisés sur cette étape") }}</b>{% for c in consumption %}<div class="row"><span>{{ _(c.material) }}</span><span>{{ c.q|qte }} {{ unit_pl(c.unit or '', c.q) }}</span></div>{% endfor %}</div>
+{% endif %}
+
+{% if p.pay_mode == 'suivi' and st.status in ('versement', 'paye') %}
+<a class="card row" href="{{ url_for('pay_order', kind='etape', ref_id=st.id) }}" style="text-decoration:none;color:inherit"><b>{{ _("Bon à payer") }} {{ st.pay_ref if st.pay_ref and st.pay_ref.startswith('BAP') else '' }}</b><span class="tag{% if st.status == 'versement' %} amber{% endif %}">{{ _("Payé et confirmé") if st.status == 'paye' else _("Paiement à faire ou à confirmer") }}</span></a>
+{% endif %}
+{% endset %}
 <a class="backlink" href="{{ url_for('project', project_id=p.id, onglet='etapes' if role == 'owner' else None) }}">← {{ p.name }}</a>
 <h1>{{ st.name }}</h1>
 <div class="row"><span class="muted">{{ fcfa(st.amount) }} FCFA{% if st.declared_at %} · {{ _("déclarée le") }} {{ d(st.declared_at) }}{% endif %}</span><span class="pill{% if st.status == 'declare' %} warn{% endif %}">{{ STATUS[st.status] }}</span></div>
@@ -9,6 +56,7 @@
 {% if p.require_inspection and is_critical(st.name) and st.status in ('en_cours', 'declare') %}<div class="card alert"><b>{{ _("Inspection indépendante exigée") }}</b><span class="muted">{{ _("Étape critique : elle ne peut être validée qu'après un rapport d'inspection conforme.") }}</span>{% if role == 'owner' %}<a class="btn small" href="{{ url_for('project', project_id=p.id, onglet='dossier', _anchor='inspections') }}">{{ _("Commander l'inspection") }}</a>{% endif %}</div>{% endif %}
 {% if st.auto_validated %}<div class="card"><span class="tag amber">{{ _("Validée automatiquement faute de réponse du propriétaire") }}</span></div>{% endif %}
 
+{% if decide_first %}{{ verif_block }}{% endif %}
 <h2 id="controles">{{ _("Contrôles techniques") }}</h2>
 {% set missing = checks|selectattr('required')|rejectattr('status', 'equalto', 'conforme')|list %}
 {% if missing and st.status not in ('paye', 'versement') %}<div class="card alert"><b>{{ _("Paiement bloqué tant que les contrôles obligatoires ne sont pas conformes") }}</b><span class="muted">{{ missing|length }} {{ pl(missing|length, "contrôle(s) à faire par un contrôleur habilité.") }}{% if not controllers %} {{ _("Aucun contrôleur sur ce chantier : réservez un inspecteur ou ajoutez votre bureau de contrôle dans le dossier.") }}{% endif %}</span>
@@ -24,8 +72,8 @@
 {% for c in checks %}
 <div class="card">
 <div class="row"><b>{{ c.name|tr }}</b><span class="tag {{ 'bad' if c.status == 'non_conforme' else ('blue' if c.status == 'conforme' else 'amber' if c.required else 'grey') }}">{{ CHECK_STATUS[c.status] }}</span></div>
-<span class="muted">{{ _("Obligatoire avant paiement") if c.required else (_("Rendu facultatif par le propriétaire") if c.made_optional else _("Facultatif")) }}{% if c.kind == 'essai' %} · {{ _("essai, minimum") }} {{ c.min_value|qte }} {{ c.unit }}{% endif %}</span>
-{% if c.checked_at %}<span>{% if c.value is not none %}<b>{{ c.value|qte }} {{ c.unit }}</b> · {% endif %}{{ c.checker }}, {{ dt(c.checked_at) }}{% if c.note %} : {{ c.note }}{% endif %}{% if c.doc_id %} · <a href="{{ url_for('document', doc_id=c.doc_id) }}" target="_blank">{{ _("rapport") }}</a>{% endif %}</span>{% endif %}
+<span class="muted">{{ _("Obligatoire avant paiement") if c.required else (_("Rendu facultatif par le propriétaire") if c.made_optional else _("Facultatif")) }}{% if c.kind == 'essai' %} · {{ _("essai, minimum") }} {{ c.min_value|qte }} {{ unit_pl(c.unit or '', c.min_value) }}{% endif %}</span>
+{% if c.checked_at %}<span>{% if c.value is not none %}<b>{{ c.value|qte }} {{ unit_pl(c.unit or '', c.value) }}</b> · {% endif %}{{ c.checker }}, {{ dts(c.checked_at) }}{% if c.note %} : {{ c.note }}{% endif %}{% if c.doc_id %} · <a href="{{ url_for('document', doc_id=c.doc_id) }}" target="_blank">{{ _("rapport") }}</a>{% endif %}</span>{% endif %}
 {% if can_check and st.status not in ('paye', 'versement') %}
 <details{% if c.status == 'a_faire' %} open{% endif %}><summary>{{ _("Saisir le résultat") if c.status == 'a_faire' else _("Modifier le résultat") }}</summary>
 <form method="post" action="{{ url_for('step_checks_action', project_id=p.id, step_id=st.id) }}" enctype="multipart/form-data" class="stack">{{ csrf() }}
@@ -59,31 +107,5 @@
 </form></details>
 {% endif %}
 
-<h2>{{ _("Vérification avant paiement") }}</h2>
-<div class="card">
-{% for title, state, lines in verification %}
-<div class="verif"><span class="dot {{ state if state != 'ok' else '' }}" aria-label="{{ state }}"></span><div><b>{{ title }}</b>{% for l in lines %}<div class="muted">{{ l }}</div>{% endfor %}</div></div>
-{% endfor %}
-</div>
-
-{% if consumption %}
-<div class="card"><b>{{ _("Matériaux utilisés sur cette étape") }}</b>{% for c in consumption %}<div class="row"><span>{{ _(c.material) }}</span><span>{{ c.q|qte }} {{ c.unit or '' }}</span></div>{% endfor %}</div>
-{% endif %}
-
-{% if p.pay_mode == 'suivi' and st.status in ('versement', 'paye') %}
-<a class="card row" href="{{ url_for('pay_order', kind='etape', ref_id=st.id) }}" style="text-decoration:none;color:inherit"><b>{{ _("Bon à payer") }} {{ st.pay_ref if st.pay_ref and st.pay_ref.startswith('BAP') else '' }}</b><span class="tag{% if st.status == 'versement' %} amber{% endif %}">{{ _("Payé et confirmé") if st.status == 'paye' else _("Paiement à faire ou à confirmer") }}</span></a>
-{% endif %}
-{% if role == 'owner' and st.status == 'declare' %}
-{% set mine = approvals|selectattr('user_id', 'equalto', me.id)|list %}
-<form method="post" action="{{ url_for('validate_step', project_id=p.id, step_id=st.id) }}" class="card">{{ csrf() }}
-{% if finance %}
-<b>{{ _("Circuit de paiement à deux niveaux") }}</b>
-{% if me.id in finance %}<span class="muted">{{ _("Vous êtes responsable financier : vous payez après l'approbation du maître d'ouvrage.") }}</span>
-{% else %}<span class="muted">{{ _("Vous approuvez en tant que maître d'ouvrage ; le responsable financier paiera ensuite.") }}</span>{% endif %}
-{% endif %}
-{% if p.pay_mode == 'manuel' and (not finance or me.id in finance) %}<label>{{ _("Référence du paiement Mobile Money (facultatif)") }}<input name="pay_ref"></label>{% endif %}
-<button class="btn"{% if missing or mine %} disabled{% endif %}>{% if finance and me.id not in finance %}{{ _("Approuver l'étape") }}{% elif s.sequestre %}{{ _("Valider et verser") }} {{ fcfa(st.amount) }} FCFA{% elif s.suivi %}{{ _("Valider l'étape et émettre le bon à payer") }}{% else %}{{ _("Valider l'étape et confirmer le paiement") }}{% endif %}</button>
-{% if mine %}<span class="muted">{{ _("Vous avez déjà approuvé cette étape.") }}</span>{% endif %}
-</form>
-{% endif %}
+{% if not decide_first %}{{ verif_block }}{% endif %}
 {% endblock %}

@@ -10,7 +10,7 @@
 <b>{{ _("Me prévenir des événements importants par") }}</b>
 <span class="muted">{{ _("Étape à valider, preuve refusée, paiement, rapport de la semaine, inspection.") }}</span>
 {% for ch, label in [('whatsapp', 'WhatsApp'), ('sms', 'SMS'), ('email', 'E-mail')] %}
-<label class="check"><input type="checkbox" name="notify_{{ ch }}" value="1"{% if me['notify_' ~ ch] %} checked{% endif %}> {{ label }}{% if not channels[ch] %} <span class="muted">{{ _("(pas encore activé sur ce serveur : message seulement enregistré)") }}</span>{% endif %}</label>
+<label class="check check-2l"><input type="checkbox" name="notify_{{ ch }}" value="1"{% if me['notify_' ~ ch] %} checked{% endif %}> <span class="c2-txt"><span>{{ label }}</span>{% if not channels[ch] %}<span class="muted">{{ _("(pas encore activé sur ce serveur : message seulement enregistré)") }}</span>{% endif %}</span></label>
 {% endfor %}
 {% if me.role == 'chef' or (me.role == 'pro' and me.profession == 'entrepreneur') %}
 <b>{{ _("Profil d'entrepreneur") }}</b>
@@ -31,11 +31,13 @@
 {% endif %}
 <button class="btn" type="submit">{{ _("Enregistrer") }}</button>
 </form>
-{% if me.role == 'proprio' %}<a class="btn ghost" href="{{ url_for('api_settings') }}">{{ _("API et webhooks : connecter d'autres logiciels") }}</a>{% endif %}
-<a class="btn ghost" href="{{ url_for('security') }}">{{ _("Sécurité, double authentification et mes données") }}</a>
-{% if me.role == 'proprio' %}<a class="btn ghost" href="{{ url_for('subscription') }}">{{ _("Mon abonnement et mes factures") }}</a>{% endif %}
-{% if me.is_admin %}<a class="btn ghost" href="{{ url_for('admin') }}">{{ _("Administration") }}</a>{% endif %}
-{% if me.role == 'fournisseur' %}<a class="btn ghost" href="{{ url_for('supplier_catalog') }}">{{ _("Mon catalogue de produits") }}</a>{% endif %}
+<nav class="set-list" aria-label="{{ _("Réglages") }}">
+{% if me.role == 'proprio' %}<a class="set-row" href="{{ url_for('api_settings') }}">{{ _("API et webhooks : connecter d'autres logiciels") }}</a>{% endif %}
+<a class="set-row" href="{{ url_for('security') }}">{{ _("Sécurité, double authentification et mes données") }}</a>
+{% if me.role == 'proprio' %}<a class="set-row" href="{{ url_for('subscription') }}">{{ _("Mon abonnement et mes factures") }}</a>{% endif %}
+{% if me.is_admin %}<a class="set-row" href="{{ url_for('admin') }}">{{ _("Administration") }}</a>{% endif %}
+{% if me.role == 'fournisseur' %}<a class="set-row" href="{{ url_for('supplier_catalog') }}">{{ _("Mon catalogue de produits") }}</a>{% endif %}
+</nav>
 {% if me.role == 'fournisseur' and not me.verified %}<div class="card alert"><b>{{ _("Entreprise en attente de vérification") }}</b><span class="muted">{{ _("Envoyez votre RCCM et l'adresse de votre dépôt au support. Vos produits seront proposés aux chantiers une fois vérifiés.") }}</span></div>{% endif %}
 {% if me.role == 'inspecteur' and not me.verified %}<div class="card alert"><b>{{ _("Profil en attente de vérification") }}</b><span class="muted">{{ _("Envoyez vos diplômes et références au support. Votre profil sera proposé aux propriétaires une fois vérifié.") }}</span></div>{% endif %}
 <div class="card"><b>{{ _("Installer l'application") }}</b><span class="muted">{{ _("Sur Android : menu ⋮ du navigateur, « Installer l'application ». Sur iPhone : bouton Partager de Safari, « Sur l'écran d'accueil ». ChantierVrai s'ouvre alors comme une application, en plein écran.") }}</span></div>

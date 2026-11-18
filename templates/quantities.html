@@ -11,8 +11,8 @@
 <h2>{{ _("À valider") }}</h2>
 {% for w in pending %}
 <div class="card">
-<div class="row"><b>{{ w.qty|qte }} {{ w.unit }} · {{ w.label }}</b><span class="muted">{{ zone_label(by_id[w.zone_id], by_id) if w.zone_id in by_id else '' }}</span></div>
-<span class="muted">{{ w.author }} · {{ dt(w.created_at) }}{% if w.note %} · {{ w.note }}{% endif %}</span>
+<div class="row"><b>{{ w.qty|qte }} {{ unit_pl(w.unit or '', w.qty) }} · {{ w.label }}</b><span class="muted">{{ zone_label(by_id[w.zone_id], by_id) if w.zone_id in by_id else '' }}</span></div>
+<span class="muted">{{ w.author }} · {{ dts(w.created_at) }}{% if w.note %} · {{ w.note }}{% endif %}</span>
 {% if w.proof_id %}<a href="{{ url_for('proof_photo', proof_id=w.proof_id) }}" target="_blank"><img src="{{ url_for('proof_thumb', proof_id=w.proof_id) }}" alt="{{ _("Photo de l'ouvrage posé") }}" style="max-width:220px;border-radius:8px"></a>{% endif %}
 <form method="post" class="row" style="justify-content:flex-start;gap:8px">{{ csrf() }}<input type="hidden" name="progress_id" value="{{ w.id }}">
 <button class="btn small" name="action" value="validate">{{ _("Valider") }}</button><button class="btn ghost small" name="action" value="refuse">{{ _("Refuser") }}</button></form>
@@ -24,13 +24,13 @@
 <div class="card">
 <div class="row"><b>{{ r.label }}</b><span>{{ r.pct }} %</span></div>
 {% for i in r['items'] %}{% set pct = ((i.done / i.qty_planned * 100) if i.qty_planned else 0)|round|int %}
-<div class="row"><span>{{ i.label }} <span class="muted">{{ i.done|qte }} / {{ i.qty_planned|qte }} {{ i.unit }}{% if i.pending %} · {{ i.pending|qte }} {{ _("à valider") }}{% endif %}{% if i.source == 'bim' %} · {{ _("maquette") }}{% elif i.source == 'api' %} · API{% endif %}</span></span>
+<div class="row"><span>{{ i.label }} <span class="muted">{{ i.done|qte }} / {{ i.qty_planned|qte }} {{ unit_pl(i.unit or '', i.qty_planned) }}{% if i.pending %} · {{ i.pending|qte }} {{ _("à valider") }}{% endif %}{% if i.source == 'bim' %} · {{ _("maquette") }}{% elif i.source == 'api' %} · API{% endif %}</span></span>
 <span style="min-width:110px"><div class="meter {{ 'low' if pct < 30 else 'medium' if pct < 80 else '' }}"><div style="width:{{ [pct, 100]|min }}%"></div></div></span></div>
 {% if is_chef %}
 <details><summary>{{ _("Déclarer une quantité posée") }}</summary>
 <form method="post" class="grid2">{{ csrf() }}<input type="hidden" name="action" value="declare"><input type="hidden" name="item_id" value="{{ i.id }}">
 <label>{{ _("Quantité posée") }} ({{ i.unit }})<input name="qty" inputmode="decimal" required></label>
-<label>{{ _("Photo vérifiée qui le montre") }}<select name="proof_id" required>{% for pr in recent_proofs %}<option value="{{ pr.id }}"{% if pr.zone_id == r.z.id %} selected{% endif %}>{{ dt(pr.created_at) }}{% if pr.note %} · {{ pr.note[:40] }}{% endif %}</option>{% else %}<option value="">{{ _("Envoyez d'abord une photo") }}</option>{% endfor %}</select></label>
+<label>{{ _("Photo vérifiée qui le montre") }}<select name="proof_id" required>{% for pr in recent_proofs %}<option value="{{ pr.id }}"{% if pr.zone_id == r.z.id %} selected{% endif %}>{{ dts(pr.created_at) }}{% if pr.note %} · {{ pr.note[:40] }}{% endif %}</option>{% else %}<option value="">{{ _("Envoyez d'abord une photo") }}</option>{% endfor %}</select></label>
 <label>{{ _("Note") }}<input name="note" maxlength="300"></label>
 <button class="btn ghost small">{{ _("Déclarer") }}</button>
 </form></details>
@@ -38,7 +38,7 @@
 {% endfor %}
 </div>
 {% endfor %}
-{% if unzoned %}<div class="card"><b>{{ _("Sans zone") }}</b>{% for i in unzoned %}<div class="row"><span>{{ i.label }}</span><span class="muted">{{ i.done|qte }} / {{ i.qty_planned|qte }} {{ i.unit }}</span></div>{% endfor %}</div>{% endif %}
+{% if unzoned %}<div class="card"><b>{{ _("Sans zone") }}</b>{% for i in unzoned %}<div class="row"><span>{{ i.label }}</span><span class="muted">{{ i.done|qte }} / {{ i.qty_planned|qte }} {{ unit_pl(i.unit or '', i.qty_planned) }}</span></div>{% endfor %}</div>{% endif %}
 
 {% if role == 'owner' or is_chef %}
 <div class="cols2">

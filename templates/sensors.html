@@ -14,7 +14,7 @@
 <span class="big">{{ sn.last_value|qte if sn.last_value is not none else '–' }} <span style="font-size:16px">{{ sn.unit }}</span></span>
 {% if vals|length > 1 %}{% set lo = vals|min %}{% set hi = vals|max %}{% set span = (hi - lo) or 1 %}
 <svg viewBox="0 0 200 40" style="width:100%;height:40px" role="img" aria-label="{{ _("Dernières mesures") }}"><polyline fill="none" stroke="#0E5A3A" stroke-width="2" points="{% for v in vals %}{{ (loop.index0 * 200 / (vals|length - 1))|round(1) }},{{ (36 - (v - lo) * 32 / span)|round(1) }} {% endfor %}"/></svg>{% endif %}
-<span class="muted">{{ _("Dernière mesure") }} : {{ dt(sn.last_at) if sn.last_at else _("aucune") }}</span>
+<span class="muted">{{ _("Dernière mesure") }} : {{ dts(sn.last_at) if sn.last_at else _("aucune") }}</span>
 {% if can_edit %}
 <details><summary>{{ _("Réglages et connexion") }}</summary>
 <span class="muted">{{ _("Adresse") }} : <code>{{ api_url }}</code></span>

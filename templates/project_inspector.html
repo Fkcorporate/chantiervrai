@@ -1,17 +1,32 @@
 {% extends "base.html" %}
-{% from "_macros.html" import proof_card, csrf, capture_form with context %}
+{% from "_macros.html" import proof_card, csrf, capture_form, tool with context %}
 {% block title %}{{ _("Inspection ·") }} {{ p.name }}{% endblock %}
 {% block content %}
 <h1>{{ p.name }}</h1>
 <div class="muted">{{ p.address }} {{ _("· Propriétaire :") }} {{ people[p.owner_id].name }}{% if people[p.owner_id].phone %} ({{ people[p.owner_id].phone }}){% endif %}</div>
 <a class="btn ghost" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination={{ p.lat }},{{ p.lng }}">{{ _("Itinéraire vers le terrain") }}</a>
 
-<div class="card">
-<div class="row"><b>{{ _("Avancement validé") }}</b><b>{{ s.verified_pct }} %</b></div>
+<section class="card" aria-labelledby="tl-h">
+<div class="row"><h2 id="tl-h" style="margin:0;font-size:17px">{{ _("Avancement validé") }}</h2><b>{{ s.verified_pct }} %</b></div>
 <div class="bar"><div style="width:{{ s.verified_pct }}%"></div></div>
-{% for st in s.steps %}{% set cs = checks_by_step.get(st.id) %}<a class="row" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><span>{{ loop.index }}. {{ st.name }}</span><span class="muted">{{ STATUS[st.status] }}{% if cs and cs.missing and st.status not in ('paye','versement') %} · <span class="tag amber">{{ cs.missing }} {{ pl(cs.missing, "contrôle(s) à faire") }}</span>{% endif %}</span></a>{% endfor %}
+<ol class="timeline">
+{% for st in s.steps %}{% set cs = checks_by_step.get(st.id) %}{% set done = st.status in ('paye', 'versement') %}
+<li><span class="tl-dot {{ 'tl-done' if done else ('tl-decl' if st.status == 'declare' else ('tl-now' if st.status == 'en_cours' else 'tl-todo')) }}" aria-hidden="true">{% if done %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7"/></svg>{% else %}{{ loop.index }}{% endif %}</span>
+<a class="tl-name" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><span{% if st.status in ('declare', 'en_cours') %} style="font-weight:600"{% endif %}>{{ st.name }}</span><small style="color:var(--muted);font-weight:500">{{ STATUS[st.status] }}</small></a>
+{% if cs and cs.missing and not done %}<span class="tag amber">{{ cs.missing }} {{ pl(cs.missing, "contrôle(s) à faire") }}</span>{% endif %}</li>
+{% endfor %}
+</ol>
+</section>
+<div class="tools">
+{{ tool(url_for('quality_list', project_id=p.id), _("Contrôle qualité"), 'quality', _("Points à vérifier sur les photos"), primary=True) }}
+{{ tool(url_for('project_sheet', project_id=p.id), _("Fiche du projet"), 'sheet') }}
+{{ tool(url_for('plan_real', project_id=p.id), _("Plan et réalité"), 'plan') }}
+{{ tool(url_for('project_stock', project_id=p.id), _("Stock et matériaux"), 'stock') }}
+{{ tool(url_for('quantities', project_id=p.id), _("Quantités à valider"), 'qty') }}
+{{ tool(url_for('bim', project_id=p.id), _("Maquette numérique"), 'bim') }}
+{{ tool(url_for('panos', project_id=p.id), _("Visites 360°"), 'pano') }}
+{{ tool(url_for('sensors_page', project_id=p.id), _("Capteurs et météo"), 'sensor') }}
 </div>
-<div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn ghost small" href="{{ url_for('project_sheet', project_id=p.id) }}">{{ _("Fiche du projet") }}</a><a class="btn ghost small" href="{{ url_for('bim', project_id=p.id) }}">{{ _("Maquette numérique") }}</a><a class="btn ghost small" href="{{ url_for('sensors_page', project_id=p.id) }}">{{ _("Capteurs et météo") }}</a><a class="btn ghost small" href="{{ url_for('project_stock', project_id=p.id) }}">{{ _("Stock et matériaux") }}</a><a class="btn ghost small" href="{{ url_for('quantities', project_id=p.id) }}">{{ _("Quantités à valider") }}</a><a class="btn ghost small" href="{{ url_for('panos', project_id=p.id) }}">{{ _("Visites 360°") }}</a><a class="btn ghost small" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Contrôle qualité") }}</a><a class="btn ghost small" href="{{ url_for('plan_real', project_id=p.id) }}">{{ _("Plan et réalité") }}</a></div>
 <span class="muted">{{ _("Ouvrez une étape pour saisir vos contrôles : ferraillage, coffrage, validation avant bétonnage, essais du béton. Les contrôles obligatoires bloquent le paiement tant qu'ils ne sont pas conformes.") }}</span>
 
 {% for i in mine %}
