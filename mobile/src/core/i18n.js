@@ -2,6 +2,12 @@
 // Les messages venant du serveur (refus, statuts, alertes) arrivent deja traduits.
 
 const EN = {
+  'Fermer': 'Close',
+  'Toutes les fonctions': 'All functions',
+  'Toutes les fonctions du chantier': 'All project functions',
+  'Rechercher : stock, paiement, plan…': 'Search: stock, payment, plan…',
+  'Rechercher une fonction': 'Search for a function',
+  'Aucune fonction ne correspond. Essayez un autre mot.': 'No function matches. Try another word.',
   '%(n)s point(s) à voir': '%(n)s point(s) to review',
   'Voir les %(n)s autres': 'See the other %(n)s',
   'Réduire': 'Show less',

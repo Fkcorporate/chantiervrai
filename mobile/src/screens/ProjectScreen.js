@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen, Card, T, Bar, Pill, Row, Button, Field, Banner, SlideToConfirm } from '../components/ui';
+import FunctionsPanel from '../components/FunctionsPanel';
 import { api, current, queue } from '../services/session';
 import { t, getLang } from '../core/i18n';
 import { fcfa, date, dateTime } from '../core/format';
@@ -17,6 +18,7 @@ export default function ProjectScreen({ go, back, params }) {
   const [field, setField] = useState('');
   const [viewer, setViewer] = useState(null);
   const [showAllAlerts, setShowAllAlerts] = useState(false);
+  const [fnOpen, setFnOpen] = useState(false);
   const [pending, setPending] = useState(0);
   const { token } = current();
 
@@ -64,7 +66,13 @@ export default function ProjectScreen({ go, back, params }) {
   const missingChecks = cur ? (p.checks || []).filter((c) => c.required && c.status !== 'conforme' && c.step_id === cur.id) : [];
 
   return (
-    <Screen title={t('Chantier')} onBack={back} refreshing={loading} onRefresh={load}>
+    <Screen title={t('Chantier')} onBack={back} refreshing={loading} onRefresh={load}
+      right={(p.functions || []).length ? (
+        <Pressable onPress={() => setFnOpen(true)} accessibilityRole="button" accessibilityLabel={t('Toutes les fonctions')} hitSlop={6}
+          style={({ pressed }) => [st.fnBtn, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="grid-outline" size={20} color={C.text} />
+        </Pressable>
+      ) : null}>
       <View style={st.hero}>
         {cover ? (
           <Image source={{ uri: api.url(cover.thumb_url || cover.url), headers: { Authorization: `Bearer ${current().token}` } }}
@@ -240,8 +248,22 @@ export default function ProjectScreen({ go, back, params }) {
         })}
       </Card>
 
-      <Button kind="ghost" title={t('Ouvrir sur le site web')} onPress={openWeb} />
-      <T muted>{t('Satellite, documents, matériaux et inspections sont sur le site web.')}</T>
+      {(p.functions || []).length ? (
+        <Pressable onPress={() => setFnOpen(true)} accessibilityRole="button" style={({ pressed }) => [st.fnCta, pressed && { opacity: 0.85 }]}>
+          <View style={st.fnCtaIco}><Ionicons name="grid-outline" size={22} color="#fff" /></View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <T bold style={{ fontSize: 15 }}>{t('Toutes les fonctions du chantier')}</T>
+            <T muted style={{ fontSize: 13 }} numberOfLines={2}>{(p.functions || []).map((g) => g.title).join(' · ')}</T>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#9AA09C" />
+        </Pressable>
+      ) : <Button kind="ghost" title={t('Ouvrir sur le site web')} onPress={openWeb} />}
+      <FunctionsPanel visible={fnOpen} onClose={() => setFnOpen(false)} title={p.name} groups={p.functions}
+        onOpen={(it) => {
+          if (it.path.endsWith('#proof-form')) { go('capture', { project: p, mode: 'picture' }); return; }
+          const [path, hash] = it.path.split('#');
+          Linking.openURL(api.url(`${path}${path.includes('?') ? '&' : '?'}lang=${getLang()}${hash ? `#${hash}` : ''}`));
+        }} />
 
       <Modal visible={!!dialog} transparent animationType="fade" onRequestClose={() => setDialog(null)}>
         <View style={s.overlay}>
@@ -321,6 +343,9 @@ const st = StyleSheet.create({
   shootPressed: { transform: [{ scale: 0.97 }], opacity: 0.92 },
   shootMainText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16, textAlign: 'center' },
   shootAltText: { color: C.forest, fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  fnBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card },
+  fnCta: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.card, borderRadius: 20, padding: 14, minHeight: 72 },
+  fnCtaIco: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.forest, alignItems: 'center', justifyContent: 'center' },
   alertHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   alertCount: { minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 7, backgroundColor: '#FBE3DA', alignItems: 'center', justifyContent: 'center' },
   alertCountText: { color: '#A63A12', fontSize: 13, fontWeight: '700' },
