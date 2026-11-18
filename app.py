@@ -1453,6 +1453,40 @@ def greeting_today():
     return hello, label
 
 
+
+def monthly_paid(db, projects, months=6):
+    """Versements des derniers mois, tous chantiers confondus : séquestre (versements réussis) ou paiement à l'étape."""
+    now = datetime.now(timezone.utc)
+    keys = []
+    y, m = now.year, now.month
+    for _ in range(months):
+        keys.append((y, m))
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    keys.reverse()
+    sums = {k: 0 for k in keys}
+    for p in projects:
+        if p["pay_mode"] == "sequestre":
+            rows = db.execute("SELECT amount, created_at AS at FROM transactions WHERE project_id = ? AND kind = 'versement' "
+                              "AND status = 'reussi'", (p["id"],)).fetchall()
+        else:
+            rows = db.execute("SELECT amount, paid_at AS at FROM steps WHERE project_id = ? AND status = 'paye' AND paid_at IS NOT NULL",
+                              (p["id"],)).fetchall()
+        for r in rows:
+            try:
+                d = datetime.fromisoformat(r["at"])
+            except (TypeError, ValueError):
+                continue
+            if (d.year, d.month) in sums:
+                sums[(d.year, d.month)] += r["amount"] or 0
+    lang = I18N.current_lang()
+    names = _MONTHS.get(lang, _MONTHS["fr"])
+    top = max(sums.values()) or 1
+    return [{"label": names[mm - 1], "amount": sums[(yy, mm)], "pct": round(100 * sums[(yy, mm)] / top),
+             "current": (yy, mm) == keys[-1]} for yy, mm in keys]
+
+
 def format_d(value):
     if not value:
         return ""
@@ -2427,6 +2461,7 @@ def home():
             "paid": sum(s["paid"] for _p, s, _r in cards),
             "late": sum(1 for _p, _s, r in cards if r and r["delay"] > 7 and not r["done"]),
             "to_validate": sum(s["to_validate"] for _p, s, _r in cards),
+            "months": monthly_paid(db, [p for p, _s, _r in cards]),
         }
     orders = []
     if user["role"] == "fournisseur":
@@ -11295,8 +11330,11 @@ def api_projects():
         j["to_validate"] = s["to_validate"]
         out.append(j)
         paid, total, to_validate = paid + s["paid"], total + s["total"], to_validate + s["to_validate"]
+    me = current_user()
+    months = monthly_paid(db, user_projects(me)) if me["role"] == "proprio" else []
     return jsonify(ok=True, projects=out, summary={"paid": paid, "total": total, "to_validate": to_validate,
-                                                   "paid_short": compact(paid), "total_short": compact(total)})
+                                                   "paid_short": compact(paid), "total_short": compact(total),
+                                                   "months": months})
 
 
 @app.route("/api/v1/chantiers/<int:project_id>")
