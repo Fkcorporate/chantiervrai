@@ -127,6 +127,8 @@ INSP_STATUS = {"demandee": "Demandée", "acceptee": "Acceptée", "refusee": "Ref
 VERDICTS = {"conforme": "Conforme", "reserves": "Conforme avec réserves", "non_conforme": "Non conforme"}
 # Textes du script de capture (static/chef.js), traduits et transmis a la page
 JS_STRINGS = [
+    "Choisir un fichier", "Choisir des fichiers", "Aucun fichier choisi", "%(n)s fichiers choisis", "Changer",
+    "Afficher le mot de passe", "Masquer le mot de passe",
     "Hors ligne : vos photos prises dans l'application sont gardées et partiront au retour du réseau.",
     "Connexion rétablie.", "Fermer", "Envoi…", "Qu'est-ce que c'est ?", "Envoyer la preuve",
     "Réseau trop faible : la photo est gardée sur le téléphone et partira automatiquement.",
@@ -155,6 +157,7 @@ if os.environ.get("SESSION_COOKIE_SECURE") == "1":
 app.jinja_env.filters["fromjson"] = json.loads
 app.jinja_env.globals["_"] = I18N._
 app.jinja_env.globals["pl"] = I18N.pl
+app.jinja_env.globals["unit_pl"] = lambda u, q: unit_plural(u, q)
 
 
 def asset(name):
@@ -1412,6 +1415,44 @@ def format_dt(iso):
         return iso
 
 
+_MONTHS = {"fr": ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
+           "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]}
+
+
+def format_dt_short(iso):
+    """Date courte pour les journaux et fils d'activité : « 18 nov., 18:28 » (l'année seulement si elle diffère).
+    Les documents officiels (PV, décomptes) gardent format_dt."""
+    if not iso:
+        return ""
+    try:
+        d = datetime.fromisoformat(iso)
+    except ValueError:
+        return iso
+    lang = I18N.current_lang()
+    mon = _MONTHS.get(lang, _MONTHS["fr"])[d.month - 1]
+    day = f"{mon} {d.day}" if lang == "en" else f"{d.day} {mon}"
+    if d.year != datetime.now(timezone.utc).year:
+        day += f" {d.year}"
+    return f"{day}, {d:%H:%M}"
+
+
+_DAYS = {"fr": ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"],
+         "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}
+_MONTHS_LONG = {"fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+                "en": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]}
+
+
+def greeting_today():
+    """« Bonsoir » / « Bonjour » et « Mercredi 18 novembre » pour l'accueil (heure d'Abidjan, UTC)."""
+    now = datetime.now(timezone.utc)
+    lang = I18N.current_lang()
+    lang = lang if lang in _DAYS else "fr"
+    hello = _("Bonsoir") if now.hour >= 18 or now.hour < 4 else _("Bonjour")
+    day, month = _DAYS[lang][now.weekday()], _MONTHS_LONG[lang][now.month - 1]
+    label = f"{day}, {month} {now.day}" if lang == "en" else f"{day} {now.day} {month}"
+    return hello, label
+
+
 def format_d(value):
     if not value:
         return ""
@@ -1518,7 +1559,7 @@ def inject_globals():
             "lang": I18N.current_lang(), "LANGS": I18N.LANGS, "JS_T": {k: _(k) for k in JS_STRINGS},
             "GLOSS": GLOSS.for_lang(I18N.current_lang()),
             "fcfa": lambda n: f"{int(round(n or 0)):,}".replace(",", " "),
-            "dt": format_dt, "d": format_d, "unread": unread, "INSP_STATUS": tr(INSP_STATUS), "VERDICTS": tr(VERDICTS),
+            "dt": format_dt, "dts": format_dt_short, "d": format_d, "unread": unread, "INSP_STATUS": tr(INSP_STATUS), "VERDICTS": tr(VERDICTS),
             "ai_on": VISION.ai_enabled(), "sat_on": SAT.configured(), "SAT_LAYERS": tr(SAT.LAYERS),
             "DOC_CATEGORIES": DOC_CATEGORIES, "MATERIALS": list(MAT.CATALOG), "ORDER_STATUS": tr(ORDER_STATUS), "MEMBER_ROLES": tr(MEMBER_ROLES), "PROFESSIONS": tr(PROFESSIONS), "IMAGERY_PROVIDERS": IMAGERY_PROVIDERS,
             "IMAGERY_STATUS": tr(IMAGERY_STATUS), "sigomap_portal": env("SIGOMAP_URL"),
@@ -2257,7 +2298,8 @@ def home():
                             "WHERE c.status = 'a_faire' AND c.required = 1 AND st.status IN ('en_cours', 'declare') "
                             "GROUP BY c.project_id"):
             pending_checks[r["project_id"]] = r["n"]
-    return render_template("home.html", cards=cards, inspections=inspections, portfolio=portfolio, orders=orders,
+    greeting, today_label = greeting_today()
+    return render_template("home.html", cards=cards, inspections=inspections, portfolio=portfolio, greeting=greeting, today_label=today_label, orders=orders,
                            trusts=trusts, controlled=controlled, pending_checks=pending_checks, covers=covers, activity=activity,
                            onboarding=onboarding(db, user, [c[0] for c in cards]))
 
@@ -8820,6 +8862,23 @@ def stock_summary(db, project_id):
     return table, alerts
 
 
+
+_UNIT_NO_PLURAL = {"kg", "g", "t", "l", "m", "m²", "m³", "m2", "m3", "ml", "cm", "mm", "u", "%", "fcfa", "h", "j"}
+
+
+def unit_plural(unit, q):
+    """« 95 sac » -> « 95 sacs » (français) ; les symboles (kg, m³…) ne changent pas."""
+    u = (unit or "").strip()
+    try:
+        many = abs(float(q)) >= 2
+    except (TypeError, ValueError):
+        many = False
+    if not u or not many or I18N.current_lang() != "fr" or u.lower() in _UNIT_NO_PLURAL or not u.isalpha() \
+            or u.endswith(("s", "x", "z")):
+        return u
+    return u + "s"
+
+
 def fmt_qty(x):
     return f"{x:g}" if abs(x - round(x)) > 1e-9 else str(int(round(x)))
 
@@ -9013,6 +9072,9 @@ def step_page(project_id, step_id):
                            verification=payment_verification(db, p, st), approvals=step_approvals(db, step_id),
                            finance=finance_members(db, p), controllers=controllers_of(db, p),
                            is_main_owner=current_user()["id"] == p["owner_id"],
+                           payee=db.execute("SELECT name, phone FROM users WHERE id = ?", (p["chef_id"],)).fetchone() if p["chef_id"] else None,
+                           step_proofs=db.execute("SELECT id FROM proofs WHERE step_id = ? AND ok = 1 AND kind = 'photo' ORDER BY id DESC LIMIT 3",
+                                                  (step_id,)).fetchall(),
                            CHECK_STATUS=tr(CHECK_STATUS), s=project_stats(project_id),
                            consumption=db.execute("SELECT material, unit, SUM(qty) AS q FROM stock_moves WHERE step_id = ? "
                                                   "AND kind = 'sortie' GROUP BY material, unit", (step_id,)).fetchall())
@@ -9157,7 +9219,8 @@ def payment_verification(db, p, st):
     if paid + st["amount"] > contract:
         state = "bad"
         lines.append(_("Ce paiement dépasserait le montant du contrat."))
-    out.append((_("1. Montant prévu au contrat"), state, lines))
+    out.append((_("1. Montant prévu au contrat"), state, lines,
+                _("Dépasse le montant du contrat") if state == "bad" else _("Dans le budget du contrat")))
 
     plans = db.execute("SELECT material, unit, SUM(qty_planned) AS q FROM materials_plan WHERE step_id = ? GROUP BY material, unit",
                        (st["id"],)).fetchall()
@@ -9171,13 +9234,15 @@ def payment_verification(db, p, st):
         q = q_used or q_bought
         pct = round(q * 100 / pl["q"]) if pl["q"] else None
         lines.append(_("%(m)s : %(q)s %(u)s prévus, %(b)s achetés, %(c)s utilisés", m=_(pl["material"]), q=fmt_qty(pl["q"] or 0),
-                       u=pl["unit"] or "", b=fmt_qty(q_bought), c=fmt_qty(q_used)))
+                       u=unit_plural(pl["unit"] or "", pl["q"] or 0), b=fmt_qty(q_bought), c=fmt_qty(q_used)))
         if pct is not None and (pct < 60 or pct > MAT.OVER_QTY * 100):
             state = "warn"
     if not plans:
         state = "warn"
         lines.append(_("Aucune quantité prévue pour cette étape : utilisez le calculateur pour comparer."))
-    out.append((_("2. Quantités déclarées"), state, lines))
+    out.append((_("2. Quantités déclarées"), state, lines,
+                _("Aucune quantité prévue") if not plans else _("Écart à regarder sur les matériaux") if state == "warn"
+                else _("Matériaux cohérents avec le prévu")))
 
     checks = step_checks(db, st["id"])
     missing = [c for c in checks if c["required"] and c["status"] != "conforme"]
@@ -9196,7 +9261,14 @@ def payment_verification(db, p, st):
         lines.append(_("Contrôle qualité des photos : %(s)s/100", s=q_last["score"]))
     lines += [_("Problème probable non résolu : %(l)s", l=q_label(x["ouvrage"], x["point"], x["label"])) for x in q_issues]
     state = "bad" if missing else "warn" if nc or q_issues or (insp and insp["verdict"] != "conforme") else "ok"
-    out.append((_("3. Travaux réellement contrôlés"), state, lines))
+    n_ok = len([c for c in checks if c["status"] == "conforme"])
+    if missing:
+        summ = _("Manquant : %(c)s", c=", ".join(I18N.render(c["name"]) for c in missing))
+    elif nc or q_issues:
+        summ = _("%(n)s point(s) à vérifier", n=len(nc) + len(q_issues))
+    else:
+        summ = _("%(d)s contrôle(s) conforme(s) sur %(t)s", d=n_ok, t=len(checks))
+    out.append((_("3. Travaux réellement contrôlés"), state, lines, summ))
 
     proofs = db.execute("SELECT COUNT(*) AS n, SUM(CASE WHEN ai_same_site = 0 OR ai_construction = 0 THEN 1 ELSE 0 END) AS doubt "
                         "FROM proofs WHERE step_id = ? AND ok = 1", (st["id"],)).fetchone()
@@ -9208,7 +9280,8 @@ def payment_verification(db, p, st):
     if proofs["doubt"]:
         lines.append(_("%(n)s photo(s) douteuse(s) selon l'IA", n=proofs["doubt"]))
     state = "bad" if not proofs["n"] else "warn" if proofs["doubt"] else "ok"
-    out.append((_("4. Justificatifs disponibles"), state, lines))
+    out.append((_("4. Justificatifs disponibles"), state, lines, _("%(n)s preuve(s) photo vérifiée(s)", n=proofs["n"] or 0)
+                + (" · " + _("%(n)s photo(s) douteuse(s) selon l'IA", n=proofs["doubt"]) if proofs["doubt"] else "")))
 
     appr = step_approvals(db, st["id"])
     fin = finance_members(db, p)
@@ -9220,7 +9293,10 @@ def payment_verification(db, p, st):
     if fin:
         lines.append(_("Circuit à deux niveaux : maître d'ouvrage puis responsable financier."))
     state = "ok" if st["status"] in ("paye", "versement") else "warn"
-    out.append((_("5. Validations nécessaires"), state, lines))
+    summ = (_("Validée") if st["status"] in ("paye", "versement") else
+            _("Déclarée terminée le %(d)s · votre validation attendue", d=format_d(st["declared_at"])) if st["declared_at"]
+            else _("Pas encore déclarée terminée par le chef de chantier."))
+    out.append((_("5. Validations nécessaires"), state, lines, summ))
     return out
 
 
@@ -11363,6 +11439,19 @@ def offline():
 # --------------------------------------------------------------------------
 # Erreurs
 # --------------------------------------------------------------------------
+@app.errorhandler(404)
+@app.errorhandler(403)
+def friendly_error(e):
+    """Page claire, lisible sur téléphone, au lieu de la page brute du serveur. L'API garde ses réponses."""
+    if request.path.startswith(("/api/", "/taches/", "/static/")) or request.accept_mimetypes.best == "application/json":
+        return e
+    code = getattr(e, "code", 404)
+    try:
+        return render_template("error.html", code=code), code
+    except Exception:          # jamais d'erreur dans la page d'erreur
+        return e
+
+
 @app.errorhandler(413)
 def too_large(_e):
     flash(_('Fichier trop lourd (120 Mo maximum).'), "error")

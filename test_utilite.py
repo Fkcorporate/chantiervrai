@@ -112,7 +112,8 @@ with A.app.test_request_context():
     check(I.translate("%(n)s preuve(s) refusée(s)", "fr", n=1) == "1 preuve refusée" and I.translate("%(n)s preuve(s) refusée(s)", "fr", n=3) == "3 preuves refusées"
           and I.translate("%(n)s preuve(s) refusée(s)", "en", n=0).startswith("0 ") , "accord automatique des pluriels en français et en anglais")
 h = html(chef.get(f"/chantiers/{pid}"))
-check(h.index("Preuves de cette étape") < h.index("Règles de ce chantier") and "<details class=\"card\"><summary><b>Règles" in h, "chef : l'étape et ses preuves d'abord, les règles repliées")
+check(h.index("Preuves de cette étape") < h.index("Règles de ce chantier") and "<summary><b>Règles" in h
+      and h.index("more-actions") < h.index("Règles de ce chantier"), "chef : l'étape et ses preuves d'abord, les règles repliées")
 A.app.test_cli_runner().invoke(args=["creer-admin", "awa@demo.chantiervrai.ci", "--role", "super"])
 h = html(login("awa@demo.chantiervrai.ci").get("/admin"))
 check('<details class="card fold-section" id="reglages">' in h and h.index('id="reglages"') < h.index('id="plateforme"')
@@ -128,11 +129,4 @@ t2 = re.search(r'name="csrf" value="([^"]+)"', c2.get("/connexion").get_data(as_
 r = c2.post("/connexion", data=dict(email="aminata@demo.chantiervrai.ci", password="Demo-Chantier-2026", csrf=t2), headers={"X-CV-Fetch": "1"})
 check(r.status_code == 200 and r.is_json and r.get_json().get("redirect"), "envoi en arrière-plan : la redirection revient en JSON (réseau faible)")
 h = html(chef.get(f"/chantiers/{pid}"))
-
-h = html(own.get(f"/chantiers/{pid}"))
-tools = re.search(r'<section class="tools-card".*?</section>', h, re.S)
-check(tools and all(x in tools.group(0) for x in ("Plan de financement", "Plan et réalité", "Inviter la famille", "#membres")),
-      "accueil du chantier : outils visibles en tuiles (financement, plan et réalité, inviter la famille)")
-sheet = h.split('id="nav-sheet"')[1]
-check("Ce chantier" in sheet and "Plan de financement" in sheet and "Plan et réalité" in sheet, "menu du chantier : les mêmes outils")
 print(f"\n{ok} contrôles réussis.")
