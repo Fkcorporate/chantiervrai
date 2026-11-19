@@ -33,6 +33,12 @@
 <span class="ab-amount">{{ compact(dst.amount) }}<small> FCFA</small></span>
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
 </a>{% endif %}
+{# Accès direct aux familles de fonctions (contrôle, argent, documents…) : ouvre le panneau à la bonne famille #}
+{% if fn_groups %}
+<nav class="fp-shortcuts" aria-label="{{ _("Toutes les fonctions") }}">
+{% for g in fn_groups %}<button type="button" class="fp-sc" data-sheet="fn-drawer" data-group-go="fn-g{{ loop.index }}"><span class="fp-sc-ico">{{ icon({'suivi': 'cam', 'controle': 'shield', 'argent': 'wallet', 'materiaux': 'steps', 'documents': 'folder', 'equipe': 'people', 'avance': 'grid'}.get(g.key, 'grid')) }}</span><span><b>{{ g.title }}</b><small>{{ _("%(n)s fonction(s)", n=g['items']|length) }}</small></span></button>{% endfor %}
+</nav>
+{% endif %}
 <div class="fp-grid"><div class="fp-main">
 {# Décision : la preuve qui demande une réponse #}
 {% if decl %}{% set dst = decl[0] %}{% set dok = ok_by_step.get(dst.id, 0) %}{% set dcs = checks_by_step.get(dst.id) %}{% set dimg = feed.last_by_step.get(dst.id) %}
@@ -52,7 +58,7 @@
 
 {% if alerts %}<section class="card alert todo-list" aria-labelledby="todo-h">
 <h2 id="todo-h"><span class="todo-count">{{ alerts|length }}</span>{{ _("%(n)s point(s) à voir", n=alerts|length) }}</h2>
-{% macro todo_row(title, target, sub) %}{% if target %}<a class="todo-item" href="{{ url_for('project', project_id=p.id, onglet=target) }}"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span><span class="chev" aria-hidden="true">›</span></a>
+{% macro todo_row(title, target, sub) %}{% if target %}<a class="todo-item" href="{{ target if target.startswith('/') else url_for('project', project_id=p.id, onglet=target) }}"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span><span class="chev" aria-hidden="true">›</span></a>
 {% else %}<div class="todo-item"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span></div>{% endif %}{% endmacro %}
 {% for title, target, sub in alerts[:2] %}{{ todo_row(title, target, sub) }}{% endfor %}
 {% if alerts|length > 2 %}<details class="todo-more"><summary>{{ _("Voir les %(n)s autres", n=alerts|length - 2) }}</summary>
@@ -73,6 +79,19 @@
 {% if it.note %}<p>{{ it.note }}</p>{% endif %}
 <ul class="post-checks">{% for c in it.checks %}<li class="ok">{{ c }}</li>{% endfor %}</ul>
 </div></article>
+{% elif it.type == 'journal' %}
+<a class="post slim noimg" href="{{ url_for('journal_page', project_id=p.id) }}"><div class="post-tx">
+<div class="post-who"><span class="av">{{ (it.author or '?')[:1] }}</span><b>{{ it.author }}</b><span class="muted">· {{ _("journal du jour") }}</span></div>
+<h3>{{ {'soleil': '☀️', 'nuageux': '⛅', 'pluie': '🌧️', 'forte_pluie': '⛈️'}.get(it.weather, '') }} {{ _("%(n)s ouvrier(s) sur le chantier", n=it.workers or 0) }}</h3>
+{% if it.stopped %}<span class="tag bad">{{ _("Chantier arrêté") }}{% if it.stop_reason %} · {{ it.stop_reason }}{% endif %}</span>{% endif %}
+{% if it.done %}<p>{{ it.done }}</p>{% endif %}{% if it.problems %}<p class="j-pb">⚠ {{ it.problems }}</p>{% endif %}
+</div></a>
+{% elif it.type == 'buy' %}
+<a class="post slim{% if not it.photo %} noimg{% endif %}" href="{{ url_for('purchases_page', project_id=p.id) }}#a{{ it.id }}">
+{% if it.photo %}<div class="post-img" style="background-image:url('{{ url_for('purchase_file', project_id=p.id, req_id=it.id, kind='livraison') }}')"><span class="post-badges"><span>{{ _("Livraison") }}</span></span></div>{% endif %}
+<div class="post-tx"><div class="post-who"><span class="av">{{ (it.author or '?')[:1] }}</span><b>{{ it.author }}</b><span class="muted">· {{ _("achat") }}</span></div>
+<h3>{{ it.title }}</h3><div class="row"><b>{{ fcfa(it.amount) }} FCFA</b><span class="tag {{ {'demande': 'amber', 'acceptee': 'blue', 'refusee': 'bad', 'payee': 'blue', 'livree': 'green'}[it.status] }}">{{ {'demande': _("À décider"), 'acceptee': _("À payer"), 'refusee': _("Refusée"), 'payee': _("Payée"), 'livree': _("Livrée")}[it.status] }}</span></div>
+</div></a>
 {% elif it.type == 'drone' %}
 <a class="post slim" href="{{ url_for('aerial_page', project_id=p.id) }}">
 <div class="post-img"{% if it.media %} style="background-image:url('{{ url_for('media3d_file', media_id=it.media) }}')"{% endif %}><span class="post-badges"><span>{{ _("Vue drone") }}</span></span></div>
@@ -167,8 +186,15 @@
 <div class="vw-info"><span class="eyebrow" id="vw-kicker"></span><b id="vw-title"></b><span id="vw-sub"></span>
 {% if decl %}<div class="vw-acts" id="vw-acts" hidden><a class="btn ghost" href="{{ url_for('step_page', project_id=p.id, step_id=decl[0].id) }}#decision">{{ _("Autre photo") }}</a><a class="btn gold" href="{{ url_for('step_page', project_id=p.id, step_id=decl[0].id) }}#decision">{{ _("Valider") }} ✓</a></div>{% endif %}</div>
 <button type="button" class="vw-nav prev" aria-label="{{ _("Précédente") }}"></button><button type="button" class="vw-nav next" aria-label="{{ _("Suivante") }}"></button>
+<div class="vw-rail">
+{% if decl %}<a class="vw-r gold" id="vw-ok" href="{{ url_for('step_page', project_id=p.id, step_id=decl[0].id) }}#decision" hidden><i>✓</i><span>{{ _("Valider") }}</span></a>{% endif %}
+<a class="vw-r" id="vw-step" href="#"><i>☰</i><span>{{ _("Étape") }}</span></a>
+<a class="vw-r" href="{{ url_for('quality_list', project_id=p.id) }}"><i>⌕</i><span>{{ _("Contrôle") }}</span></a>
 </div>
-<script>window.CV_FEED = {{ {'items': feed.viewer, 'decl_step': decl[0].id if decl else None}|tojson }};</script>
+<div class="vw-burst" id="vw-burst" aria-hidden="true">✓</div>
+<span class="vw-hint" id="vw-hint">{{ _("Glissez vers le haut") }}</span>
+</div>
+<script>window.CV_FEED = {{ {'items': feed.viewer, 'decl_step': decl[0].id if decl else None, 'step_url': url_for('step_page', project_id=p.id, step_id=0)}|tojson }};</script>
 <script>
 (function () {
   var F = window.CV_FEED, vw = document.getElementById('viewer');
@@ -184,6 +210,8 @@
     document.getElementById('vw-kicker').textContent = it.kicker;
     document.getElementById('vw-sub').textContent = it.sub;
     if (acts) acts.hidden = it.step !== F.decl_step;
+    var okb = document.getElementById('vw-ok'); if (okb) okb.hidden = it.step !== F.decl_step;
+    document.getElementById('vw-step').href = F.step_url.replace('/0', '/' + it.step);
     prog.querySelectorAll('i').forEach(function (b, n) { b.className = n <= i ? 'on' : ''; });
     if (F.items[i + 1]) (new Image()).src = F.items[i + 1].src;
   }
@@ -209,10 +237,27 @@
     if (vw.hidden) return;
     if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') show(i + 1); else if (e.key === 'ArrowLeft') show(i - 1);
   });
-  vw.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, {passive: true});
+  /* Gestes : glisser vers le haut ou la gauche = suivante, double tap = valider (étape à valider) */
+  var y0 = null, tapAt = 0;
+  vw.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, {passive: true});
   vw.addEventListener('touchend', function (e) {
-    if (x0 === null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null;
-    if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1));
+    if (x0 === null) return;
+    var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = y0 = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 50) {
+      var fwd = Math.abs(dy) > Math.abs(dx) ? dy < 0 : dx < 0;
+      if (fwd && i >= F.items.length - 1) close(); else show(i + (fwd ? 1 : -1));
+      img.classList.remove('slide-up', 'slide-down'); void img.offsetWidth; img.classList.add(fwd ? 'slide-up' : 'slide-down');
+      document.getElementById('vw-hint').classList.add('gone');
+    }
+  });
+  img.addEventListener('click', function () {
+    var now = Date.now();
+    if (now - tapAt < 320) {
+      var b = document.getElementById('vw-burst'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+      if (navigator.vibrate) navigator.vibrate(18);
+      if (F.items[i].step === F.decl_step) setTimeout(function () { location.href = document.getElementById('vw-ok').href; }, 520);
+    }
+    tapAt = now;
   });
 })();
 </script>
@@ -226,7 +271,23 @@
 <label class="check"><input type="checkbox" name="require_app_capture" value="1"{% if p.require_app_capture %} checked{% endif %} onchange="this.form.submit()"> {{ _("Exiger la caméra de l'application (refuse les photos importées)") }}</label>
 <noscript><button class="btn ghost small">{{ _("Enregistrer") }}</button></noscript>
 </form>
-<div class="proof-grid">{% for pr in proofs %}{{ proof_card(pr, p) }}{% else %}<div class="card muted">{{ _("Aucune preuve reçue.") }}</div>{% endfor %}</div>
+{% set okp = proofs|selectattr('ok')|list %}
+{% if okp %}
+<div class="pv-switch" role="tablist"><button type="button" class="on" data-pv="grid" aria-label="{{ _("Grille") }}">▦ {{ _("Grille") }}</button><button type="button" data-pv="list" aria-label="{{ _("Liste") }}">☰ {{ _("Détail et refus") }}</button></div>
+<div class="ig-grid" id="pv-grid">
+{% for pr in okp %}{% if pr.kind != 'video' or pr.thumb %}<a href="{{ url_for('proof_photo', proof_id=pr.id) }}" target="_blank" style="background-image:url('{{ url_for('proof_thumb', proof_id=pr.id) }}')" aria-label="{{ pr.step_name }}">{% if pr.kind == 'video' %}<span>▶︎</span>{% endif %}</a>{% endif %}{% endfor %}
+</div>
+{% endif %}
+<div class="proof-grid" id="pv-list"{% if okp %} hidden{% endif %}>{% for pr in proofs %}{{ proof_card(pr, p) }}{% else %}<div class="card muted">{{ _("Aucune preuve reçue.") }}</div>{% endfor %}</div>
+<script>
+document.querySelectorAll('[data-pv]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('[data-pv]').forEach(function (x) { x.classList.toggle('on', x === b); });
+    document.getElementById('pv-grid').hidden = b.dataset.pv !== 'grid';
+    document.getElementById('pv-list').hidden = b.dataset.pv !== 'list';
+  });
+});
+</script>
 {% endif %}
 
 {# ======================================================== ETAPES #}

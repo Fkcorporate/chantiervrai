@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Achats") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="plots-hero">
+<span class="eyebrow">{{ p.name }}</span>
+<h1>{{ _("Demandes d'argent pour les achats") }}</h1>
+<p class="muted">{{ _("Le chef de chantier demande l'argent d'un achat avec le devis ; le propriétaire accepte et paie ; le chef photographie la livraison sur le chantier.") }}</p>
+</div>
+<div class="buy-kpis">
+<div class="card"><span class="muted">{{ _("Versé pour des achats") }}</span><b>{{ fcfa(totals.paid) }} <small>FCFA</small></b></div>
+<div class="card"><span class="muted">{{ _("En attente") }}</span><b>{{ fcfa(totals.waiting) }} <small>FCFA</small></b></div>
+</div>
+
+{% if role == 'chef' %}
+<form method="post" enctype="multipart/form-data" class="card stack" id="nouvelle">{{ csrf() }}<input type="hidden" name="action" value="create">
+<b>{{ _("Nouvelle demande") }}</b>
+<label>{{ _("Ce qu'il faut acheter") }}<input name="title" required maxlength="120" placeholder="{{ _("Ex. 40 sacs de ciment et 2 tonnes de fer de 10") }}"></label>
+<div class="grid2">
+<label>{{ _("Montant (FCFA)") }}<span class="money"><input name="amount" inputmode="numeric" required placeholder="1 250 000" data-money><em>FCFA</em></span></label>
+<label>{{ _("Pour l'étape") }}<select name="step_id">{% for st in steps %}<option value="{{ st.id }}"{% if cur and st.id == cur.id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select></label>
+</div>
+<label>{{ _("Fournisseur (facultatif)") }}<input name="supplier" maxlength="120" placeholder="{{ _("Ex. Quincaillerie de Bingerville") }}"></label>
+<label>{{ _("Détail (facultatif)") }}<textarea name="details" maxlength="1500" placeholder="{{ _("Quantités, prix à l'unité, pourquoi maintenant") }}"></textarea></label>
+<label>{{ _("Devis ou facture pro forma (photo ou PDF)") }}<input type="file" name="quote" accept="image/*,.pdf"></label>
+<span class="muted">{{ _("Avec le devis, le propriétaire décide plus vite.") }}</span>
+<button class="btn">{{ _("Envoyer la demande") }}</button>
+</form>
+{% endif %}
+
+{% for r in rows %}
+<article class="card stack buy" id="a{{ r.id }}">
+<div class="row"><b>{{ r.title }}</b><span class="tag {{ {'demande': 'amber', 'acceptee': 'blue', 'refusee': 'bad', 'payee': 'blue', 'livree': 'green'}[r.status] }}">{{ BUY_STATUS[r.status]|tr }}</span></div>
+<div class="buy-amt">{{ fcfa(r.amount) }} <small>FCFA</small></div>
+<span class="muted">{{ r.author }} · {{ d(r.created_at) }}{% if r.step_name %} · {{ r.step_name }}{% endif %}{% if r.supplier %} · {{ r.supplier }}{% endif %}</span>
+{% if r.details %}<p class="buy-details">{{ r.details }}</p>{% endif %}
+<ol class="buy-track">
+<li class="done">{{ _("Demandée") }}</li>
+<li class="{{ 'done' if r.status in ('acceptee', 'payee', 'livree') else ('ko' if r.status == 'refusee' else '') }}">{{ _("Refusée") if r.status == 'refusee' else _("Acceptée") }}</li>
+<li class="{{ 'done' if r.status in ('payee', 'livree') else '' }}">{{ _("Payée") }}{% if r.received_at %} · {{ _("reçue") }}{% endif %}</li>
+<li class="{{ 'done' if r.status == 'livree' else '' }}">{{ _("Livrée") }}</li>
+</ol>
+{% if r.refusal %}<span class="tag bad">{{ _("Motif :") }} {{ r.refusal }}</span>{% endif %}
+<div class="buy-files">
+{% if r.quote_file %}<a class="btn ghost small" href="{{ url_for('purchase_file', project_id=p.id, req_id=r.id, kind='devis') }}" target="_blank">{{ _("Voir le devis") }}</a>{% endif %}
+{% if r.delivery_file %}<a class="buy-photo" href="{{ url_for('purchase_file', project_id=p.id, req_id=r.id, kind='livraison') }}" target="_blank"><img src="{{ url_for('purchase_file', project_id=p.id, req_id=r.id, kind='livraison') }}" alt="{{ _("Photo de la livraison") }}"><span>{{ _("Livraison") }}{% if r.delivery_distance is not none %} · {{ _("à %(n)s m du chantier", n=r.delivery_distance) }}{% endif %}</span></a>{% endif %}
+</div>
+{% if role == 'owner' and r.status == 'demande' %}
+<div class="buy-acts">
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="paid"><input type="hidden" name="id" value="{{ r.id }}">
+<label>{{ _("Référence du paiement (facultatif)") }}<input name="pay_ref" maxlength="80" placeholder="{{ _("Ex. Orange Money MP2611…") }}"></label>
+<button class="btn">{{ _("Accepter et marquer payé") }}</button></form>
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="accept"><input type="hidden" name="id" value="{{ r.id }}"><button class="btn ghost">{{ _("Accepter, je paierai plus tard") }}</button></form>
+<details class="fold"><summary>{{ _("Refuser") }}</summary><form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="refuse"><input type="hidden" name="id" value="{{ r.id }}">
+<label>{{ _("Motif") }}<input name="refusal" required maxlength="500" placeholder="{{ _("Ex. trop cher, demandez un deuxième devis") }}"></label><button class="btn ghost small">{{ _("Refuser la demande") }}</button></form></details>
+</div>
+{% elif role == 'owner' and r.status == 'acceptee' %}
+<form method="post" class="row">{{ csrf() }}<input type="hidden" name="action" value="paid"><input type="hidden" name="id" value="{{ r.id }}">
+<input name="pay_ref" maxlength="80" placeholder="{{ _("Référence du paiement (facultatif)") }}" style="flex:1"><button class="btn">{{ _("Marquer payé") }}</button></form>
+{% elif role == 'chef' and r.status == 'payee' %}
+{% if not r.received_at %}<form method="post">{{ csrf() }}<input type="hidden" name="action" value="received"><input type="hidden" name="id" value="{{ r.id }}"><button class="btn ghost">{{ _("J'ai reçu l'argent") }}</button></form>{% endif %}
+<form method="post" enctype="multipart/form-data" class="stack">{{ csrf() }}<input type="hidden" name="action" value="delivered"><input type="hidden" name="id" value="{{ r.id }}">
+<label>{{ _("Photo de la livraison, prise sur le chantier") }}<input type="file" name="photo" accept="image/*" capture="environment" required></label>
+<button class="btn">{{ _("Confirmer la livraison") }}</button></form>
+{% elif role == 'chef' and r.status == 'demande' and r.user_id == me.id %}
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="cancel"><input type="hidden" name="id" value="{{ r.id }}"><button class="linkish">{{ _("Annuler la demande") }}</button></form>
+{% endif %}
+</article>
+{% else %}
+<div class="card muted">{{ _("Aucune demande pour l'instant.") }}</div>
+{% endfor %}
+{% endblock %}

@@ -21,6 +21,7 @@
 {% set ptabs = self.tabs()|trim %}
 {% set fn_groups = project_functions(p) if (me and p is defined and p and p.owner_id is defined) else [] %}
 {% macro theme_picker() %}<div class="theme-pick" role="group" aria-label="{{ _("Apparence") }}">{% for k, lab in (('ivoire', _("Ivoire")), ('blanc', _("Blanc")), ('nuit', _("Nuit"))) %}<button type="button" data-theme="{{ k }}" aria-pressed="{{ 'true' if THEME == k else 'false' }}"><i class="sw-{{ k }}"></i>{{ lab }}</button>{% endfor %}</div>{% endmacro %}
+{% set QA = quick_actions(me) if me else [] %}
 <body class="theme-{{ THEME }} {% if me %}has-app{% endif %}{% if ptabs %} has-ptabs{% endif %} {% block bodyclass %}{% endblock %}">
 <div class="wrap{% block wrapclass %}{% endblock %}">
 {% if me %}
@@ -87,12 +88,23 @@
 <nav class="bottombar" aria-label="{{ _("Menu principal") }}">
 {% for it in NAV.primary %}
 <a href="{{ it.url }}"{% if ep in it.eps %} class="on" aria-current="page"{% endif %}><span class="bb-ico">{{ _ico(it.icon) }}</span><span>{{ it.label }}</span></a>
+{% if loop.index == 2 and QA %}<button type="button" class="bb-plus" data-sheet="quick-sheet" aria-haspopup="dialog" aria-label="{{ _("Actions rapides") }}"><span>＋</span></button>{% endif %}
 {% endfor %}
 <button type="button" class="bb-more" data-sheet="nav-sheet" aria-haspopup="dialog"><span class="bb-ico">{{ _ico('more') }}</span><span>{{ _("Plus") }}</span></button>
 </nav>
 {% endif %}
 </div>
 {% if fn_groups %}{% include "_functions.html" %}{% endif %}
+{% if QA %}
+<dialog class="sheet quick-sheet" id="quick-sheet" aria-label="{{ _("Actions rapides") }}">
+<div class="sheet-grip" aria-hidden="true"></div>
+<div class="qs-head"><b>{{ g.project.name if g.project else _("Que voulez-vous faire ?") }}</b><button type="button" class="dr-close" data-close aria-label="{{ _("Fermer") }}">✕</button></div>
+<div class="qs-grid">
+{% set QI = {'cam': 'cam', 'note': 'chat', 'money': 'wallet', 'plan': 'steps', 'bill': 'bill', 'check': 'check', 'drone': 'drone', 'insp': 'shield', 'sheet': 'folder', 'steps': 'steps', 'land': 'land', 'ai': 'chat'} %}
+{% for q in QA %}<a class="qs-item{% if q.primary %} primary{% endif %}" href="{{ q.url }}"><span class="qs-ico">{{ _ico(QI.get(q.ic, 'grid')) }}</span><span><b>{{ q.label }}</b><small>{{ q.desc }}</small></span></a>{% endfor %}
+</div>
+</dialog>
+{% endif %}
 {% if me %}
 <dialog class="sheet" id="nav-sheet" aria-label="{{ _("Menu") }}">
 <div class="sheet-grip" aria-hidden="true"></div>

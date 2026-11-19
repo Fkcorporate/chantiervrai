@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Journal de chantier") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="plots-hero">
+<span class="eyebrow">{{ p.name }}</span>
+<h1>{{ _("Journal de chantier") }}</h1>
+<p class="muted">{{ _("Chaque soir, en 30 secondes : qui était là, le temps qu'il a fait, ce qui a été fait. Les jours d'arrêt justifient les retards.") }}</p>
+</div>
+<div class="buy-kpis j-kpis">
+<div class="card"><span class="muted">{{ _("Jours remplis (30 j)") }}</span><b>{{ stats.days }}</b></div>
+<div class="card"><span class="muted">{{ _("Ouvriers par jour") }}</span><b>{{ stats.workers }}</b></div>
+<div class="card"><span class="muted">{{ _("Jours de pluie") }}</span><b>{{ stats.rain }}</b></div>
+<div class="card"><span class="muted">{{ _("Jours d'arrêt") }}</span><b>{{ stats.stopped }}</b></div>
+</div>
+{% if role == 'chef' %}
+<form method="post" class="card stack j-form">{{ csrf() }}
+<div class="row"><b>{{ _("Aujourd'hui") if not todays else _("Modifier le journal d'aujourd'hui") }}</b><input type="date" name="day" value="{{ today }}" min="{{ min_day }}" max="{{ today }}" style="max-width:170px"></div>
+<div class="j-workers"><span>{{ _("Ouvriers présents") }}</span>
+<div class="stepper"><button type="button" data-step="-1" aria-label="{{ _("Moins") }}">−</button><input name="workers" inputmode="numeric" value="{{ todays.workers if todays and todays.workers is not none else 0 }}"><button type="button" data-step="1" aria-label="{{ _("Plus") }}">+</button></div></div>
+<div class="j-weather" role="radiogroup" aria-label="{{ _("Météo") }}">
+{% for k, v in SKY.items() %}<label><input type="radio" name="weather" value="{{ k }}"{% if (todays and todays.weather == k) or (not todays and k == 'soleil') %} checked{% endif %}><span>{{ {'soleil': '☀️', 'nuageux': '⛅', 'pluie': '🌧️', 'forte_pluie': '⛈️'}[k] }}</span>{{ v|tr }}</label>{% endfor %}
+</div>
+<label>{{ _("Travaux faits aujourd'hui") }}<textarea name="done" maxlength="1500" placeholder="{{ _("Ex. murs du salon montés à 1,20 m, ferraillage des poteaux") }}">{{ todays.done if todays and todays.done else '' }}</textarea></label>
+<label class="check"><input type="checkbox" name="stopped" value="1"{% if todays and todays.stopped %} checked{% endif %}> {{ _("Chantier arrêté aujourd'hui") }}</label>
+<label>{{ _("Raison de l'arrêt") }}<input name="stop_reason" maxlength="300" value="{{ todays.stop_reason if todays and todays.stop_reason else '' }}" placeholder="{{ _("Ex. forte pluie, ciment pas livré, ouvriers absents") }}"></label>
+<label>{{ _("Problème à signaler (facultatif)") }}<textarea name="problems" maxlength="1500">{{ todays.problems if todays and todays.problems else '' }}</textarea></label>
+<button class="btn">{{ _("Enregistrer le journal") }}</button>
+</form>
+{% endif %}
+<div class="j-list">
+{% for r in rows %}
+<article class="card j-day{% if r.stopped %} stopped{% endif %}">
+<div class="j-date"><b>{{ d(r.day)[:5] }}</b><span>{{ {'soleil': '☀️', 'nuageux': '⛅', 'pluie': '🌧️', 'forte_pluie': '⛈️'}.get(r.weather, '·') }}</span></div>
+<div class="j-txt">
+<div class="row"><span>{% if r.workers is not none %}{{ _("%(n)s ouvrier(s)", n=r.workers) }}{% else %}–{% endif %}{% if r.weather %} · {{ SKY[r.weather]|tr }}{% endif %}</span>{% if r.stopped %}<span class="tag bad">{{ _("Arrêt") }}{% if r.stop_reason %} · {{ r.stop_reason }}{% endif %}</span>{% endif %}</div>
+{% if r.done %}<p>{{ r.done }}</p>{% endif %}
+{% if r.problems %}<p class="j-pb">⚠ {{ r.problems }}</p>{% endif %}
+<span class="muted">{{ r.author }}</span>
+</div></article>
+{% else %}<div class="card muted">{{ _("Le journal est vide pour l'instant.") }}</div>{% endfor %}
+</div>
+<script>
+document.querySelectorAll('.stepper').forEach(function (s) {
+  var i = s.querySelector('input');
+  s.querySelectorAll('[data-step]').forEach(function (b) { b.addEventListener('click', function () { i.value = Math.max(0, (parseInt(i.value, 10) || 0) + +b.dataset.step); }); });
+});
+</script>
+{% endblock %}

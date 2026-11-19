@@ -57,6 +57,13 @@
 <span class="ch-gps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{{ _("La position et l'heure sont vérifiées automatiquement.") }}</span>
 {% endif %}
 </section>
+{% if chef_quick %}
+<nav class="chef-quick" aria-label="{{ _("Actions du jour") }}">
+<a href="{{ url_for('journal_page', project_id=p.id) }}"><span class="ic">📋</span><b>{{ _("Journal du jour") }}</b><small>{{ _("Ouvriers, météo, travaux") }}</small>{% if not chef_quick.journal_today %}<span class="badge">{{ _("À remplir") }}</span>{% endif %}</a>
+<a href="{{ url_for('purchases_page', project_id=p.id) }}#nouvelle"><span class="ic">₣</span><b>{{ _("Argent pour un achat") }}</b><small>{{ _("Ciment, fer, sable…") }}</small>{% if chef_quick.buy_todo %}<span class="badge">{{ _("%(n)s livraison(s) à photographier", n=chef_quick.buy_todo) }}</span>{% elif chef_quick.buy_wait %}<span class="badge">{{ _("%(n)s en attente", n=chef_quick.buy_wait) }}</span>{% endif %}</a>
+<a href="{{ url_for('change_orders_page', project_id=p.id) }}"><span class="ic">＋</span><b>{{ _("Travaux en plus") }}</b><small>{{ _("Proposer prix et délai") }}</small>{% if chef_quick.co_wait %}<span class="badge">{{ _("%(n)s en attente", n=chef_quick.co_wait) }}</span>{% endif %}</a>
+</nav>
+{% endif %}
 
 {% if c.status == 'en_cours' %}
 {{ capture_form(url_for('upload_proof', project_id=p.id), _('Envoyer une preuve'),

@@ -61,6 +61,15 @@
 <span class="greet-txt"><span class="greet-date">{{ greeting }} · {{ today_label }}</span><p class="greet-hello">{{ me.name }}</p></span>
 </div>
 {% endif %}
+{% if me.role == 'proprio' and cards %}
+<nav class="stories home-stories" aria-label="{{ _("Vos chantiers") }}">
+{% for p, s, pred in cards %}{% set cov = covers.get(p.id) %}{% set dcl = s.steps|selectattr('status', 'equalto', 'declare')|list %}
+<a class="story {{ 'decl' if dcl else ('done' if cov else '') }}" href="{{ url_for('project', project_id=p.id) }}"><i>{% if cov %}<b style="background-image:url('{{ url_for('proof_thumb', proof_id=cov) }}')"></b>{% else %}<b></b>{% endif %}</i><span>{{ p.name|truncate(18, true, '…') }}</span>{% if dcl %}<em>{{ _("à valider") }}</em>{% endif %}</a>
+{% endfor %}
+<a class="story" href="{{ url_for('plots_page') }}"><i><b class="story-ico">{{ icon('land') }}</b></i><span>{{ _("Terrains") }}</span></a>
+<a class="story" href="{{ url_for('new_project') }}"><i><b class="story-ico">＋</b></i><span>{{ _("Nouveau") }}</span></a>
+</nav>
+{% endif %}
 {% if portfolio %}
 <section class="band" aria-label="{{ _("Résumé de vos chantiers") }}">
 <span class="band-kicker">{{ _("Argent suivi sur votre chantier") if portfolio.n == 1 else _("Argent suivi sur vos %(n)s chantiers", n=portfolio.n) }}</span>

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Travaux supplémentaires") }} · {{ p.name }}{% if role == 'owner' %}
+{% if role == 'owner' %}<details class="card fold-upload"><summary>{{ _("Ajouter des travaux décidés avec le chef") }}</summary>{% endif %}<form method="post" class="{{ 'stack' if role == 'owner' else 'card stack' }}">{{ csrf() }}<input type="hidden" name="action" value="create">
+<b>{{ _("Proposer des travaux") if role == 'chef' else _("Ajouter des travaux décidés avec le chef") }}</b>
+<label>{{ _("Travaux") }}<input name="title" required maxlength="120" placeholder="{{ _("Ex. Pièce en plus au rez-de-chaussée") }}"></label>
+<div class="grid2">
+<label>{{ _("Montant (FCFA)") }}<span class="money"><input name="amount" inputmode="numeric" required data-money placeholder="2 000 000"><em>FCFA</em></span></label>
+<label>{{ _("Délai en plus (jours)") }}<input name="extra_days" inputmode="numeric" value="0"></label>
+</div>
+<label>{{ _("Pourquoi") }}<textarea name="reason" maxlength="1500" placeholder="{{ _("Ex. le sol est argileux : il faut 30 cm de fondation en plus") }}"></textarea></label>
+<button class="btn">{{ _("Envoyer au propriétaire") if role == 'chef' else _("Ajouter au chantier") }}</button>
+</form>{% if role == 'owner' %}</details>{% endif %}
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="plots-hero">
+<span class="eyebrow">{{ p.name }}</span>
+<h1>{{ _("Travaux supplémentaires") }}</h1>
+<p class="muted">{{ _("Tout travail en plus du contrat est proposé ici avec son prix et son délai, et accepté avant d'être fait. Une fois accepté, il devient une étape payée comme les autres.") }}</p>
+</div>
+<div class="buy-kpis">
+<div class="card"><span class="muted">{{ _("Contrat de départ") }}</span><b>{{ fcfa(base) }} <small>FCFA</small></b></div>
+<div class="card"><span class="muted">{{ _("Travaux acceptés en plus") }}</span><b>{{ '+' if extra else '' }}{{ fcfa(extra) }} <small>FCFA</small></b></div>
+</div>
+{% if role == 'chef' %}{% if true %}
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="create">
+<b>{{ _("Proposer des travaux") if role == 'chef' else _("Ajouter des travaux décidés avec le chef") }}</b>
+<label>{{ _("Travaux") }}<input name="title" required maxlength="120" placeholder="{{ _("Ex. Pièce en plus au rez-de-chaussée") }}"></label>
+<div class="grid2">
+<label>{{ _("Montant (FCFA)") }}<span class="money"><input name="amount" inputmode="numeric" required data-money placeholder="2 000 000"><em>FCFA</em></span></label>
+<label>{{ _("Délai en plus (jours)") }}<input name="extra_days" inputmode="numeric" value="0"></label>
+</div>
+<label>{{ _("Pourquoi") }}<textarea name="reason" maxlength="1500" placeholder="{{ _("Ex. le sol est argileux : il faut 30 cm de fondation en plus") }}"></textarea></label>
+<button class="btn">{{ _("Envoyer au propriétaire") if role == 'chef' else _("Ajouter au chantier") }}</button>
+</form>
+{% endif %}
+{% endif %}
+{% for c in rows %}
+<article class="card stack" id="c{{ c.id }}">
+<div class="row"><b>{{ c.title }}</b><span class="tag {{ {'proposee': 'amber', 'acceptee': 'green', 'refusee': 'bad'}[c.status] }}">{{ CO_STATUS[c.status]|tr }}</span></div>
+<div class="buy-amt">+{{ fcfa(c.amount) }} <small>FCFA</small>{% if c.extra_days %} · <small>+{{ c.extra_days }} {{ _("jours") }}</small>{% endif %}</div>
+<span class="muted">{{ c.author }} · {{ d(c.created_at) }}</span>
+{% if c.reason %}<p class="buy-details">{{ c.reason }}</p>{% endif %}
+{% if c.refusal %}<span class="tag bad">{{ _("Motif :") }} {{ c.refusal }}</span>{% endif %}
+{% if c.step_id %}<a class="btn ghost small" href="{{ url_for('step_page', project_id=p.id, step_id=c.step_id) }}">{{ _("Voir l'étape créée") }}</a>{% endif %}
+{% if role == 'owner' and c.status == 'proposee' %}
+<div class="buy-acts">
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="accept"><input type="hidden" name="id" value="{{ c.id }}"><button class="btn">{{ _("Accepter : ajouter l'étape") }}</button></form>
+<details class="fold"><summary>{{ _("Refuser") }}</summary><form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="refuse"><input type="hidden" name="id" value="{{ c.id }}">
+<label>{{ _("Motif") }}<input name="refusal" required maxlength="500"></label><button class="btn ghost small">{{ _("Refuser") }}</button></form></details>
+</div>
+{% endif %}
+</article>
+{% else %}<div class="card muted">{{ _("Aucuns travaux supplémentaires.") }}</div>{% endfor %}
+{% endblock %}

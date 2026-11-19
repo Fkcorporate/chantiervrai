@@ -45,7 +45,7 @@
 <label class="dr-search"><span class="sr-only">{{ _("Rechercher une fonction") }}</span>{{ fni('search') }}<input type="search" id="fn-q" placeholder="{{ _("Rechercher : stock, paiement, plan…") }}" autocomplete="off" enterkeyhint="search"></label>
 <nav class="dr-body" aria-label="{{ _("Fonctions du chantier") }}">
 {% for g in fn_groups %}
-<section class="dr-group" data-group>
+<section class="dr-group" data-group id="fn-g{{ loop.index }}">
 <h3>{{ g.title }}</h3>
 <ul>
 {% for it in g['items'] %}<li><a href="{{ it.url }}" class="dr-item" data-q="{{ (it.label ~ ' ' ~ it.desc ~ ' ' ~ g.title)|lower }}"><span class="dr-ico">{{ fni(it.ic) }}</span><span class="dr-txt"><b>{{ it.label }}</b><span>{{ it.desc }}</span></span><span class="dr-chev">{{ fni('chev') }}</span></a></li>

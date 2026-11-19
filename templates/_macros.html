@@ -86,6 +86,7 @@
 <nav class="tabs" aria-label="{{ _("Sections du chantier") }}"><div>
 {% for key, label, ic in items %}
 <a href="{{ url_for('project', project_id=p.id, onglet=key) }}" class="{{ 'on' if key == current }}"{% if key == current %} aria-current="page"{% endif %}>{{ icon(ic) }}{{ label }}</a>
+{% if loop.index == 2 %}<button type="button" class="bb-plus tabs-plus" data-sheet="quick-sheet" aria-haspopup="dialog" aria-label="{{ _("Actions rapides") }}"><span>＋</span></button>{% endif %}
 {% endfor %}
 <button type="button" class="tabs-fn" data-sheet="fn-drawer" aria-haspopup="dialog">{{ icon('grid') }}<span>{{ _("Toutes les fonctions") }}</span></button>
 </div></nav>

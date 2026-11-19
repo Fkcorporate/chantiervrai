@@ -1,17 +1,59 @@
 {% extends "base.html" %}
+{% from "_macros.html" import icon with context %}
 {% block title %}{{ _("Alertes · ChantierVrai") }}{% endblock %}
 {% block content %}
-<div class="row"><h1>{{ _("Alertes") }}</h1>
-<form method="post"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ _("Tout marquer lu") }}</button></form></div>
 {% set labels = {'app': _('Application'), 'whatsapp': 'WhatsApp', 'sms': 'SMS', 'email': 'E-mail'} %}
 {% set st = {'envoye': _('envoyé'), 'simule': _('simulé'), 'echec': _('échec'), 'en_attente': _('en attente')} %}
-{% for n in rows %}
-<div class="card{% if n.channel == 'app' and not n.is_read %} unread{% endif %}">
-<div class="row"><b>{{ n.title|tr }}</b><span class="pill{% if n.status == 'echec' %} warn{% elif n.channel != 'app' %} grey{% endif %}">{{ labels[n.channel] }}{% if n.channel != 'app' %} · {{ st[n.status] }}{% endif %}</span></div>
-<div>{{ n.body|tr }}</div>
-<div class="row"><span class="muted">{{ dts(n.created_at) }}{% if n.detail %} · {{ n.detail }}{% endif %}</span>{% if n.link and n.channel == 'app' %}<a href="{{ n.link }}">{{ _("Ouvrir") }}</a>{% endif %}</div>
+{% set ICO = {'decision': 'check', 'argent': 'wallet', 'drone': 'drone', 'terrain': 'land', 'journal': 'folder', 'chantier': 'bell'} %}
+<div class="act-head"><h1>{{ _("Activité") }}</h1>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ _("Tout marquer lu") }}</button></form></div>
+<div class="act-chips" role="tablist" aria-label="{{ _("Filtrer") }}">
+<button type="button" class="on" data-f="all">{{ _("Tout") }}</button>
+<button type="button" data-f="todo">{{ _("À décider") }}{% if todo %} · {{ todo }}{% endif %}</button>
+<button type="button" data-f="argent">{{ _("Argent") }}</button>
+<button type="button" data-f="decision">{{ _("Étapes") }}</button>
+<button type="button" data-f="drone">{{ _("Drone") }}</button>
+<button type="button" data-f="terrain">{{ _("Terrains") }}</button>
+<button type="button" data-f="journal">{{ _("Journal") }}</button>
 </div>
+{% for label, items in groups %}
+<section class="act-group">
+<h2 class="act-day">{{ label }}</h2>
+{% for it in items %}{% set n = it.n %}
+{% if n.link %}<a href="{{ n.link }}"{% else %}<div{% endif %} class="act-row{% if not n.is_read %} unread{% endif %}" data-cat="{{ it.cat }}"{% if it.todo %} data-todo="1"{% endif %}>
+<span class="act-ico c-{{ it.cat }}">{{ icon(ICO[it.cat]) }}</span>
+<span class="act-txt"><b>{{ n.title|tr }}</b><span>{{ n.body|tr }}</span><small>{{ ago(n.created_at) }}</small></span>
+{% if it.todo %}<span class="act-cta">{{ _("Voir") }}</span>{% elif not n.is_read %}<span class="act-dot" aria-label="{{ _("Non lu") }}"></span>{% endif %}
+{% if n.link %}</a>{% else %}</div>{% endif %}
+{% endfor %}
+</section>
 {% else %}
 <div class="card muted">{{ _("Aucune alerte.") }}</div>
 {% endfor %}
+<p class="act-empty muted" hidden>{{ _("Rien dans ce filtre.") }}</p>
+{% if sent %}
+<details class="card fold-upload act-sent"><summary>{{ _("Messages envoyés par WhatsApp, SMS et e-mail") }}</summary>
+{% for n in sent %}<div class="act-sent-row"><div class="row"><b>{{ n.title|tr }}</b><span class="pill{% if n.status == 'echec' %} warn{% else %} grey{% endif %}">{{ labels[n.channel] }} · {{ st[n.status] }}</span></div><span class="muted">{{ dts(n.created_at) }}{% if n.detail %} · {{ n.detail }}{% endif %}</span></div>{% endfor %}
+</details>
+{% endif %}
+<script>
+(function () {
+  var chips = document.querySelectorAll('.act-chips button'), empty = document.querySelector('.act-empty');
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      chips.forEach(function (x) { x.classList.toggle('on', x === c); });
+      var f = c.dataset.f, shown = 0;
+      document.querySelectorAll('.act-group').forEach(function (g) {
+        var any = 0;
+        g.querySelectorAll('.act-row').forEach(function (r) {
+          var ok = f === 'all' || (f === 'todo' ? r.dataset.todo : r.dataset.cat === f);
+          r.hidden = !ok; if (ok) any++;
+        });
+        g.hidden = !any; shown += any;
+      });
+      if (empty) empty.hidden = shown > 0;
+    });
+  });
+})();
+</script>
 {% endblock %}
