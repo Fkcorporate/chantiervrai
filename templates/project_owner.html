@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block bodyclass %}{% if tab == 'accueil' %}top-photo{% endif %}{% endblock %}
-{% from "_macros.html" import proof_card, tabs, csrf, risk_pill, tool with context %}
+{% from "_macros.html" import proof_card, tabs, csrf, risk_pill, tool, icon with context %}
 {% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
 {% block head %}
 {% if tab == 'vues' %}
@@ -22,7 +22,7 @@
 <span class="phero-kicker">{% if cur %}{{ _("Étape %(i)s sur %(n)s", i=(s.steps|map(attribute='id')|list).index(cur.id) + 1, n=s.steps|length) }}{% else %}{{ _("Chantier") }}{% endif %}</span>
 <h1>{{ p.name }}</h1>
 {% if cur %}<span class="phero-step">{{ cur.name }} · {{ STATUS[cur.status] }}</span>{% endif %}
-<span class="phero-addr">{{ p.address }}{% if p.kind == 'public' %} {{ _("· Chantier public") }}{% endif %}</span>
+<span class="phero-addr">{{ p.address }}</span>
 </div>
 </section>
 {% if decl %}{% set dst = decl[0] %}{% set dok = ok_by_step.get(dst.id, 0) %}{% set dcs = checks_by_step.get(dst.id) %}
@@ -51,7 +51,7 @@
 <span class="ab-amount">{{ compact(dst.amount) }}<small> FCFA</small></span>
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
 </a>{% endif %}
-{% if p.kind == 'public' and p.is_public %}<div class="muted phero-meta"><a href="{{ url_for('portal_project', project_id=p.id) }}">{{ _("page publique") }}</a></div>{% endif %}
+
 {% if alerts %}<section class="card alert todo-list" aria-labelledby="todo-h">
 <h2 id="todo-h"><span class="todo-count">{{ alerts|length }}</span>{{ _("%(n)s point(s) à voir", n=alerts|length) }}</h2>
 {% macro todo_row(title, target, sub) %}{% if target %}<a class="todo-item" href="{{ url_for('project', project_id=p.id, onglet=target) }}"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span><span class="chev" aria-hidden="true">›</span></a>
@@ -162,8 +162,7 @@
 <label class="check"><input type="checkbox" name="require_app_capture" value="1"{% if p.require_app_capture %} checked{% endif %} onchange="this.form.submit()"> {{ _("Exiger la caméra de l'application (refuse les photos importées)") }}</label>
 <noscript><button class="btn ghost small">{{ _("Enregistrer") }}</button></noscript>
 </form>
-{% if p.kind == 'public' %}<div class="muted">{{ _("Chantier public : choisissez les photos à publier sur le portail citoyen. Les visages sont floutés automatiquement.") }}</div>{% endif %}
-<div class="proof-grid">{% for pr in proofs %}{{ proof_card(pr, p, publishable=p.kind == 'public') }}{% else %}<div class="card muted">{{ _("Aucune preuve reçue.") }}</div>{% endfor %}</div>
+<div class="proof-grid">{% for pr in proofs %}{{ proof_card(pr, p) }}{% else %}<div class="card muted">{{ _("Aucune preuve reçue.") }}</div>{% endfor %}</div>
 {% endif %}
 
 {# ======================================================== ETAPES #}
@@ -406,15 +405,23 @@
 {% if drones %}
 <div class="gallery">{% for m in drones %}<a href="{{ url_for('media3d_file', media_id=m.id) }}" target="_blank"><img src="{{ url_for('media3d_file', media_id=m.id) }}" alt="Vue de drone {{ m.original_name }}" loading="lazy"></a>{% endfor %}</div>
 {% endif %}
-<form method="post" action="{{ url_for('upload_media3d', project_id=p.id) }}" enctype="multipart/form-data" class="card">
+<a class="card land-cta" href="{{ url_for('aerial_page', project_id=p.id) }}">
+<span class="land-cta-ic" aria-hidden="true">{{ icon('drone') }}</span>
+<span><b>{{ _("Vous n'avez rien à faire : un télépilote s'en charge") }}</b><span class="muted">{{ _("Choisissez un passage unique, mensuel ou hebdomadaire. Un télépilote agréé vient photographier le chantier et les vues arrivent ici.") }}</span></span>
+<span class="land-cta-go" aria-hidden="true">→</span>
+</a>
+<details class="card fold-upload">
+<summary>{{ _("Vous avez déjà vos propres photos de drone ? (facultatif)") }}</summary>
+<form method="post" action="{{ url_for('upload_media3d', project_id=p.id) }}" enctype="multipart/form-data" class="stack">
 {{ csrf() }}
-<b>{{ _("Ajouter des vues de drone ou un modèle 3D") }}</b>
+<span class="muted">{{ _("Seulement si vous, votre architecte ou un proche avez déjà fait voler un drone sur le chantier.") }}</span>
 <label>{{ _("Type") }}<select name="kind"><option value="drone">{{ _("Photos de drone (position vérifiée)") }}</option><option value="orthophoto">{{ _("Orthophoto (vue du dessus assemblée)") }}</option><option value="modele3d">{{ _("Modèle 3D (GLB ou GLTF)") }}</option></select></label>
 <label>{{ _("Fichiers") }}<input type="file" name="files" multiple required></label>
 <label>{{ _("Note") }}<input name="note" placeholder="{{ _("Vol du 12 mars, dalle haute") }}"></label>
 <button class="btn" type="submit">{{ _("Envoyer") }}</button>
 <span class="muted">{{ _("Le modèle 3D et l'orthophoto se calculent à partir des photos de drone avec un logiciel de photogrammétrie (WebODM, gratuit, ou Pix4D). Exportez le modèle en GLB.") }}</span>
 </form>
+</details>
 {% endif %}
 
 {# ======================================================== DOSSIER #}
@@ -533,7 +540,7 @@
 <b>{{ _(cat) }}</b>
 {% for doc in docs %}
 <div class="row"><a href="{{ url_for('document', doc_id=doc.id) }}" target="_blank">{{ doc.title }}</a>
-<span class="muted">{{ d(doc.created_at) }}{% if doc.is_public %} {{ _("· public") }}{% endif %}</span></div>
+<span class="muted">{{ d(doc.created_at) }}</span></div>
 {% endfor %}
 {% endif %}
 {% else %}{% endfor %}
@@ -545,7 +552,7 @@
 <label>{{ _("Titre") }}<input name="title" placeholder="{{ _("Contrat de construction") }}"></label>
 </div>
 <label>{{ _("Fichier") }}<input type="file" name="file" required></label>
-{% if p.kind == 'public' %}<label class="check"><input type="checkbox" name="is_public" value="1"> {{ _("Visible sur le portail citoyen") }}</label>{% endif %}
+
 <button class="btn ghost" type="submit">{{ _("Ajouter le document") }}</button>
 </form>
 </div>
@@ -579,45 +586,6 @@
 {% endif %}
 </div>
 
-{# --- Marché public --- #}
-<h2 id="marche">{{ _("Marché public") }}</h2>
-<form method="post" action="{{ url_for('update_market', project_id=p.id) }}" class="card">
-{{ csrf() }}
-<label class="check"><input type="checkbox" name="kind" value="public"{% if p.kind == 'public' %} checked{% endif %}> {{ _("C'est un chantier public (marché de l'État ou d'une collectivité)") }}</label>
-<div class="grid2">
-<label>{{ _("N° du marché") }}<input name="marche_ref" value="{{ p.marche_ref or '' }}"></label>
-<label>{{ _("N° de l'appel d'offres (DAO)") }}<input name="ao_ref" value="{{ p.ao_ref or '' }}"></label>
-</div>
-<label>{{ _("Autorité contractante") }}<input name="autorite" value="{{ p.autorite or '' }}" placeholder="{{ _("Ministère, AGEROUTE, mairie…") }}"></label>
-<label>{{ _("Attributaire (entreprise)") }}<input name="attributaire" value="{{ p.attributaire or '' }}"></label>
-<label>{{ _("Montant du marché (FCFA)") }}<input name="montant_marche" value="{{ p.montant_marche or '' }}" inputmode="numeric"></label>
-<label>{{ _("Lien vers le dossier sur SIGOMAP") }}<input name="sigomap_url" value="{{ p.sigomap_url or '' }}" placeholder="{{ _("https://…") }}"></label>
-<label>{{ _("Description publique") }}<textarea name="description">{{ p.description or '' }}</textarea></label>
-<label class="check"><input type="checkbox" name="is_public" value="1"{% if p.is_public %} checked{% endif %}> {{ _("Publier sur le portail citoyen (avancement, photos vérifiées, PV, signalements)") }}</label>
-<button class="btn ghost" type="submit">{{ _("Enregistrer") }}</button>
-{% if p.sigomap_url %}<a href="{{ p.sigomap_url }}" target="_blank" rel="noopener">{{ _("Ouvrir le dossier SIGOMAP") }}</a>{% endif %}
-{% if sigomap_portal %}<a href="{{ sigomap_portal }}" target="_blank" rel="noopener">{{ _("Portail SIGOMAP") }}</a>{% endif %}
-</form>
-
-{% if signalements or p.is_public %}
-<h2 id="signalements">{{ _("Signalements citoyens") }}</h2>
-{% for sg in signalements %}
-<div class="card{% if sg.status == 'nouveau' %} alert{% endif %}">
-<div class="row"><b>{{ sg.name or _('Anonyme') }}</b><span class="muted">{{ dts(sg.created_at) }}</span></div>
-<div>{{ sg.text }}</div>
-{% if sg.filename %}<img class="sat" src="{{ url_for('signalement_photo', sid=sg.id) }}" alt="{{ _("Photo du signalement") }}" loading="lazy">{% endif %}
-<span class="muted">{% if sg.distance is not none %}{{ _("Envoyé à") }} {{ sg.distance }} {{ _("m du chantier") }}{% else %}{{ _("Position inconnue") }}{% endif %}{% if sg.phone %} · {{ sg.phone }}{% endif %}</span>
-{% if sg.status in ('nouveau', 'en_cours') %}
-<span class="tag amber">{{ SIG_STATUS[sg.status] }} · {{ _("réponse publique attendue sous 10 jours") }}</span>
-<form method="post" action="{{ url_for('answer_signalement', sid=sg.id) }}" class="stack">
-{{ csrf() }}
-<label>{{ _("Réponse publique") }}<textarea name="response" placeholder="{{ _("Merci, la clôture a été réparée le…") }}">{{ sg.response or '' }}</textarea></label>
-<div class="acts-row">{% if sg.status == 'nouveau' %}<button class="btn ghost small" name="status" value="en_cours">{{ _("Pris en charge") }}</button>{% endif %}<button class="btn small" name="status" value="traite">{{ _("Publier la réponse et clore") }}</button></div>
-</form>
-{% elif sg.response %}<div class="report">{{ _("Réponse :") }} {{ sg.response }}</div>{% endif %}
-</div>
-{% else %}<div class="card muted">{{ _("Aucun signalement.") }}</div>{% endfor %}
-{% endif %}
 {% endif %}
 {% endblock %}
 {% block tabs %}{{ tabs(p, [('accueil',_('Accueil'),'home'),('preuves',_('Preuves'),'cam'),('etapes',_('Étapes'),'steps'),('vues',_('Vues'),'sat'),('dossier',_('Dossier'),'folder')], tab) }}{% endblock %}

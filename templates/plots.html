@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Mes terrains") }}{% endblock %}
+{% block content %}
+{% set lvlcls = {0: 'grey', 1: 'blue', 2: 'amber', 3: 'green'} %}
+{% set riskcls = {0: 'green', 1: 'blue', 2: 'amber', 3: 'bad', 4: 'bad'} %}
+<div class="plots-hero">
+<span class="eyebrow">{{ _("Cartographie foncière") }}</span>
+<h1>{{ _("Vérifier un terrain avant d'acheter") }}</h1>
+<p class="muted">{{ _("Placez les bornes sur la carte satellite, indiquez le numéro de l'ACD ou du titre : ChantierVrai vous prévient si un autre utilisateur a déclaré le même terrain, et vous guide vers les pièces officielles qui prouvent qu'il est libre.") }}</p>
+</div>
+
+<form method="post" class="card plot-new">{{ csrf() }}
+<b>{{ _("Nouveau terrain à vérifier") }}</b>
+<div class="grid2">
+<label>{{ _("Nom") }}<input name="name" required maxlength="120" placeholder="{{ _("Lot 24, îlot 7 — Bingerville") }}"></label>
+<label>{{ _("Commune") }}<input name="commune" list="communes" maxlength="80" placeholder="Bingerville"></label>
+</div>
+<datalist id="communes">{% for c in COMMUNES %}<option value="{{ c }}">{% endfor %}</datalist>
+<button class="btn">{{ _("Ouvrir la carte") }}</button>
+</form>
+
+{% if items %}
+<h2 class="section-title">{{ _("Mes terrains") }}</h2>
+<div class="plot-list">
+{% for pl, ev in items %}
+<a class="card plot-item{% if ev.conflicts %} alert{% endif %}" href="{{ url_for('plot_page', plot_id=pl.id) }}">
+<div class="row"><b>{{ pl.name }}</b><span class="tag {{ lvlcls[ev.vlevel] }}">{{ ev.vlevel }}/3 · {{ LEVELS[ev.vlevel] }}</span></div>
+<span class="muted">{{ pl.commune or '' }}{% if pl.title_ref %} · {{ pl.title_ref }}{% endif %}{% if ev.area %} · {{ "{:,}".format(ev.area).replace(",", " ") }} m²{% endif %}{% if pl.project_id %} · {{ _("rattaché à un chantier") }}{% endif %}</span>
+<div class="lvl-bar"><i style="width:{{ (ev.vlevel / 3 * 100)|round|int }}%"></i></div>
+{% if ev.conflicts %}<span class="tag bad">{{ _("Alerte double vente") }}</span>{% elif ev.risk is not none %}<span class="tag {{ riskcls[ev.risk] }}">{{ _("Risque") }} : {{ RISK[ev.risk] }}</span>{% endif %}
+</a>
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="card how">
+<b>{{ _("Comment ça marche") }}</b>
+<ol>
+<li>{{ _("Dessinez le terrain sur la carte, ou collez les coordonnées des bornes du plan du géomètre (UTM ou latitude, longitude).") }}</li>
+<li>{{ _("Indiquez le document (ACD, titre foncier, lettre d'attribution…) et son numéro.") }}</li>
+<li>{{ _("ChantierVrai compare, de façon anonyme, avec les terrains déclarés par les autres utilisateurs : même numéro ou bornes qui se chevauchent = alerte.") }}</li>
+<li>{{ _("Demandez l'état foncier ou scannez le QR code de l'ADU, puis notez le résultat : c'est la seule preuve qui vient de l'administration.") }}</li>
+</ol>
+<span class="muted">{{ _("ChantierVrai ne certifie aucun titre. Aucune base publique ne permet de savoir en ligne si un ACD est libre : seules la conservation foncière et le ministère de la Construction le confirment.") }}</span>
+</div>
+{% endblock %}

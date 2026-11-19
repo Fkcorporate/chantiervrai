@@ -20,6 +20,12 @@
 <label>{{ _("Présentation et références") }}<textarea name="bio">{{ me.bio or '' }}</textarea></label>
 <label class="check"><input type="checkbox" name="verify_requested" value="1"{% if me.verify_requested %} checked{% endif %}> {{ _("Apparaître dans l'annuaire des entrepreneurs (après vérification de l'entreprise)") }}</label>
 {% if me.verify_requested and not me.verified %}<span class="tag amber">{{ _("Vérification en cours") }}</span>{% elif me.verified and me.verify_requested %}<span class="tag blue">{{ _("Entreprise vérifiée") }}</span> <a href="{{ url_for('contractor', uid=me.id) }}">{{ _("Voir mon profil public") }}</a>{% endif %}
+{% elif me.role == 'pro' and me.profession == 'pilote_drone' %}
+<b>{{ _("Profil de télépilote") }}</b>
+<label>{{ _("Numéro d'autorisation d'exploitation (ANAC)") }}<input name="anac_ref" value="{{ me.anac_ref or '' }}" maxlength="80"></label>
+<label>{{ _("Zone d'intervention") }}<input name="zone" value="{{ me.zone or '' }}"></label>
+<label>{{ _("Présentation et matériel") }}<textarea name="bio" placeholder="{{ _("Ex. DJI Mavic 3 Enterprise, orthophotos avec WebODM") }}">{{ me.bio or '' }}</textarea></label>
+{% if me.verified %}<span class="tag blue">{{ _("Télépilote vérifié") }}</span>{% elif me.anac_ref %}<span class="tag amber">{{ _("Vérification en cours") }}</span>{% endif %}
 {% elif me.role in ('inspecteur', 'fournisseur') %}
 <b>{{ _("Profil d'inspecteur") if me.role == 'inspecteur' else _("Profil du fournisseur") }}</b>
 <label>{{ _("Zone d'intervention") if me.role == 'inspecteur' else _("Zone de livraison") }}<input name="zone" value="{{ me.zone or '' }}"></label>

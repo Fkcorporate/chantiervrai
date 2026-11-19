@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ _("ChantierVrai : faites construire au pays, payez seulement ce qui est bâti") }}</title>
-<meta name="description" content="{{ _("Suivi de chantier à distance pour la diaspora et les maîtres d'ouvrage publics : photos vérifiées sur le terrain, argent versé étape par étape, inspecteurs indépendants.") }}">
+<meta name="description" content="{{ _("Suivi de chantier à distance pour la diaspora : photos vérifiées sur le terrain, argent versé étape par étape, inspecteurs indépendants.") }}">
 <meta property="og:title" content="ChantierVrai">
 <meta property="og:description" content="{{ _("Faites construire au pays. Payez seulement ce qui est bâti.") }}">
 <meta property="og:image" content="{{ url_for('static', filename='produit/ordinateur-' ~ lang ~ '.jpg', _external=True) }}">
@@ -23,8 +23,6 @@
     <a class="logo" href="{{ url_for('product') }}">ChantierVrai</a>
     <nav aria-label="{{ _("Menu principal") }}">
       <a href="#fonctionnement">{{ _("Comment ça marche") }}</a>
-      <a href="#chantiers-publics">{{ _("Chantiers publics") }}</a>
-      <a href="{{ url_for('portal') }}">{{ _("Portail citoyen") }}</a>
       <a href="{{ url_for('academy') }}">{{ _("Académie du BTP") }}</a>
       {% for code, name in LANGS.items() %}{% if code != lang %}<a href="?lang={{ code }}" hreflang="{{ code }}" lang="{{ code }}">{{ name }}</a>{% endif %}{% endfor %}
     </nav>
@@ -46,7 +44,7 @@
         <a class="b b-big" href="{{ url_for('register') }}">{{ _("Créer mon compte") }}</a>
         <a class="b b-big b-ghost" href="#fonctionnement">{{ _("Voir comment ça marche") }}</a>
       </div>
-      <p class="who">{{ _("Pour la diaspora qui fait construire en Côte d'Ivoire, et pour les maîtres d'ouvrage publics.") }}</p>
+      <p class="who">{{ _("Pour la diaspora qui fait construire en Côte d'Ivoire.") }}</p>
     </div>
 
     <figure class="proof" aria-label="{{ _("Exemple : une photo du chantier vérifiée par ChantierVrai") }}">
@@ -127,24 +125,6 @@
   </div>
 </section>
 
-<section id="chantiers-publics" class="public">
-  <div class="in split rev">
-    <img class="screen" src="{{ url_for('static', filename='produit/ordinateur-' ~ lang ~ '.jpg') }}" width="1440" height="900" loading="lazy"
-         alt="{{ _("Le tableau de bord d'un chantier sur ordinateur") }}">
-    <div>
-      <h2>{{ _("Pour les chantiers publics") }}</h2>
-      <p>{{ _("Mairies, ministères et agences suivent tous leurs chantiers au même endroit, avec les mêmes preuves vérifiées.") }}</p>
-      <ul class="plain">
-        <li>{{ _("La carte de tous les chantiers, avec les retards prévus") }}</li>
-        <li>{{ _("Les documents du marché : DAO, contrats, procès-verbaux") }}</li>
-        <li>{{ _("L'import des marchés depuis SIGOMAP") }}</li>
-        <li>{{ _("Un portail public où les habitants suivent l'avancement et signalent un problème") }}</li>
-      </ul>
-      <a class="b b-light" href="{{ url_for('portal') }}">{{ _("Visiter le portail citoyen") }}</a>
-    </div>
-  </div>
-</section>
-
 <section class="devices">
   <div class="in split">
     <div>
@@ -175,9 +155,9 @@
     <details><summary>{{ _("Et si une photo est refusée à tort ?") }}</summary>
       <p>{{ _("Le chef de chantier voit le motif tout de suite et reprend la photo. Le refus ne bloque jamais l'étape : c'est vous qui décidez.") }}</p></details>
     <details><summary>{{ _("Qui voit les photos de mon chantier ?") }}</summary>
-      <p>{{ _("Seulement les personnes du chantier : vous, les co-propriétaires que vous invitez, le chef de chantier et l'inspecteur que vous réservez. Seuls les chantiers publics ont une page publique, avec les visages floutés.") }}</p></details>
+      <p>{{ _("Seulement les personnes du chantier : vous, les co-propriétaires que vous invitez, le chef de chantier et l'inspecteur que vous réservez. Aucune page publique.") }}</p></details>
     <details><summary>{{ _("Est-ce que ça marche hors de Côte d'Ivoire ?") }}</summary>
-      <p>{{ _("Les contrôles fonctionnent partout. Le paiement par Mobile Money et l'import des marchés publics sont prévus pour la Côte d'Ivoire.") }}</p></details>
+      <p>{{ _("Les contrôles fonctionnent partout. Le paiement par Mobile Money est prévu pour la Côte d'Ivoire.") }}</p></details>
   </div>
 </section>
 
@@ -197,7 +177,6 @@
   <div class="in">
     <span class="logo">ChantierVrai</span>
     <nav aria-label="{{ _("Liens") }}">
-      <a href="{{ url_for('portal') }}">{{ _("Portail citoyen") }}</a>
       <a href="{{ url_for('terms') }}">{{ _("Conditions d'utilisation") }}</a>
       <a href="{{ url_for('privacy') }}">{{ _("Confidentialité") }}</a>
       {% if contact %}<a href="mailto:{{ contact }}">{{ contact }}</a>{% endif %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Missions drone") }}{% endblock %}
+{% block content %}
+<div class="plots-hero">
+<span class="eyebrow">{{ _("Télépilote") }}</span>
+<h1>{{ _("Missions drone") }}</h1>
+</div>
+{% if not me.verified or not me.anac_ref %}
+<div class="card alert"><b>{{ _("Compte en attente de vérification") }}</b>
+<span class="muted">{{ _("Renseignez le numéro de votre autorisation d'exploitation de l'ANAC dans votre compte. L'équipe ChantierVrai la vérifie avant de vous confier des missions.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>
+{% endif %}
+<div class="plot-list">
+{% for m in missions %}
+<a class="card plot-item{% if m.status == 'prevue' and m.due_on < today %} alert{% endif %}" href="{{ url_for('pilot_mission', mission_id=m.id) }}">
+<div class="row"><b>{{ m.project_name }}</b><span class="tag {{ 'green' if m.status == 'faite' else ('bad' if m.due_on < today else 'blue') }}">{{ _("Faite") if m.status == 'faite' else (_("En retard") if m.due_on < today else _("Prévue")) }}</span></div>
+<span class="muted">{{ d(m.due_on) }} · {{ m.commune or m.address or '' }}</span>
+</a>
+{% else %}<div class="card muted">{{ _("Aucune mission pour l'instant. Vous êtes prévenu dès qu'un propriétaire de votre zone commande un passage.") }}</div>{% endfor %}
+</div>
+<p class="muted">{{ _("Volez dans le respect de votre autorisation ANAC et des zones interdites. Les photos doivent garder leur position GPS : ChantierVrai refuse celles prises hors du terrain.") }}</p>
+{% endblock %}

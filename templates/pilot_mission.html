@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Mission drone") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<a class="backlink" href="{{ url_for('pilot_missions') }}">← {{ _("Missions drone") }}</a>
+<div class="plots-hero">
+<span class="eyebrow">{{ _("Passage prévu le") }} {{ d(m.due_on) }}</span>
+<h1>{{ p.name }}</h1>
+</div>
+<div class="card stack">
+<b>{{ _("Où aller") }}</b>
+<span>{{ p.address or '' }}{% if p.commune %} · {{ p.commune }}{% endif %}</span>
+<span class="muted">{{ p.lat }}, {{ p.lng }}{% if parcel %} · {{ _("parcelle dessinée :") }} {{ parcel|length }} {{ _("bornes") }}{% endif %}</span>
+<a class="btn ghost small" href="https://www.google.com/maps/dir/?api=1&destination={{ p.lat }},{{ p.lng }}" target="_blank" rel="noopener">{{ _("Itinéraire") }}</a>
+{% if chef %}<span>{{ _("Chef de chantier :") }} <b>{{ chef.name }}</b>{% if chef.phone %} · <a href="tel:{{ chef.phone }}">{{ chef.phone }}</a>{% endif %}</span>{% endif %}
+</div>
+<div class="card">
+<b>{{ _("À livrer") }}</b>
+<ol class="how-list">
+<li>{{ _("Une vue verticale de tout le terrain, et quatre vues obliques (une par côté).") }}</li>
+<li>{{ _("Les mêmes points de vue à chaque passage, pour que le propriétaire compare.") }}</li>
+<li>{{ _("Si possible, l'orthophoto assemblée (WebODM, Pix4D) en JPEG.") }}</li>
+</ol>
+</div>
+{% if m.status == 'faite' %}
+<div class="card"><span class="tag green">{{ _("Mission terminée") }}</span></div>
+{% else %}
+<form method="post" enctype="multipart/form-data" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="upload">
+<b>{{ _("Envoyer les fichiers") }}</b>
+<label>{{ _("Type") }}<select name="kind"><option value="drone">{{ _("Photos de drone (position GPS obligatoire)") }}</option><option value="orthophoto">{{ _("Orthophoto") }}</option><option value="modele3d">{{ _("Modèle 3D (GLB)") }}</option></select></label>
+<label>{{ _("Fichiers") }}<input type="file" name="files" multiple required></label>
+<button class="btn ghost">{{ _("Envoyer") }}</button>
+</form>
+{% endif %}
+{% if files %}
+<div class="card"><b>{{ files|length }} {{ _("fichier(s) envoyé(s)") }}</b>
+<div class="mission-strip">{% for x in files if x.kind != 'modele3d' %}<a href="{{ url_for('media3d_file', media_id=x.id) }}" target="_blank"><img src="{{ url_for('media3d_file', media_id=x.id) }}" alt="" loading="lazy">{% if x.distance is not none %}<em>{{ x.distance }} m</em>{% endif %}</a>{% endfor %}</div>
+</div>
+{% endif %}
+{% if m.status != 'faite' %}
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="finish">
+<label>{{ _("Remarque pour le propriétaire (facultatif)") }}<textarea name="note" maxlength="500" placeholder="{{ _("Ex. dalle du R+1 coulée, échafaudage côté nord") }}"></textarea></label>
+<button class="btn">{{ _("Terminer la mission") }}</button>
+</form>
+{% endif %}
+{% endblock %}

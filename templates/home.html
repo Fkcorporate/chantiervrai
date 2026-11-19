@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block bodyclass %}{% if portfolio %}top-dark night{% endif %}{% endblock %}
-{% from "_macros.html" import risk_pill, csrf with context %}
+{% from "_macros.html" import risk_pill, csrf, icon with context %}
 {% block content %}
 {% if me.role == 'inspecteur' %}
 <h1>{{ _("Mes inspections") }}</h1>
@@ -150,6 +150,14 @@
 {% if me.role == 'proprio' %}<a class="pcard pcard-new" href="{{ url_for('new_project') }}"><span class="pn-plus" aria-hidden="true">+</span><b>{{ _("Créer un chantier") }}</b><span class="muted">{{ _("Étapes, montants, terrain : 3 minutes") }}</span></a>{% endif %}
 </div>
 
+{% if me.role in ('proprio', 'pro') %}
+<a class="card land-cta" href="{{ url_for('plots_page') }}">
+<span class="land-cta-ic" aria-hidden="true">{{ icon('land') }}</span>
+<span><b>{{ _("Vous achetez un terrain ?") }}</b><span class="muted">{{ _("Placez-le sur la carte satellite : alerte si quelqu'un d'autre a déclaré le même ACD ou les mêmes bornes, et pièces officielles à demander.") }}</span></span>
+<span class="land-cta-go" aria-hidden="true">→</span>
+</a>
+{% endif %}
+
 {% if activity %}
 <section class="card feed" aria-labelledby="feed-h">
 <b id="feed-h">{{ _("Activité récente") }}</b>
@@ -164,7 +172,7 @@
 {% endif %}
 
 {% if me.role == 'proprio' %}
-<a class="btn ghost small home-import" href="{{ url_for('import_markets') }}">{{ _("Importer des marchés publics (SIGOMAP)") }}</a>
+
 {% else %}
 <form method="post" action="{{ url_for('join_project') }}" class="card">
 {{ csrf() }}

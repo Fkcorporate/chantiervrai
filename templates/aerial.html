@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, icon with context %}
+{% block title %}{{ _("Drone et caméra") }} · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="plots-hero">
+<span class="eyebrow">{{ _("Vues aériennes") }}</span>
+<h1>{{ _("Drone et caméra") }}</h1>
+<p class="muted">{{ _("Le drone montre tout le chantier d'en haut à date fixe ; la caméra le photographie toute la journée. Deux preuves qui ne dépendent pas du chef de chantier.") }}</p>
+</div>
+
+<h2 class="section-title" id="drone">{{ _("Passages de drone") }}</h2>
+{% if plan and plan.status == 'actif' %}
+{% set nxt = missions|selectattr('status', 'equalto', 'prevue')|list|last %}
+<div class="card aerial-plan">
+<div class="row"><b>{{ FREQ[plan.frequency][0]|tr }}</b><span class="tag green">{{ _("Actif") }}</span></div>
+<div class="aerial-kpis">
+<span><i>{{ _("Prochain passage") }}</i><b>{{ d(nxt.due_on) if nxt else '–' }}</b></span>
+<span><i>{{ _("Par passage") }}</i><b>{{ fcfa(plan.price) }} FCFA</b></span>
+<span><i>{{ _("Télépilote") }}</i><b>{{ pilot.name if pilot else '–' }}</b>{% if pilot and pilot.anac_ref %}<small>{{ _("Autorisation ANAC") }} {{ pilot.anac_ref }}</small>{% endif %}</span>
+</div>
+{% if owner %}<form method="post">{{ csrf() }}<input type="hidden" name="action" value="stop"><input type="hidden" name="anchor" value="drone"><button class="linkish">{{ _("Arrêter les passages") }}</button></form>{% endif %}
+</div>
+{% elif plan %}
+<div class="card"><div class="row"><b>{{ FREQ[plan.frequency][0]|tr }}</b><span class="tag amber">{{ _("Demande envoyée") }}</span></div>
+<span class="muted">{{ _("L'équipe ChantierVrai confirme le prix et choisit un télépilote agréé près de votre chantier. Vous êtes prévenu dès que le premier passage est fixé.") }}</span></div>
+{% elif owner %}
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="request"><input type="hidden" name="anchor" value="drone">
+<b>{{ _("Choisir une formule") }}</b>
+<div class="freq-grid">
+{% for k, v in FREQ.items() %}
+<label class="freq{% if k == 'mensuel' %} best{% endif %}"><input type="radio" name="frequency" value="{{ k }}"{% if k == 'mensuel' %} checked{% endif %}>
+<span class="freq-name">{{ v[0]|tr }}</span><span class="freq-price">{{ fcfa(v[1]) }} <small>FCFA {{ _("par passage") }}</small></span>
+<span class="muted">{% if k == 'ponctuel' %}{{ _("Un état des lieux, avant une grosse étape ou un paiement.") }}{% elif k == 'mensuel' %}{{ _("Le bon rythme pour une maison : voir le chantier avancer mois après mois.") }}{% else %}{{ _("Pour les gros chantiers : immeuble, école, plusieurs bâtiments.") }}{% endif %}</span>
+{% if k == 'mensuel' %}<span class="freq-badge">{{ _("Conseillé") }}</span>{% endif %}
+</label>
+{% endfor %}
+</div>
+<label>{{ _("Précisions pour le télépilote (facultatif)") }}<textarea name="message" maxlength="1000" placeholder="{{ _("Ex. le terrain est derrière l'église, demander le gardien Moussa") }}"></textarea></label>
+<button class="btn">{{ _("Demander les passages de drone") }}</button>
+<span class="muted">{{ _("Prix indicatifs, confirmés avant le premier passage. Chaque vol est fait par un télépilote dont l'autorisation de l'ANAC est vérifiée ; chaque photo doit être prise sur votre terrain (position GPS contrôlée).") }}</span>
+</form>
+{% else %}<div class="card muted">{{ _("Pas de passage de drone programmé : c'est le propriétaire qui les commande.") }}</div>{% endif %}
+
+{% if compare %}
+<div class="card stack" id="comparer">
+<div class="row"><b>{{ _("Avant / maintenant") }}</b><span class="muted">{{ d(compare[2].due_on) }} → {{ d(compare[3].due_on) }}</span></div>
+<div class="ba" style="--x:50%">
+<img src="{{ url_for('media3d_file', media_id=compare[1].id) }}" alt="{{ _("Vue la plus récente") }}">
+<img class="ba-before" src="{{ url_for('media3d_file', media_id=compare[0].id) }}" alt="{{ _("Vue précédente") }}">
+<span class="ba-line" aria-hidden="true"></span>
+<input type="range" min="0" max="100" value="50" aria-label="{{ _("Glisser pour comparer") }}">
+</div>
+<span class="muted">{{ _("Faites glisser pour comparer les deux derniers passages.") }}</span>
+</div>
+{% endif %}
+
+{% if missions %}
+<div class="card">
+<b>{{ _("Historique des passages") }}</b>
+{% for m in missions %}
+{% set ms = media.get(m.id, []) %}
+<div class="mission-row">
+<div class="row"><span><b>{{ d(m.due_on) }}</b>{% if m.status == 'faite' %} · {{ ms|length }} {{ _("vue(s)") }}{% endif %}</span>
+<span class="tag {{ 'green' if m.status == 'faite' else 'blue' }}">{{ _("Fait") if m.status == 'faite' else _("Prévu") }}</span></div>
+{% if ms %}<div class="mission-strip">{% for x in ms if x.kind != 'modele3d' %}<a href="{{ url_for('media3d_file', media_id=x.id) }}" target="_blank"><img src="{{ url_for('media3d_file', media_id=x.id) }}" alt="{{ _("Vue de drone") }}" loading="lazy">{% if x.kind == 'orthophoto' %}<em>{{ _("Ortho") }}</em>{% endif %}</a>{% endfor %}</div>{% endif %}
+{% if m.note %}<span class="muted">{{ m.note }}</span>{% endif %}
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<h2 class="section-title" id="camera">{{ _("Caméra du chantier") }}</h2>
+{% if token %}
+<div class="card alert stack" id="cle">
+<b>{{ _("Caméra ajoutée : configurez-la maintenant") }}</b>
+<span>{{ _("Cette clé ne sera plus jamais affichée. Copiez-la dans les réglages de la caméra.") }}</span>
+<label>{{ _("Adresse d'envoi des photos (HTTP POST)") }}<input readonly value="{{ upload_url }}?cle={{ token }}" onclick="this.select()"></label>
+<span class="muted">{{ _("Réglez la caméra pour envoyer une photo toutes les 15 à 60 minutes. Si elle demande un en-tête, utilisez X-Camera-Key avec la clé.") }}</span>
+</div>
+{% endif %}
+{% for c in cams %}
+<div class="card stack cam-card">
+<div class="row"><b>{{ c.cam.name }}</b>
+{% if c.cam.last_seen %}<span class="tag {{ 'green' if c.last else 'amber' }}">{{ _("Dernière photo") }} {{ ago(c.cam.last_seen) }}</span>{% else %}<span class="tag grey">{{ _("En attente de la première photo") }}</span>{% endif %}</div>
+{% if c.frames %}
+<div class="tl" data-base="{{ url_for('camera_shot_file', shot_id=0)[:-1] }}" data-frames="{{ c.frames|tojson|forceescape }}" data-times="{{ c.frame_times|tojson|forceescape }}">
+<img src="{{ url_for('camera_shot_file', shot_id=c.frames[-1]) }}" alt="{{ _("Photo de la caméra") }}">
+<span class="tl-time">{{ c.frame_times[-1] }}</span>
+<div class="tl-bar"><button type="button" class="btn small tl-play">▶ {{ _("Timelapse 7 jours") }}</button><input type="range" min="0" max="{{ c.frames|length - 1 }}" value="{{ c.frames|length - 1 }}" aria-label="{{ _("Choisir l'heure") }}"></div>
+</div>
+{% endif %}
+<div class="activity">
+{% for dd in c.days %}<span class="act {{ dd.state }}" title="{{ dd.shots }} {{ _("photo(s)") }}"><i></i><small>{{ d(dd.day)[:5] }}</small></span>{% endfor %}
+</div>
+<span class="muted"><span class="act-key active"></span> {{ _("activité visible") }} · <span class="act-key calm"></span> {{ _("aucun mouvement") }} · <span class="act-key none"></span> {{ _("pas de photo") }}</span>
+{% if owner %}<form method="post">{{ csrf() }}<input type="hidden" name="action" value="remove_camera"><input type="hidden" name="camera_id" value="{{ c.cam.id }}"><input type="hidden" name="anchor" value="camera"><button class="linkish">{{ _("Retirer cette caméra") }}</button></form>{% endif %}
+</div>
+{% endfor %}
+{% if owner %}
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="add_camera"><input type="hidden" name="anchor" value="cle">
+<b>{{ _("Ajouter une caméra") }}</b>
+<span class="muted">{{ _("Une caméra 4G sur panneau solaire, fixée sur un poteau, cadrée sur le chantier seulement (pas chez les voisins). ChantierVrai garde ses photos, monte un timelapse et vous alerte si personne ne travaille ou si elle se tait.") }}</span>
+<div class="row"><label style="flex:1">{{ _("Nom") }}<input name="name" maxlength="80" placeholder="{{ _("Poteau côté rue") }}"></label></div>
+<span class="muted">{{ _("Abonnement indicatif :") }} {{ fcfa(camera_price) }} FCFA {{ _("par mois et par caméra, hors matériel.") }}</span>
+<button class="btn ghost">{{ _("Créer la clé de la caméra") }}</button>
+</form>
+{% elif not cams %}<div class="card muted">{{ _("Aucune caméra sur ce chantier.") }}</div>{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  document.querySelectorAll('.ba').forEach(function (b) {
+    var r = b.querySelector('input');
+    r.addEventListener('input', function () { b.style.setProperty('--x', r.value + '%'); });
+  });
+  document.querySelectorAll('.tl').forEach(function (t) {
+    var frames = JSON.parse(t.dataset.frames), times = JSON.parse(t.dataset.times), base = t.dataset.base;
+    var img = t.querySelector('img'), r = t.querySelector('input'), btn = t.querySelector('.tl-play'), lab = t.querySelector('.tl-time');
+    var timer = null, cache = {};
+    function show(i) { img.src = base + frames[i]; lab.textContent = times[i]; r.value = i; }
+    function preload(i) { if (!cache[i] && frames[i] !== undefined) { cache[i] = new Image(); cache[i].src = base + frames[i]; } }
+    r.addEventListener('input', function () { show(+r.value); });
+    btn.addEventListener('click', function () {
+      if (timer) { clearInterval(timer); timer = null; btn.classList.remove('on'); return; }
+      var i = +r.value >= frames.length - 1 ? 0 : +r.value;
+      btn.classList.add('on');
+      timer = setInterval(function () { show(i); preload(i + 1); preload(i + 2); i++; if (i >= frames.length) { clearInterval(timer); timer = null; btn.classList.remove('on'); } }, 180);
+    });
+  });
+})();
+</script>
+{% endblock %}

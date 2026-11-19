@@ -1,11 +1,9 @@
 {% macro proof_card(pr, p, public=False, publishable=False) %}
 <div class="card proof{% if not pr.ok %} bad{% endif %}" id="preuve-{{ pr.id }}">
 {% if pr.kind == 'video' %}
-{% if public %}{% if pr.thumb %}<img src="{{ url_for('portal_photo', proof_id=pr.id) }}" alt="{{ _("Image extraite de la vidéo") }}" loading="lazy">{% endif %}
-{% else %}<video controls preload="none" playsinline{% if pr.thumb %} poster="{{ url_for('proof_thumb', proof_id=pr.id) }}"{% endif %} src="{{ url_for('proof_photo', proof_id=pr.id) }}"></video>{% endif %}
+<video controls preload="none" playsinline{% if pr.thumb %} poster="{{ url_for('proof_thumb', proof_id=pr.id) }}"{% endif %} src="{{ url_for('proof_photo', proof_id=pr.id) }}"></video>
 {% else %}
-{% if public %}<img src="{{ url_for('portal_photo', proof_id=pr.id) }}" alt="Preuve : {{ pr.note or pr.step_name }}" loading="lazy">
-{% else %}<a href="{{ url_for('proof_photo', proof_id=pr.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('proof_thumb', proof_id=pr.id) }}" alt="Preuve : {{ pr.note or pr.step_name }}" loading="lazy"></a>{% endif %}
+<a href="{{ url_for('proof_photo', proof_id=pr.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('proof_thumb', proof_id=pr.id) }}" alt="Preuve : {{ pr.note or pr.step_name }}" loading="lazy"></a>
 {% endif %}
 <div class="row"><b>{{ pr.step_name }}</b><span class="pill{% if not pr.ok %} warn{% endif %}">{{ (_('Vidéo ') if pr.kind == 'video' else '') ~ (_('vérifiée') if pr.ok else _('refusée')) }}</span></div>
 {% if pr.note %}<div>{{ pr.note }}</div>{% endif %}
@@ -26,7 +24,7 @@
 {% if imported %}<span class="tag grey">{{ _("Photo importée") }}</span>{% endif %}
 {% if pr.capture == 'whatsapp' %}<span class="tag amber" title="{{ _("Position partagée dans WhatsApp, date de réception") }}">{{ _("Reçue par WhatsApp") }}</span>{% endif %}
 {% if pr.delayed_minutes %}<span class="tag amber">{{ _("Envoyée sans réseau, %(h)s h après la prise", h=(pr.delayed_minutes / 60)|round(1)) }}</span>{% endif %}
-{% if pr.is_published %}<span class="tag blue">{{ _("Publiée sur le portail") }}</span>{% endif %}
+
 </div>
 {% endif %}
 <details class="proof-more"><summary>{{ _("Contrôles de la photo") }}</summary>
@@ -50,9 +48,6 @@
 {% elif pr.ai_status == 'en_cours' %}<div class="muted">{{ _("Analyse IA en cours…") }}</div>
 {% elif pr.ai_status == 'erreur' %}<div class="muted">{{ _("Analyse IA indisponible.") }}</div>{% endif %}
 <div class="muted" title="{{ dt(pr.created_at) }}">{{ dts(pr.created_at) }} · {{ pr.author }}</div>
-{% if publishable and pr.ok %}
-<form method="post" action="{{ url_for('publish_proof', proof_id=pr.id) }}">{{ csrf() }}<button class="btn ghost small">{{ _('Retirer du portail') if pr.is_published else _('Publier sur le portail (visages floutés)') }}</button></form>
-{% endif %}
 {% else %}
 <div class="muted">{{ dts(pr.created_at) }}</div>
 {% endif %}
@@ -75,6 +70,8 @@
 {% elif name == 'people' %}<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.5 3-5.5 6-5.5s5.4 2 6 5.5"/><path d="M16 4.8a3 3 0 0 1 0 6"/><path d="M18 14.8c1.7.7 2.7 2.4 3 5.2"/>
 {% elif name == 'help' %}<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.8-2.4 2.2-2.4 3.8"/><path d="M12 17.2v.1"/>
 {% elif name == 'user' %}<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.2 4.2-6.5 8-6.5s7 2.3 8 6.5"/>
+{% elif name == 'drone' %}<rect x="9" y="10" width="6" height="4" rx="1.2"/><path d="M9 11L5.5 7.5M15 11l3.5-3.5M9 13l-3.5 3.5M15 13l3.5 3.5"/><circle cx="5" cy="7" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/>
+{% elif name == 'land' %}<path d="M4 18l4-11 5 4 3-5 4 12z"/><circle cx="4" cy="18" r="1.4"/><circle cx="8" cy="7" r="1.4"/><circle cx="16" cy="6" r="1.4"/><circle cx="20" cy="18" r="1.4"/>
 {% elif name == 'grid' %}<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>
 {% elif name == 'more' %}<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>
 {% elif name == 'shield' %}<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>

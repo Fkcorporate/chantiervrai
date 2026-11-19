@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ pl.name }} · {{ _("Terrain") }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">{% endblock %}
+{% block content %}
+{% set riskcls = {0: 'green', 1: 'blue', 2: 'amber', 3: 'bad', 4: 'bad'} %}
+<a class="backlink" href="{{ url_for('plots_page') }}">← {{ _("Mes terrains") }}</a>
+<div class="plots-hero">
+<span class="eyebrow">{{ pl.commune or _("Terrain") }}{% if pl.title_ref %} · {{ pl.title_ref }}{% endif %}</span>
+<h1>{{ pl.name }}</h1>
+</div>
+
+<div class="card level-card" id="niveau">
+<div class="row"><b>{{ _("Niveau de vérification") }}</b>{% if ev.risk is not none %}<span class="tag {{ riskcls[ev.risk] }}">{{ _("Risque") }} : {{ RISK[ev.risk] }}</span>{% endif %}</div>
+<ol class="lvl-steps">
+{% for k in range(4) %}<li class="{{ 'done' if k <= ev.vlevel else '' }}{{ ' now' if k == ev.vlevel else '' }}"><i>{{ k }}</i><span>{{ LEVELS[k] }}</span></li>{% endfor %}
+</ol>
+<span class="muted">{{ LEVEL_HELP[ev.vlevel] }}</span>
+</div>
+
+{% if ev.conflicts %}
+<div class="card alert" id="alertes">
+<b>{{ _("Alerte : terrain peut-être vendu deux fois") }}</b>
+{% for c in ev.conflicts %}<span class="tag bad">{{ c.reason == 'same_ref' and _("Même numéro de titre") or _("Bornes qui se chevauchent") }}</span>{% endfor %}
+<span>{{ _("Un autre utilisateur de ChantierVrai a déclaré ce terrain (ou une partie). Pour protéger chacun, nous ne disons pas qui ; il a été prévenu lui aussi.") }}</span>
+<span class="muted">{{ _("Ne versez rien. Demandez un état foncier récent à la conservation foncière : il indique le propriétaire inscrit. Faites vérifier par un notaire.") }}</span>
+</div>
+{% endif %}
+{% if ev.flags %}
+<div class="card" id="points">
+<b>{{ _("Points d'attention") }}</b>
+{% for fl in ev.flags %}<span class="tag bad">{{ fl }}</span>{% endfor %}
+</div>
+{% endif %}
+
+<h2 class="section-title" id="carte">{{ _("Le terrain sur la carte") }}</h2>
+<div class="card stack">
+<div id="map" class="plot-map"></div>
+<div class="row map-tools">
+<span id="area" class="muted">{% if ev.area %}≈ {{ "{:,}".format(ev.area).replace(",", " ") }} m²{% else %}{{ _("Touchez la carte à chaque borne, dans l'ordre.") }}{% endif %}</span>
+<span class="map-btns"><button type="button" class="btn ghost small" id="locate">{{ _("Ma position") }}</button><button type="button" class="btn ghost small" id="undo">{{ _("Retirer la dernière borne") }}</button><button type="button" class="btn ghost small" id="clear">{{ _("Effacer") }}</button></span>
+</div>
+<form method="post" id="poly-form">{{ csrf() }}<input type="hidden" name="action" value="bornes"><input type="hidden" name="anchor" value="carte">
+<input type="hidden" name="poly" id="poly" value="{{ ev.poly|tojson if ev.poly else '' }}">
+<button class="btn">{{ _("Enregistrer les bornes") }}</button></form>
+<details class="fold">
+<summary>{{ _("Coller les coordonnées du plan du géomètre") }}</summary>
+<form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="bornes"><input type="hidden" name="anchor" value="carte">
+<label>{{ _("Une borne par ligne : X Y (UTM, en mètres) ou latitude, longitude") }}<textarea name="bornes" rows="5" placeholder="B1  387610  588080&#10;B2  387640  588080&#10;B3  387640  588110&#10;B4  387610  588110"></textarea></label>
+<label>{{ _("Fuseau UTM du plan") }}<select name="zone"><option value="30">{{ _("30 Nord — Abidjan, centre et est du pays") }}</option><option value="29">{{ _("29 Nord — ouest (Man, Odienné, San-Pédro ouest)") }}</option></select></label>
+<span class="muted">{{ _("Les plans ivoiriens donnent souvent les bornes en UTM (WGS 84). Le numéro de borne en début de ligne est ignoré.") }}</span>
+<button class="btn ghost small">{{ _("Placer ces bornes") }}</button></form>
+</details>
+</div>
+
+<h2 class="section-title" id="document">{{ _("Le document du terrain") }}</h2>
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="save"><input type="hidden" name="anchor" value="document">
+<div class="grid2">
+<label>{{ _("Nom") }}<input name="name" value="{{ pl.name }}" maxlength="120" required></label>
+<label>{{ _("Commune") }}<input name="commune" list="communes" value="{{ pl.commune or '' }}" maxlength="80"></label>
+</div>
+<datalist id="communes">{% for c in COMMUNES %}<option value="{{ c }}">{% endfor %}</datalist>
+<label>{{ _("Document présenté par le vendeur") }}<select name="doc_type"><option value="">{{ _("Choisir…") }}</option>{% for k, v in DOCS.items() %}<option value="{{ k }}"{% if pl.doc_type == k %} selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></label>
+{% if pl.doc_type %}<span class="muted">{{ DOCS[pl.doc_type][1] }}</span>{% endif %}
+<div class="grid3">
+<label>{{ _("Numéro de l'ACD, du titre ou de l'arrêté") }}<input name="title_ref" value="{{ pl.title_ref or '' }}" maxlength="80" placeholder="ACD n° 2019-0457"></label>
+<label>{{ _("Titulaire inscrit sur le document") }}<input name="holder_name" value="{{ pl.holder_name or '' }}" maxlength="120"></label>
+<label>{{ _("Nom du vendeur") }}<input name="seller_name" value="{{ pl.seller_name or '' }}" maxlength="120"></label>
+</div>
+<label>{{ _("Surface indiquée sur le document (m²)") }}<input name="area_declared" inputmode="decimal" value="{{ pl.area_declared|int if pl.area_declared else '' }}"></label>
+<button class="btn ghost small">{{ _("Enregistrer") }}</button>
+</form>
+
+<h2 class="section-title" id="officiel">{{ _("Preuves officielles") }}</h2>
+<p class="muted">{{ _("Ce sont les seules pièces qui disent si le terrain est libre aujourd'hui. Notez ce qu'elles indiquent et joignez-les.") }}</p>
+<div class="official-grid">
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="official"><input type="hidden" name="kind" value="etat_foncier"><input type="hidden" name="anchor" value="officiel">
+<b>{{ OFFICIAL.etat_foncier[0] }}</b><span class="muted">{{ OFFICIAL.etat_foncier[1] }}</span>
+<label>{{ _("Date de délivrance") }}<input type="date" name="date" value="{{ pl.ef_date or '' }}"></label>
+<label>{{ _("Propriétaire inscrit") }}<input name="owner" value="{{ pl.ef_owner or '' }}" maxlength="120"></label>
+<label>{{ _("Ce qu'il indique") }}<select name="result"><option value="">–</option>{% for k, v in EF_RESULTS.items() %}<option value="{{ k }}"{% if pl.ef_result == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+{% if pl.ef_date and not ev.ef_fresh %}<span class="tag amber">{{ _("Plus de %(n)s jours : redemandez-en un avant de payer.", n=FRESH_DAYS) }}</span>{% elif pl.ef_result == 'libre' and ev.ef_fresh %}<span class="tag green">{{ _("Récent et sans charge") }}</span>{% endif %}
+<button class="btn ghost small">{{ _("Enregistrer") }}</button></form>
+
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="official"><input type="hidden" name="kind" value="adu"><input type="hidden" name="anchor" value="officiel">
+<b>{{ OFFICIAL.adu[0] }}</b><span class="muted">{{ OFFICIAL.adu[1] }}</span>
+<label>{{ _("Numéro ou lien du QR code") }}<input name="code" value="{{ pl.adu_code or '' }}" maxlength="120"></label>
+<label>{{ _("Date de la vérification") }}<input type="date" name="date" value="{{ pl.adu_date or '' }}"></label>
+<label>{{ _("Résultat affiché") }}<select name="result"><option value="">–</option>{% for k, v in ADU_RESULTS.items() %}<option value="{{ k }}"{% if pl.adu_result == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<button class="btn ghost small">{{ _("Enregistrer") }}</button></form>
+
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="action" value="official"><input type="hidden" name="kind" value="position"><input type="hidden" name="anchor" value="officiel">
+<b>{{ OFFICIAL.position[0] }}</b><span class="muted">{{ OFFICIAL.position[1] }}</span>
+<label>{{ _("Date") }}<input type="date" name="date" value="{{ pl.pos_date or '' }}"></label>
+<label>{{ _("Résultat") }}<select name="result"><option value="">–</option>{% for k, v in POS_RESULTS.items() %}<option value="{{ k }}"{% if pl.pos_result == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<button class="btn ghost small">{{ _("Enregistrer") }}</button></form>
+</div>
+
+<h2 class="section-title" id="verifications">{{ _("Vérifications à faire") }}</h2>
+<div class="card">
+{% for c in checks %}
+<div class="row"><span><b>{{ c.label }}</b><br><span class="muted">{{ c.who }}</span></span>
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="check"><input type="hidden" name="check" value="{{ c.id }}"><input type="hidden" name="anchor" value="verifications">
+{% if c.done %}<button class="tag green" name="done" value="0" title="{{ _("Marquer à faire") }}">✓ {{ _("Fait") }}</button>{% else %}<button class="btn ghost small" name="done" value="1">{{ _("Marquer fait") }}</button>{% endif %}</form></div>
+{% endfor %}
+</div>
+
+<h2 class="section-title" id="pieces">{{ _("Pièces") }}</h2>
+<div class="card">
+{% for d_ in ev.docs %}<div class="row"><a href="{{ url_for('plot_document', plot_id=pl.id, doc_id=d_.id) }}" target="_blank">{{ DOC_LABELS.get(d_.kind, d_.kind) }} · {{ d_.original_name }}</a><form method="post">{{ csrf() }}<input type="hidden" name="action" value="delete_doc"><input type="hidden" name="doc_id" value="{{ d_.id }}"><input type="hidden" name="anchor" value="pieces"><button class="linkish">{{ _("retirer") }}</button></form></div>{% else %}<span class="muted">{{ _("Aucune pièce.") }}</span>{% endfor %}
+<form method="post" enctype="multipart/form-data" class="grid3">{{ csrf() }}<input type="hidden" name="action" value="upload"><input type="hidden" name="anchor" value="pieces">
+<label>{{ _("Pièce") }}<select name="kind">{% for k, v in DOC_LABELS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Fichier") }}<input type="file" name="file" required></label>
+<button class="btn ghost small">{{ _("Ajouter") }}</button></form>
+<span class="muted">{{ _("Pièces privées : personne d'autre ne les voit.") }}</span>
+</div>
+
+<h2 class="section-title" id="suite">{{ _("Et ensuite") }}</h2>
+<div class="card stack">
+{% if pl.project_id %}<a class="btn ghost small" href="{{ url_for('land_page', project_id=pl.project_id) }}">{{ _("Voir la page Terrain du chantier") }}</a>
+{% elif projects %}
+<form method="post" class="row">{{ csrf() }}<input type="hidden" name="action" value="link">
+<label>{{ _("Vous avez acheté ce terrain ? Rattachez-le à un chantier") }}<select name="project_id">{% for pr in projects %}<option value="{{ pr.id }}">{{ pr.name }}</option>{% endfor %}</select></label>
+<button class="btn small">{{ _("Rattacher") }}</button></form>
+{% else %}<span class="muted">{{ _("Une fois le terrain acheté, créez votre chantier : vous pourrez y rattacher ce terrain et ses pièces.") }}</span>{% endif %}
+<form method="post">{{ csrf() }}<input type="hidden" name="action" value="archive"><button class="linkish">{{ _("Retirer ce terrain de ma liste") }}</button></form>
+</div>
+<p class="muted">{{ _("Guide indicatif : ChantierVrai ne certifie aucun titre et ne remplace ni le notaire, ni le géomètre, ni la conservation foncière.") }}</p>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function () {
+  var pts = {{ (ev.poly or [])|tojson }}.map(function (p) { return [p[0], p[1]]; });
+  if (!window.L) {   // réseau trop faible pour la carte : on dessine au moins la forme du terrain
+    var box = document.getElementById('map'), msg = '{{ _("Carte satellite indisponible (réseau). Vous pouvez coller les coordonnées du géomètre ci-dessous.")|e }}';
+    box.classList.add('offline');
+    if (pts.length >= 3) {
+      var la = pts.map(function (p) { return p[0]; }), lo = pts.map(function (p) { return p[1]; });
+      var a0 = Math.min.apply(null, la), a1 = Math.max.apply(null, la), o0 = Math.min.apply(null, lo), o1 = Math.max.apply(null, lo);
+      var k = Math.cos(a0 * Math.PI / 180), w = (o1 - o0) * k || 1e-9, h = (a1 - a0) || 1e-9, sc = 260 / Math.max(w, h);
+      var xy = pts.map(function (p) { return [70 + ((p[1] - o0) * k) * sc + (260 - w * sc) / 2, 330 - (p[0] - a0) * sc - (260 - h * sc) / 2]; });
+      var svg = '<svg viewBox="0 0 400 400" role="img"><polygon points="' + xy.map(function (q) { return q.join(','); }).join(' ') +
+        '" fill="rgba(201,164,106,.18)" stroke="#C9A46A" stroke-width="3"/>' + xy.map(function (q, i) {
+          return '<circle cx="' + q[0] + '" cy="' + q[1] + '" r="13" fill="#0B2219" stroke="#C9A46A" stroke-width="2"/><text x="' + q[0] +
+            '" y="' + (q[1] + 4) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#C9A46A">B' + (i + 1) + '</text>'; }).join('') + '</svg>';
+      box.innerHTML = svg + '<span>' + msg + '</span>';
+    } else box.innerHTML = '<span>' + msg + '</span>';
+    ['locate', 'undo', 'clear'].forEach(function (id) { document.getElementById(id).hidden = true; });
+    document.getElementById('poly-form').hidden = true;
+    return;
+  }
+  var map = L.map('map').setView({{ center|list|tojson }}, pts.length ? 18 : 15);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              {maxZoom: 20, attribution: 'Esri, Maxar, Earthstar'}).addTo(map);
+  var poly = L.polygon(pts, {color: '#C9A46A', weight: 3, fillOpacity: 0.18}).addTo(map);
+  var markers = L.layerGroup().addTo(map);
+  var input = document.getElementById('poly'), area = document.getElementById('area');
+  function m2(ps) {
+    if (ps.length < 3) return 0;
+    var lat0 = ps.reduce(function (a, p) { return a + p[0]; }, 0) / ps.length, k = Math.cos(lat0 * Math.PI / 180), R = 6371000, s = 0;
+    var xy = ps.map(function (p) { return [p[1] * Math.PI / 180 * R * k, p[0] * Math.PI / 180 * R]; });
+    for (var i = 0; i < xy.length; i++) { var a = xy[i], b = xy[(i + 1) % xy.length]; s += a[0] * b[1] - b[0] * a[1]; }
+    return Math.abs(s / 2);
+  }
+  function draw() {
+    poly.setLatLngs(pts); markers.clearLayers();
+    pts.forEach(function (q, i) {
+      L.marker(q, {icon: L.divIcon({className: 'borne', html: 'B' + (i + 1), iconSize: [26, 26]})}).addTo(markers);
+    });
+    input.value = pts.length >= 3 ? JSON.stringify(pts) : '';
+    area.textContent = pts.length >= 3 ? '≈ ' + Math.round(m2(pts)).toLocaleString('fr-FR') + ' m² · ' + pts.length + ' {{ _("bornes") }}'
+                                      : pts.length + ' / 3 {{ _("bornes minimum") }}';
+  }
+  if (pts.length >= 3) map.fitBounds(poly.getBounds(), {padding: [30, 30]});
+  map.on('click', function (e) { pts.push([+e.latlng.lat.toFixed(7), +e.latlng.lng.toFixed(7)]); draw(); });
+  document.getElementById('undo').onclick = function () { pts.pop(); draw(); };
+  document.getElementById('clear').onclick = function () { pts = []; draw(); };
+  document.getElementById('locate').onclick = function () {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function (p) { map.setView([p.coords.latitude, p.coords.longitude], 19); },
+                                             function () {}, {enableHighAccuracy: true, timeout: 10000});
+  };
+  draw();
+})();
+</script>
+{% endblock %}

@@ -5,11 +5,6 @@
 <p class="muted">{{ _("La position du terrain sert à vérifier chaque photo. Si vous n'êtes pas sur place : dans Google Maps, appui long sur le terrain, puis copiez les coordonnées.") }}</p>
 <form method="post" class="card">
 <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-<fieldset class="roles" style="border:0;padding:0;margin:0">
-<legend class="muted" style="margin-bottom:8px">{{ _("Type de chantier") }}</legend>
-<label><input type="radio" name="kind" value="prive" checked> {{ _("Maison ou bâtiment privé") }}</label>
-<label><input type="radio" name="kind" value="public"> {{ _("Grand chantier public") }}</label>
-</fieldset>
 <label>{{ _("Nom du chantier") }}<input name="name" required placeholder="{{ _("Villa R+1") }}"></label>
 <label>{{ _("Adresse") }}<input name="address" placeholder="{{ _("Bingerville, Abidjan") }}"></label>
 <div class="grid2">
@@ -18,10 +13,6 @@
 </div>
 <button type="button" class="btn ghost" id="here">{{ _("Utiliser ma position actuelle") }}</button>
 <label>{{ _("Date de début") }}<input type="date" name="start_date" value="{{ today }}"></label>
-<div id="public-box" class="stack hidden">
-<label>{{ _("Montant du marché (FCFA)") }}<input id="market" inputmode="numeric" placeholder="850000000"></label>
-<button type="button" class="btn ghost" id="fill-public">{{ _("Remplir avec les étapes types d'un marché public") }}</button>
-</div>
 <label>{{ _("Paiement des étapes") }}
 <select name="pay_mode">
 <option value="suivi" selected>{{ _("Paiement suivi : je paie moi-même, le bénéficiaire confirme la réception") }}</option>
@@ -58,7 +49,6 @@
 {% endblock %}
 {% block scripts %}
 <script>
-var PUBLIC_STEPS = {{ public_steps|tojson }};
 var DEFAULT_STEPS = {{ default_steps|tojson }};
 var DEFAULT_TOTAL = {{ default_total }};
 document.getElementById('split').addEventListener('click', function () {
@@ -84,23 +74,6 @@ document.getElementById('here').addEventListener('click', function () {
     b.textContent = {{ _("Position enregistrée (précision %(n)s m)", n="__N__")|tojson }}.replace('__N__', Math.round(p.coords.accuracy));
   }, function () { b.textContent = {{ _("Position refusée : saisissez-la à la main")|tojson }}; },
   { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-});
-document.querySelectorAll('input[name=kind]').forEach(function (r) {
-  r.addEventListener('change', function () {
-    var pub = document.querySelector('input[name=kind]:checked').value === 'public';
-    document.getElementById('public-box').classList.toggle('hidden', !pub);
-    if (pub && document.getElementById('radius').value === '100') document.getElementById('radius').value = '300';
-    if (pub) document.getElementById('require-inspection').checked = true;
-  });
-});
-document.getElementById('fill-public').addEventListener('click', function () {
-  var total = parseInt((document.getElementById('market').value || '0').replace(/\D/g, ''), 10) || 0;
-  for (var i = 0; i < 8; i++) {
-    var s = PUBLIC_STEPS[i];
-    document.querySelector('[name=step_name_' + i + ']').value = s ? s[0] : '';
-    document.querySelector('[name=step_amount_' + i + ']').value = s ? Math.round(total * s[1]) : '';
-    document.querySelector('[name=step_days_' + i + ']').value = s ? s[2] : '';
-  }
 });
 </script>
 {% endblock %}

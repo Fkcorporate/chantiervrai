@@ -13,7 +13,6 @@
 {% if can('inspections') or can('money') %}<a class="chip" href="#inspections">{{ _("Inspections") }}</a>{% endif %}
 {% if can('verify') %}<a class="chip" href="#verifier">{{ _("Vérifications") }}</a>{% endif %}
 {% if can('disputes') %}<a class="chip" href="#litiges">{{ _("Litiges") }}</a>{% endif %}
-{% if can('moderation') %}<a class="chip" href="#moderation">{{ _("Portail citoyen") }}</a>{% endif %}
 {% if can('accounts') %}<a class="chip" href="#comptes">{{ _("Comptes") }}</a>{% endif %}
 {% if stats.ops %}<a class="chip" href="#exploitation">{{ _("Sauvegardes") }}</a>{% endif %}
 {% if can('platform') %}<a class="chip" href="#reglages">{{ _("Réglages") }}</a>{% endif %}
@@ -90,6 +89,22 @@
 {% else %}<div class="card muted">{{ _("Aucune demande en cours.") }}</div>{% endfor %}
 {% endif %}
 
+{% if can('verify') %}<h2 id="drone">{{ _("Vues de drone") }}</h2>
+{% for a in stats.aerial_plans or [] %}
+<form method="post" action="{{ url_for('admin_action') }}" class="card">{{ csrf() }}<input type="hidden" name="id" value="{{ a.id }}">
+<div class="row"><b>{{ a.project_name }}</b><span class="tag {{ 'green' if a.status == 'actif' else 'amber' }}">{{ _("Actif") if a.status == 'actif' else _("Nouvelle") }} · {{ a.frequency }}</span></div>
+<span class="muted">{{ a.owner_name }} · {{ a.owner_email }}{% if a.owner_phone %} · {{ a.owner_phone }}{% endif %}{% if a.commune %} · {{ a.commune }}{% endif %} · {{ d(a.created_at) }}{% if a.pilot_name %} · {{ _("Télépilote") }} : {{ a.pilot_name }}{% endif %}</span>
+{% if a.message %}<span>{{ a.message }}</span>{% endif %}
+<div class="grid3">
+<label>{{ _("Télépilote vérifié") }}<select name="pilot_id">{% for u in stats.pilots or [] %}<option value="{{ u.id }}"{% if a.pilot_id == u.id %} selected{% endif %}>{{ u.name }}{% if u.zone %} · {{ u.zone }}{% endif %} · ANAC {{ u.anac_ref }}</option>{% else %}<option value="">{{ _("Aucun télépilote vérifié") }}</option>{% endfor %}</select></label>
+<label>{{ _("Prix par passage (FCFA)") }}<input name="price" inputmode="numeric" value="{{ a.price or '' }}"></label>
+{% if a.status != 'actif' %}<label>{{ _("Premier passage") }}<input type="date" name="first"></label>{% endif %}
+</div>
+<div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" name="action" value="aerial_assign">{{ _("Confirmer et attribuer") if a.status != 'actif' else _("Changer de télépilote") }}</button><button class="btn ghost small" name="action" value="aerial_end">{{ _("Arrêter") }}</button></div>
+</form>
+{% else %}<p class="muted">{{ _("Aucune demande en cours.") }}</p>{% endfor %}
+{% endif %}
+
 {% if can('verify') %}<h2 id="foncier">{{ _("Vérifications foncières demandées") }}</h2>
 {% for r in stats.land_requests or [] %}
 <form method="post" action="{{ url_for('admin_action') }}" class="card">{{ csrf() }}<input type="hidden" name="action" value="land_request"><input type="hidden" name="id" value="{{ r.id }}">
@@ -119,17 +134,6 @@
 {% else %}<span class="muted">{{ _("Aucun litige.") }}</span>{% endfor %}
 </div>{% endif %}
 
-{% if can('moderation') %}<h2 id="moderation">{{ _("Modération du portail citoyen") }}</h2>
-<p class="muted">{{ _("Un signalement est écarté s'il est injurieux, hors sujet ou s'il expose des données personnelles. Le maître d'ouvrage doit répondre publiquement sous 10 jours ; sans réponse, le support est alerté.") }}</p>
-<div class="card">
-{% for sg in sigs %}
-<form method="post" action="{{ url_for('admin_action') }}" class="row">{{ csrf() }}<input type="hidden" name="id" value="{{ sg.id }}">
-<span>{{ sg.project_name }} · {{ sg.text[:120] }} <span class="pill{% if sg.status in ('nouveau', 'en_cours', 'rejete') %} warn{% endif %}">{{ SIG_STATUS[sg.status] }}</span>{% if sg.moderation_note %} <span class="muted">({{ sg.moderation_note }})</span>{% endif %}</span>
-{% if not sg.hidden %}<input name="note" placeholder="{{ _("Motif : injurieux, hors sujet, données personnelles") }}" aria-label="{{ _("Motif") }}">{% endif %}
-<button class="btn ghost small" name="action" value="{{ 'show_sig' if sg.hidden else 'hide_sig' }}">{{ _('Réafficher') if sg.hidden else _('Écarter') }}</button>
-</form>
-{% else %}<span class="muted">{{ _("Aucun signalement.") }}</span>{% endfor %}
-</div>{% endif %}
 
 {% if can('accounts') %}<h2 id="comptes">{{ _("Comptes") }}</h2>
 <form method="get" class="row"><input name="q" value="{{ q }}" placeholder="{{ _("Nom, e-mail ou téléphone") }}" aria-label="{{ _("Rechercher un compte") }}"><button class="btn small">{{ _("Rechercher") }}</button></form>
