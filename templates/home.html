@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block bodyclass %}{% if portfolio %}top-dark night{% endif %}{% endblock %}
+{% block bodyclass %}{% if portfolio and THEME != 'blanc' %}top-dark night{% endif %}{% endblock %}
 {% from "_macros.html" import risk_pill, csrf, icon with context %}
 {% block content %}
 {% if me.role == 'inspecteur' %}

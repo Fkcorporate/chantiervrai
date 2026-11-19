@@ -1,79 +1,294 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Nouveau chantier · ChantierVrai") }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">{% endblock %}
 {% block content %}
+<div class="plots-hero">
+<span class="eyebrow">{{ _("Nouveau chantier") }}</span>
 <h1>{{ _("Créer un chantier") }}</h1>
-<p class="muted">{{ _("La position du terrain sert à vérifier chaque photo. Si vous n'êtes pas sur place : dans Google Maps, appui long sur le terrain, puis copiez les coordonnées.") }}</p>
-<form method="post" class="card">
+</div>
+<ol class="np-steps" aria-label="{{ _("Étapes de création") }}">
+<li class="on" data-go="1"><i>1</i><span>{{ _("Où") }}</span></li>
+<li data-go="2"><i>2</i><span>{{ _("Le projet") }}</span></li>
+<li data-go="3"><i>3</i><span>{{ _("Les règles") }}</span></li>
+</ol>
+
+<form method="post" id="np" novalidate>
 <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-<label>{{ _("Nom du chantier") }}<input name="name" required placeholder="{{ _("Villa R+1") }}"></label>
-<label>{{ _("Adresse") }}<input name="address" placeholder="{{ _("Bingerville, Abidjan") }}"></label>
-<div class="grid2">
-<label>{{ _("Latitude") }}<input name="lat" id="lat" required inputmode="decimal" placeholder="5.352100"></label>
-<label>{{ _("Longitude") }}<input name="lng" id="lng" required inputmode="decimal" placeholder="-3.889200"></label>
+<input type="hidden" name="plot_id" id="plot_id" value="">
+<input type="hidden" name="parcel" id="parcel" value="">
+
+{# ------------------------------------------------------------ 1. Où #}
+<section class="np-step" data-step="1">
+<div class="card stack">
+<label>{{ _("Nom du chantier") }}<input name="name" id="name" required maxlength="150" placeholder="{{ _("Ex. Villa R+1 à Bingerville") }}"></label>
+<label>{{ _("Adresse ou quartier") }}<input name="address" id="address" maxlength="200" placeholder="{{ _("Ex. Bingerville, quartier Santé") }}"></label>
 </div>
-<button type="button" class="btn ghost" id="here">{{ _("Utiliser ma position actuelle") }}</button>
-<label>{{ _("Date de début") }}<input type="date" name="start_date" value="{{ today }}"></label>
-<label>{{ _("Paiement des étapes") }}
-<select name="pay_mode">
-<option value="suivi" selected>{{ _("Paiement suivi : je paie moi-même, le bénéficiaire confirme la réception") }}</option>
-<option value="manuel">{{ _("Simple : je paie moi-même et je note la référence") }}</option>
-{% if escrow_on %}<option value="sequestre">{{ _("Séquestre : je dépose l'argent, il est versé automatiquement à chaque validation") }}</option>{% endif %}
-</select></label>
-<b>{{ _("Règles du chantier") }}</b>
-<label class="check"><input type="checkbox" name="require_inspection" id="require-inspection" value="1"{% if default_inspection %} checked{% endif %}> {{ _("Inspection indépendante obligatoire avant de valider les étapes critiques (fondations, structure, dalle, toiture).") }} <span class="muted">{{ _("Recommandé.") }} {{ fcfa(insp_price) }} {{ _("FCFA TTC par visite, inspecteur attribué et payé par ChantierVrai.") }}</span></label>
-{% if auto_validate_on %}<label class="check"><input type="checkbox" name="auto_validate" value="1"> {{ _("J'accepte la validation automatique : si je ne valide ni ne refuse une étape déclarée terminée dans les %(n)s jours, elle est validée et le bon à payer est émis.", n=AUTO_VALIDATE_DAYS) }} <span class="muted">{{ _("Je suis relancé avant l'échéance et je peux refuser l'étape ou ouvrir un litige jusqu'au dernier jour. Les contrôles obligatoires et l'inspection exigée restent nécessaires.") }}</span></label>{% endif %}
-<h2>{{ _("Budget et étapes") }}</h2>
-<div class="grid2 budget">
-<label>{{ _("Budget total des travaux (FCFA)") }}<input id="budget" inputmode="numeric" placeholder="{{ fcfa(default_total) }}"></label>
-<button type="button" class="btn ghost" id="split">{{ _("Répartir sur les étapes types") }}</button>
-</div>
-<span class="muted">{{ _("Chaque étape est payée quand elle est terminée et vérifiée. Vous pouvez ajuster les montants et les noms ci-dessous.") }}</span>
-<div class="steprow head"><span>{{ _("Étape") }}</span><span>{{ _("Montant") }}</span><span>{{ _("Jours") }}</span></div>
-{% for i in range(8) %}
-{% set st = default_steps[i] if i < default_steps|length else ('', '', '') %}
-<div class="steprow">
-<input name="step_name_{{ i }}" value="{{ st[0] }}" aria-label="Étape {{ i + 1 }}">
-<input name="step_amount_{{ i }}" value="{{ st[1] }}" inputmode="numeric" aria-label="Montant de l'étape {{ i + 1 }} en FCFA">
-<input name="step_days_{{ i }}" value="{{ st[2] }}" inputmode="numeric" aria-label="Durée prévue de l'étape {{ i + 1 }} en jours">
-</div>
+
+{% if plots %}
+<div class="card stack" id="from-plot">
+<b>{{ _("Partir d'un terrain que vous avez vérifié") }}</b>
+<span class="muted">{{ _("La position, les bornes, l'ACD et les pièces sont repris dans le chantier.") }}</span>
+<div class="plot-pick">
+{% for pl in plots %}
+<label class="pick"><input type="radio" name="pick_plot" value="{{ pl.id }}"{% if pre_plot == pl.id %} checked{% endif %}>
+<span><b>{{ pl.name }}</b><small>{{ pl.commune }}{% if pl.ref %} · {{ pl.ref }}{% endif %}</small></span>
+<span class="tag {{ 'bad' if pl.alert else ('green' if pl.level == 3 else 'blue') }}">{{ _("Alerte") if pl.alert else pl.level ~ '/3 · ' ~ pl.level_label }}</span>
+</label>
 {% endfor %}
-<span class="muted">{{ _("Videz le nom d'une étape pour la supprimer. Les durées servent à prévoir les retards.") }}</span>
-<details><summary>{{ _("Options avancées") }}</summary>
+<label class="pick"><input type="radio" name="pick_plot" value=""{% if not pre_plot %} checked{% endif %}><span><b>{{ _("Un autre terrain") }}</b><small>{{ _("Je le place sur la carte") }}</small></span></label>
+</div>
+</div>
+{% endif %}
+
+<div class="card stack">
+<div class="row"><b>{{ _("Où est le terrain ?") }}</b><span class="muted" id="where">{{ _("Touchez la carte à l'emplacement du terrain.") }}</span></div>
+<div id="np-map" class="plot-map np-map"></div>
+<div class="np-locate">
+<label class="np-paste">{{ _("Ou collez un lien Google Maps ou des coordonnées") }}
+<span class="row"><input id="paste" placeholder="{{ _("ex.") }} 5.3521, -3.8892"><button type="button" class="btn ghost small" id="paste-go">{{ _("Placer") }}</button></span></label>
+<button type="button" class="btn ghost small" id="here">{{ _("Je suis sur le terrain : ma position") }}</button>
+</div>
+<span class="muted" id="paste-msg" role="status"></span>
+<details class="fold" id="manual"><summary>{{ _("Saisir la latitude et la longitude") }}</summary>
+<div class="grid2">
+<label>{{ _("Latitude") }}<input name="lat" id="lat" required inputmode="decimal" placeholder="{{ _("ex.") }} 5.352100"></label>
+<label>{{ _("Longitude") }}<input name="lng" id="lng" required inputmode="decimal" placeholder="{{ _("ex.") }} -3.889200"></label>
+</div>
+</details>
+</div>
+<div class="np-nav"><span class="np-err" id="err-1" role="alert"></span><button type="button" class="btn" data-next="2">{{ _("Continuer") }}</button></div>
+</section>
+
+{# ------------------------------------------------------------ 2. Le projet #}
+<section class="np-step" data-step="2">
+<div class="card stack">
+<b>{{ _("Ce que vous construisez") }}</b>
+<div class="grid3">
+<label>{{ _("Type") }}<select name="building_type" id="btype">{% for k, v in BUILDING_TYPES.items() %}<option value="{{ k }}"{% if k == 'maison' %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Niveaux") }}<select name="levels" id="levels">{% for n in range(0, 6) %}<option value="{{ n }}"{% if n == 1 %} selected{% endif %}>{{ _("Plain-pied (R+0)") if n == 0 else 'R+' ~ n }}</option>{% endfor %}</select></label>
+<label>{{ _("Surface habitable (m², facultatif)") }}<input name="surface_floor" inputmode="decimal" placeholder="{{ _("ex.") }} 180"></label>
+</div>
+<label>{{ _("Date de début des travaux") }}<input type="date" name="start_date" value="{{ today }}"></label>
+</div>
+
+<div class="card stack">
+<b>{{ _("Budget et étapes de paiement") }}</b>
+<span class="muted">{{ _("Chaque étape est payée quand elle est terminée et vérifiée sur photo.") }}</span>
+<div class="np-budget">
+<label>{{ _("Budget total des travaux") }}<span class="money"><input id="budget" inputmode="numeric" placeholder="{{ _("ex.") }} 25 000 000"><em>FCFA</em></span></label>
+<button type="button" class="btn ghost" id="split">{{ _("Proposer les étapes") }}</button>
+</div>
+<div class="np-list" id="steps"></div>
+<button type="button" class="linkish" id="add-step">+ {{ _("Ajouter une étape") }}</button>
+<div class="np-total" id="total" aria-live="polite"></div>
+</div>
+<div class="np-nav"><button type="button" class="btn ghost" data-next="1">{{ _("Retour") }}</button><span class="np-err" id="err-2" role="alert"></span><button type="button" class="btn" data-next="3">{{ _("Continuer") }}</button></div>
+</section>
+
+{# ------------------------------------------------------------ 3. Les règles #}
+<section class="np-step" data-step="3">
+<div class="card stack">
+<b>{{ _("Comment vous payez les étapes") }}</b>
+<div class="freq-grid">
+<label class="freq"><input type="radio" name="pay_mode" value="suivi" checked><span class="freq-name">{{ _("Paiement suivi") }}</span><span class="muted">{{ _("Vous payez vous-même (Mobile Money, virement) ; celui qui reçoit confirme dans l'application.") }}</span><span class="freq-badge">{{ _("Conseillé") }}</span></label>
+<label class="freq"><input type="radio" name="pay_mode" value="manuel"><span class="freq-name">{{ _("Simple") }}</span><span class="muted">{{ _("Vous payez vous-même et notez la référence du paiement.") }}</span></label>
+{% if escrow_on %}<label class="freq"><input type="radio" name="pay_mode" value="sequestre"><span class="freq-name">{{ _("Séquestre") }}</span><span class="muted">{{ _("Vous déposez l'argent ; il est versé automatiquement à chaque étape validée.") }}</span></label>{% endif %}
+</div>
+</div>
+
+<div class="card stack">
+<b>{{ _("Protections") }}</b>
+<label class="check"><input type="checkbox" name="require_inspection" id="require-inspection" value="1"{% if default_inspection %} checked{% endif %}> <span><b>{{ _("Inspection indépendante des étapes critiques") }}</b><br><span class="muted"><b>{{ _("Recommandé.") }}</b> {{ _("Fondations, structure, dalles, toiture : un inspecteur vérifie sur place avant que vous payiez.") }} {{ fcfa(insp_price) }} {{ _("FCFA TTC par visite.") }}</span></span></label>
+<label class="check"><input type="checkbox" name="require_app_capture" value="1" checked> <span><b>{{ _("Photos prises uniquement avec l'application") }}</b><br><span class="muted">{{ _("Aucune photo de la galerie : impossible d'envoyer une vieille photo ou celle d'un autre chantier.") }}</span></span></label>
+{% if auto_validate_on %}<label class="check"><input type="checkbox" name="auto_validate" value="1"> <span><b>{{ _("Validation automatique après %(n)s jours sans réponse", n=AUTO_VALIDATE_DAYS) }}</b><br><span class="muted">{{ _("Je suis relancé avant l'échéance et je peux refuser l'étape ou ouvrir un litige jusqu'au dernier jour. Les contrôles obligatoires et l'inspection exigée restent nécessaires.") }}</span></span></label>{% endif %}
+</div>
+
+<details class="card"><summary>{{ _("Options avancées") }}</summary>
 <div class="stack">
 <label>{{ _("Rayon accepté autour du terrain (mètres)") }}<input name="radius" id="radius" inputmode="numeric" value="100"></label>
-<label class="check"><input type="checkbox" name="require_app_capture" value="1" checked> {{ _("Exiger que les photos soient prises avec la caméra de l'application (aucune photo de la galerie)") }}</label>
-<label>{{ _("Description (facultatif)") }}<textarea name="description"></textarea></label>
+<label>{{ _("Description (facultatif)") }}<textarea name="description" maxlength="2000"></textarea></label>
 </div></details>
-<button class="btn" type="submit">{{ _("Créer le chantier") }}</button>
+
+<div class="card np-recap" id="recap"></div>
+<div class="np-nav"><button type="button" class="btn ghost" data-next="2">{{ _("Retour") }}</button><button class="btn" type="submit">{{ _("Créer le chantier") }}</button></div>
+</section>
 </form>
 {% endblock %}
 {% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-var DEFAULT_STEPS = {{ default_steps|tojson }};
-var DEFAULT_TOTAL = {{ default_total }};
-document.getElementById('split').addEventListener('click', function () {
-  var total = parseInt((document.getElementById('budget').value || '0').replace(/\D/g, ''), 10) || 0;
-  if (!total) { document.getElementById('budget').focus(); return; }
-  var left = total;
-  for (var i = 0; i < 8; i++) {
-    var s = DEFAULT_STEPS[i];
-    var amount = s ? (i === DEFAULT_STEPS.length - 1 ? left : Math.round(total * s[1] / DEFAULT_TOTAL / 1000) * 1000) : '';
-    if (s) left -= amount;
-    document.querySelector('[name=step_name_' + i + ']').value = s ? s[0] : '';
-    document.querySelector('[name=step_amount_' + i + ']').value = amount;
-    document.querySelector('[name=step_days_' + i + ']').value = s ? s[2] : '';
+(function () {
+  var T = {{ {
+    'pick': _("Touchez la carte à l'emplacement du terrain."), 'placed': _("Terrain placé"), 'radius': _("rayon"),
+    'need_name': _("Donnez un nom au chantier."), 'need_place': _("Placez le terrain sur la carte (ou collez ses coordonnées)."),
+    'need_step': _("Ajoutez au moins une étape avec un montant."), 'bad_paste': _("Lien ou coordonnées non reconnus. Dans Google Maps : appui long sur le terrain, puis copiez les deux nombres qui s'affichent."),
+    'short_link': _("Les liens courts (maps.app.goo.gl) ne contiennent pas la position : ouvrez-le, puis copiez les deux nombres de l'appui long."),
+    'pos_wait': _("Recherche de la position…"), 'pos_ok': _("Position trouvée (précision %(n)s m)", n="__N__"), 'pos_ko': _("Position refusée : touchez la carte."),
+    'total': _("Total des étapes"), 'gap_more': _("de plus que le budget"), 'gap_less': _("de moins que le budget"), 'match': _("égal au budget"),
+    'step': _("Nom de l'étape"), 'amount': _("Montant"), 'days': _("jours"), 'remove': _("Retirer cette étape"),
+    'recap': _("Récapitulatif"), 'steps_n': _("étape(s)"), 'from_plot': _("terrain vérifié repris"), 'offline': _("Carte indisponible (réseau) : saisissez la latitude et la longitude.")
+  }|tojson }};
+  var PLANS = {{ plans|tojson }}, PLOTS = {{ plots|tojson }}, DEFAULT = {{ default_steps|tojson }};
+  var form = document.getElementById('np'), lat = document.getElementById('lat'), lng = document.getElementById('lng');
+  var fmt = function (n) { return (n || 0).toLocaleString('fr-FR').replace(/ | /g, ' '); };
+  var num = function (v) { return parseInt(String(v || '').replace(/\D/g, ''), 10) || 0; };
+
+  /* --- Assistant en 3 étapes (sans JavaScript, tout reste visible et le formulaire fonctionne) --- */
+  form.classList.add('wizard');
+  var cur = 1;
+  function show(n) {
+    cur = n;
+    document.querySelectorAll('.np-step').forEach(function (s) { s.classList.toggle('on', +s.dataset.step === n); });
+    document.querySelectorAll('.np-steps li').forEach(function (l) {
+      var k = +l.dataset.go; l.classList.toggle('on', k === n); l.classList.toggle('done', k < n);
+    });
+    if (n === 1 && map) setTimeout(function () { map.invalidateSize(); }, 50);
+    if (n === 3) recap();
+    window.scrollTo({top: 0, behavior: 'smooth'});
   }
-});
-document.getElementById('here').addEventListener('click', function () {
-  var b = this;
-  if (!navigator.geolocation) { b.textContent = {{ _("Localisation non disponible")|tojson }}; return; }
-  b.textContent = {{ _("Recherche de la position…")|tojson }};
-  navigator.geolocation.getCurrentPosition(function (p) {
-    document.getElementById('lat').value = p.coords.latitude.toFixed(6);
-    document.getElementById('lng').value = p.coords.longitude.toFixed(6);
-    b.textContent = {{ _("Position enregistrée (précision %(n)s m)", n="__N__")|tojson }}.replace('__N__', Math.round(p.coords.accuracy));
-  }, function () { b.textContent = {{ _("Position refusée : saisissez-la à la main")|tojson }}; },
-  { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-});
+  function check(n) {
+    var e = document.getElementById('err-' + n);
+    if (n >= 1) {
+      if (!document.getElementById('name').value.trim()) { e1(T.need_name); return false; }
+      if (!lat.value || !lng.value) { e1(T.need_place); return false; }
+      document.getElementById('err-1').textContent = '';
+    }
+    if (n >= 2) {
+      var ok = Array.prototype.some.call(document.querySelectorAll('#steps .np-row'), function (r) {
+        return r.querySelector('.n').value.trim() && num(r.querySelector('.a').value) > 0; });
+      document.getElementById('err-2').textContent = ok ? '' : T.need_step;
+      if (!ok) { if (cur !== 2) show(2); return false; }
+    }
+    return true;
+    function e1(m) { document.getElementById('err-1').textContent = m; if (cur !== 1) show(1); }
+  }
+  document.querySelectorAll('[data-next]').forEach(function (b) {
+    b.addEventListener('click', function () { var to = +b.dataset.next; if (to < cur || check(cur)) show(to); });
+  });
+  document.querySelectorAll('.np-steps li').forEach(function (l) {
+    l.addEventListener('click', function () { var to = +l.dataset.go; if (to < cur || check(to - 1)) show(to); });
+  });
+  form.addEventListener('submit', function (ev) { if (!check(2)) ev.preventDefault(); else renumber(); });
+
+  /* --- Carte : toucher le terrain, coller un lien, ma position, terrain vérifié --- */
+  var map = null, mark = null, circle = null, shape = null;
+  function place(a, b, zoom) {
+    lat.value = (+a).toFixed(6); lng.value = (+b).toFixed(6);
+    var r = num(document.getElementById('radius').value) || 100;
+    document.getElementById('where').textContent = T.placed + ' · ' + (+a).toFixed(5) + ', ' + (+b).toFixed(5) + ' · ' + T.radius + ' ' + r + ' m';
+    document.getElementById('err-1').textContent = '';
+    if (!map) return;
+    if (!mark) { mark = L.marker([a, b]).addTo(map); circle = L.circle([a, b], {radius: r, color: '#C9A46A', weight: 2, fillOpacity: 0.08}).addTo(map); }
+    else { mark.setLatLng([a, b]); circle.setLatLng([a, b]).setRadius(r); }
+    if (zoom) map.setView([a, b], Math.max(map.getZoom(), 17));
+  }
+  if (window.L) {
+    map = L.map('np-map').setView([5.35, -3.95], 11);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                {maxZoom: 20, attribution: 'Esri, Maxar, Earthstar'}).addTo(map);
+    map.on('click', function (e) { usePlot(''); place(e.latlng.lat, e.latlng.lng, false); });
+  } else {
+    var box = document.getElementById('np-map'); box.classList.add('offline'); box.innerHTML = '<span>' + T.offline + '</span>';
+    document.getElementById('manual').open = true;
+  }
+  [lat, lng].forEach(function (i) { i.addEventListener('change', function () { if (lat.value && lng.value) place(lat.value.replace(',', '.'), lng.value.replace(',', '.'), true); }); });
+  document.getElementById('radius').addEventListener('change', function () { if (lat.value) place(lat.value, lng.value, false); });
+
+  function parseWhere(t) {
+    t = (t || '').trim();
+    var m = t.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || t.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+            t.match(/[?&](?:q|query|ll|destination)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i) || t.match(/^(-?\d+[.,]\d+)\s*[,; ]\s*(-?\d+[.,]\d+)$/);
+    if (!m) return null;
+    var a = parseFloat(m[1].replace(',', '.')), b = parseFloat(m[2].replace(',', '.'));
+    return (a >= -90 && a <= 90 && b >= -180 && b <= 180) ? [a, b] : null;
+  }
+  document.getElementById('paste-go').addEventListener('click', function () {
+    var v = document.getElementById('paste').value, p = parseWhere(v), msg = document.getElementById('paste-msg');
+    if (p) { usePlot(''); place(p[0], p[1], true); msg.textContent = ''; }
+    else msg.textContent = /goo\.gl|maps\.app/.test(v) ? T.short_link : T.bad_paste;
+  });
+  document.getElementById('paste').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('paste-go').click(); } });
+  document.getElementById('here').addEventListener('click', function () {
+    var b = this;
+    if (!navigator.geolocation) { b.textContent = T.pos_ko; return; }
+    b.textContent = T.pos_wait;
+    navigator.geolocation.getCurrentPosition(function (p) {
+      usePlot(''); place(p.coords.latitude, p.coords.longitude, true);
+      b.textContent = T.pos_ok.replace('__N__', Math.round(p.coords.accuracy));
+    }, function () { b.textContent = T.pos_ko; }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+  });
+
+  function usePlot(id) {
+    document.getElementById('plot_id').value = id || '';
+    var radio = document.querySelector('input[name=pick_plot][value="' + (id || '') + '"]');
+    if (radio) radio.checked = true;
+    if (shape) { shape.remove(); shape = null; }
+    document.getElementById('parcel').value = '';
+    var pl = PLOTS.filter(function (x) { return String(x.id) === String(id); })[0];
+    if (!pl) return;
+    var name = document.getElementById('name'), addr = document.getElementById('address');
+    if (!name.value) name.value = pl.name;
+    if (!addr.value && pl.commune) addr.value = pl.commune;
+    if (pl.lat != null) {
+      place(pl.lat, pl.lng, true);
+      if (map && pl.poly.length >= 3) { shape = L.polygon(pl.poly, {color: '#C9A46A', weight: 3, fillOpacity: 0.18}).addTo(map); map.fitBounds(shape.getBounds(), {padding: [40, 40]}); }
+    }
+  }
+  document.querySelectorAll('input[name=pick_plot]').forEach(function (r) { r.addEventListener('change', function () { usePlot(r.value); }); });
+  var pre = document.querySelector('input[name=pick_plot]:checked');
+  if (pre && pre.value) usePlot(pre.value);
+
+  /* --- Étapes : liste libre, montants lisibles, total contrôlé --- */
+  var list = document.getElementById('steps');
+  function row(n, a, d) {
+    var r = document.createElement('div'); r.className = 'np-row';
+    r.innerHTML = '<span class="np-num"></span><input class="n" aria-label="' + T.step + '"><span class="money"><input class="a" inputmode="numeric" aria-label="' + T.amount +
+      '"><em>FCFA</em></span><span class="days"><input class="d" inputmode="numeric" aria-label="' + T.days + '"><em>' + T.days + '</em></span><button type="button" class="np-del" aria-label="' + T.remove + '">×</button>';
+    r.querySelector('.n').value = n || ''; r.querySelector('.a').value = a ? fmt(a) : ''; r.querySelector('.d').value = d || '';
+    r.querySelector('.a').addEventListener('input', function () { var v = num(this.value); this.value = v ? fmt(v) : ''; total(); });
+    r.querySelector('.n').addEventListener('input', total);
+    r.querySelector('.np-del').addEventListener('click', function () { r.remove(); renumber(); total(); });
+    list.appendChild(r); renumber(); return r;
+  }
+  function renumber() {
+    list.querySelectorAll('.np-row').forEach(function (r, i) {
+      r.querySelector('.np-num').textContent = i + 1;
+      r.querySelector('.n').name = 'step_name_' + i; r.querySelector('.a').name = 'step_amount_' + i; r.querySelector('.d').name = 'step_days_' + i;
+    });
+    document.getElementById('add-step').hidden = list.children.length >= 20;
+  }
+  function total() {
+    var t = 0; list.querySelectorAll('.np-row').forEach(function (r) { if (r.querySelector('.n').value.trim()) t += num(r.querySelector('.a').value); });
+    var b = num(document.getElementById('budget').value), out = T.total + ' : <b>' + fmt(t) + ' FCFA</b>';
+    if (b) out += t === b ? ' <span class="tag green">' + T.match + '</span>'
+                          : ' <span class="tag amber">' + fmt(Math.abs(t - b)) + ' FCFA ' + (t > b ? T.gap_more : T.gap_less) + '</span>';
+    document.getElementById('total').innerHTML = out;
+  }
+  function propose() {
+    var b = num(document.getElementById('budget').value), lv = +document.getElementById('levels').value, plan = PLANS[lv] || PLANS[1];
+    if (!b) { document.getElementById('budget').focus(); return; }
+    list.innerHTML = ''; var left = b;
+    plan.forEach(function (s, i) {
+      var a = i === plan.length - 1 ? left : Math.round(b * s[1] / 10000) * 10000; left -= a; row(s[0], a, s[2]);
+    });
+    total();
+  }
+  document.getElementById('budget').addEventListener('input', function () { var v = num(this.value); this.value = v ? fmt(v) : ''; total(); });
+  document.getElementById('split').addEventListener('click', propose);
+  document.getElementById('levels').addEventListener('change', function () { if (num(document.getElementById('budget').value)) propose(); });
+  document.getElementById('add-step').addEventListener('click', function () { row('', '', '').querySelector('.n').focus(); });
+  DEFAULT.forEach(function (s) { row(s[0], s[1], s[2]); });
+  total();
+
+  function recap() {
+    var n = 0, t = 0; list.querySelectorAll('.np-row').forEach(function (r) { if (r.querySelector('.n').value.trim()) { n++; t += num(r.querySelector('.a').value); } });
+    var lv = document.getElementById('levels'), bt = document.getElementById('btype');
+    document.getElementById('recap').innerHTML = '<b>' + T.recap + '</b><span>' + escapeHtml(document.getElementById('name').value) + ' · ' +
+      escapeHtml(bt.options[bt.selectedIndex].text) + ' ' + escapeHtml(lv.options[lv.selectedIndex].text) + '</span><span class="muted">' + n + ' ' + T.steps_n + ' · ' + fmt(t) + ' FCFA' +
+      (document.getElementById('plot_id').value ? ' · ' + T.from_plot : '') + '</span>';
+  }
+  function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  show(1);
+})();
 </script>
 {% endblock %}

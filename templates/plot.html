@@ -122,7 +122,8 @@
 <form method="post" class="row">{{ csrf() }}<input type="hidden" name="action" value="link">
 <label>{{ _("Vous avez acheté ce terrain ? Rattachez-le à un chantier") }}<select name="project_id">{% for pr in projects %}<option value="{{ pr.id }}">{{ pr.name }}</option>{% endfor %}</select></label>
 <button class="btn small">{{ _("Rattacher") }}</button></form>
-{% else %}<span class="muted">{{ _("Une fois le terrain acheté, créez votre chantier : vous pourrez y rattacher ce terrain et ses pièces.") }}</span>{% endif %}
+{% endif %}
+{% if not pl.project_id and me.role == 'proprio' %}<a class="btn small" href="{{ url_for('new_project', terrain=pl.id) }}">{{ _("Terrain acheté : créer le chantier avec ce terrain") }}</a>{% endif %}
 <form method="post">{{ csrf() }}<input type="hidden" name="action" value="archive"><button class="linkish">{{ _("Retirer ce terrain de ma liste") }}</button></form>
 </div>
 <p class="muted">{{ _("Guide indicatif : ChantierVrai ne certifie aucun titre et ne remplace ni le notaire, ni le géomètre, ni la conservation foncière.") }}</p>

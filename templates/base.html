@@ -4,13 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{% block title %}ChantierVrai{% endblock %}</title>
-<meta name="theme-color" content="#0C2A1E">
+<meta name="theme-color" content="{{ {'ivoire': '#F6F4EF', 'blanc': '#FFFFFF', 'nuit': '#070F0B'}[THEME] }}">
 <link rel="manifest" href="{{ url_for('manifest') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ChantierVrai">
 <link rel="preload" href="{{ url_for('static', filename='fonts/InterDisplay-ExtraBold.woff') }}" as="font" type="font/woff" crossorigin>
 <link rel="stylesheet" href="{{ asset('style.css') }}">
+<link rel="stylesheet" href="{{ asset('themes-night.css') }}">
+<link rel="stylesheet" href="{{ asset('themes.css') }}">
 {% block head %}{% endblock %}
 </head>
 {% from "_macros.html" import icon as _ico %}
@@ -18,7 +20,8 @@
 {% set ep = request.endpoint or '' %}
 {% set ptabs = self.tabs()|trim %}
 {% set fn_groups = project_functions(p) if (me and p is defined and p and p.owner_id is defined) else [] %}
-<body class="{% if me %}has-app{% endif %}{% if ptabs %} has-ptabs{% endif %} {% block bodyclass %}{% endblock %}">
+{% macro theme_picker() %}<div class="theme-pick" role="group" aria-label="{{ _("Apparence") }}">{% for k, lab in (('ivoire', _("Ivoire")), ('blanc', _("Blanc")), ('nuit', _("Nuit"))) %}<button type="button" data-theme="{{ k }}" aria-pressed="{{ 'true' if THEME == k else 'false' }}"><i class="sw-{{ k }}"></i>{{ lab }}</button>{% endfor %}</div>{% endmacro %}
+<body class="theme-{{ THEME }} {% if me %}has-app{% endif %}{% if ptabs %} has-ptabs{% endif %} {% block bodyclass %}{% endblock %}">
 <div class="wrap{% block wrapclass %}{% endblock %}">
 {% if me %}
 {# ---- Téléphone : barre du haut (retour, titre, alertes) ---- #}
@@ -51,6 +54,7 @@
 <a href="{{ it.url }}"{% if ep in it.eps %} class="on" aria-current="page"{% endif %}>{{ _ico(it.icon) }}<span>{{ it.label }}</span>{% if it.key == 'alerts' and unread %}<span class="badge">{{ unread }}</span>{% endif %}</a>
 {% endfor %}
 </nav>
+<div class="side-theme">{{ theme_picker() }}</div>
 <form method="post" action="{{ url_for('logout') }}" class="side-logout">
 <input type="hidden" name="csrf" value="{{ csrf_token() }}">
 <a class="side-me" href="{{ url_for('account') }}"><span class="side-avatar" aria-hidden="true">{{ (me.name or '?')[:1]|upper }}{{ ((me.name or '').split(' ')[1] if (me.name or '').split(' ')|length > 1 else '')[:1]|upper }}</span><span class="side-me-txt"><b>{{ me.name }}</b><small>{{ ROLES.get(me.role, me.role) }}</small></span></a>
@@ -103,6 +107,7 @@
 {% endif %}{% endfor %}
 <a href="{{ url_for('notifications') }}"><span class="bb-ico">{{ _ico('bell') }}</span><span>{{ _("Alertes") }}{% if unread %} ({{ unread }}){% endif %}</span></a>
 </div>
+<div class="sheet-theme">{{ theme_picker() }}</div>
 <div class="sheet-row">
 <span class="sheet-lang">{{ _ico('globe') }}{% for code, name in LANGS.items() %}<a href="{{ request.path }}?lang={{ code }}" class="{{ 'on' if code == lang }}" hreflang="{{ code }}" lang="{{ code }}">{{ name }}</a>{% endfor %}</span>
 <form method="post" action="{{ url_for('logout') }}">{{ '' }}<input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small" type="submit">{{ _ico('logout') }}{{ _("Déconnexion") }}</button></form>
@@ -127,6 +132,21 @@
   if (location.hash) setTimeout(openTarget, 0);
 })();
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('{{ url_for("service_worker") }}', {scope: '/'}).catch(function () {}); }
+</script>
+<script>
+(function () {
+  var COLORS = {ivoire: '#F6F4EF', blanc: '#FFFFFF', nuit: '#070F0B'};
+  document.querySelectorAll('[data-theme]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.dataset.theme;
+      document.body.classList.add('theme-ready');
+      document.body.className = document.body.className.replace(/\btheme-\w+/, 'theme-' + t);
+      document.cookie = 'cv_theme=' + t + '; Max-Age=31536000; Path=/; SameSite=Lax';
+      document.querySelectorAll('[data-theme]').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.theme === t ? 'true' : 'false'); });
+      var m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', COLORS[t]);
+    });
+  });
+})();
 </script>
 </body>
 </html>
