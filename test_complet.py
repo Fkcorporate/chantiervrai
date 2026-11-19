@@ -283,44 +283,21 @@ runner = A.app.test_cli_runner(); res = runner.invoke(args=["rapports-hebdo"]); 
 assert s.execute("SELECT COUNT(*) FROM notifications WHERE title LIKE '%Compte rendu%' AND channel='email'").fetchone()[0] >= 1
 print("compte rendu hebdo ok (page, commande planifiable, envoi e-mail simule)")
 
-# --- 13. Marche public, documents, portail citoyen, signalement ---
-post(own, f"/chantiers/{pid}/marche", dict(kind="public", is_public="1", marche_ref="2026-0-1-0999", autorite="Mairie de Bingerville",
-                                           attributaire="BTP SA", montant_marche="15500000", sigomap_url="https://exemple.ci/dossier/1"),
-     f"/chantiers/{pid}?onglet=dossier")
-post(own, f"/chantiers/{pid}/documents", dict(category="DAO", title="DAO lot unique", is_public="1",
+# --- 13. Documents du chantier, et plus de portail public ni de marchés publics ---
+post(own, f"/chantiers/{pid}/documents", dict(category="DAO", title="DAO lot unique",
                                               file=(io.BytesIO(b"%PDF-1.4 test"), "dao.pdf")), f"/chantiers/{pid}?onglet=dossier", files=True)
-h = citizen.get("/portail").get_data(as_text=True); assert "Villa R+1" in h
-h = citizen.get(f"/portail/{pid}").get_data(as_text=True)
-assert "Mairie de Bingerville" in h and "DAO lot unique" in h and "PV de réception" in h and "Voir le marché sur SIGOMAP" in h
-doc = s.execute("SELECT id FROM documents WHERE category='DAO'").fetchone()[0]
-assert citizen.get(f"/portail/documents/{doc}").status_code == 200
+assert "DAO lot unique" in own.get(f"/chantiers/{pid}?onglet=dossier").get_data(as_text=True)
+for u in ("/portail", f"/portail/{pid}", "/marches/import"):
+    assert citizen.get(u).status_code == 404 and own.get(u).status_code == 404, u
 okp = s.execute("SELECT id FROM proofs WHERE project_id=? AND ok=1 AND kind='photo'", (pid,)).fetchone()[0]
-badp = s.execute("SELECT id FROM proofs WHERE project_id=? AND ok=0", (pid,)).fetchone()[0]
-assert citizen.get(f"/portail/photos/{okp}").status_code == 404           # pas encore publiee
-post(own, f"/preuves/{okp}/publier", {}, f"/chantiers/{pid}?onglet=preuves")
-assert citizen.get(f"/portail/photos/{okp}").status_code == 200 and citizen.get(f"/portail/photos/{badp}").status_code == 404
 assert citizen.get(f"/photos/{okp}").status_code == 302
-h = post(citizen, f"/portail/{pid}/signaler", dict(text="Chantier à l'arrêt depuis 2 semaines", lat="5.3523", lng="-3.8890",
-                                                   photo=(io.BytesIO(jpg(None, None, nowu, 7)), "s.jpg")), f"/portail/{pid}", files=True).get_data(as_text=True)
-assert "Votre signalement a été transmis" in h
-sg = s.execute("SELECT * FROM signalements").fetchone(); assert sg["distance"] < 50
-post(own, f"/signalements/{sg['id']}/reponse", dict(response="Reprise des travaux lundi."), f"/chantiers/{pid}?onglet=dossier")
-assert "Reprise des travaux lundi." in citizen.get(f"/portail/{pid}").get_data(as_text=True)
-print("marche public, documents, portail citoyen, signalement ok")
+assert "Portail citoyen" not in own.get("/").get_data(as_text=True)
+print("documents ok, portail citoyen et marchés publics retirés")
 
-# --- 14. Import CSV de marches (SIGOMAP) et carte ---
-with open(os.path.join(BASE, "static", "modele_import_marches.csv"), "rb") as fh:
-    h = post(own, "/marches/import", dict(file=(io.BytesIO(fh.read()), "m.csv")), "/marches/import", files=True).get_data(as_text=True)
-assert "2 chantiers créés" in h, h[:2000]
-with open(os.path.join(BASE, "static", "modele_import_marches.csv"), "rb") as fh:
-    h = post(own, "/marches/import", dict(file=(io.BytesIO(fh.read()), "m.csv")), "/marches/import", files=True).get_data(as_text=True)
-assert "0 chantier créé, 2 mis à jour" in h
-imp = s.execute("SELECT * FROM projects WHERE marche_ref='2026-0-1-0123/02-12'").fetchone()
-assert imp["kind"] == "public" and imp["is_public"] == 1 and imp["start_date"] == "2026-01-15"
-assert s.execute("SELECT SUM(amount) FROM steps WHERE project_id=?", (imp["id"],)).fetchone()[0] == 185000000
-h = own.get("/carte").get_data(as_text=True); assert "Construction d" in h and "L.map" in h
-h = own.get("/").get_data(as_text=True); assert "Argent suivi sur vos" in h and "sur un budget de" in h
-print("import SIGOMAP (creation puis mise a jour) et carte ok")
+# --- 14. Carte ---
+h = own.get("/carte").get_data(as_text=True); assert "Villa R+1" in h and "L.map" in h
+h = own.get("/").get_data(as_text=True); assert "Argent suivi sur votre chantier" in h and "sur un budget de" in h
+print("carte ok")
 
 # --- 15. Application installable et pages diverses ---
 assert own.get("/manifest.webmanifest").json["display"] == "standalone"

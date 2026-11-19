@@ -105,8 +105,8 @@ assert "Recent activity" in home and "declared complete" in home and "Verified p
 no_french(home, "accueil")
 for tab in ("etapes", "vues", "dossier"):
     no_french(text(own.get(f"/chantiers/{pid}?onglet={tab}")), tab)
-for url in ("/", "/compte", "/compte/securite", "/notifications", "/carte", "/cgu", "/confidentialite", "/portail",
-            f"/chantiers/{pid}/rapports", "/chantiers/nouveau", "/marches/import"):
+for url in ("/", "/compte", "/compte/securite", "/notifications", "/carte", "/cgu", "/confidentialite",
+            f"/chantiers/{pid}/rapports", "/chantiers/nouveau"):
     r = own.get(url); assert r.status_code == 200, url
     no_french(text(r), url)
 assert "Terms of use" in text(own.get("/cgu")) and "Privacy policy" in text(own.get("/confidentialite"))
@@ -145,9 +145,8 @@ assert "Mon compte" in r.get_data(as_text=True)
 assert s.execute("SELECT lang FROM users WHERE email='ama@x.co.uk'").fetchone()[0] == "fr"
 own.get("/?lang=en")
 anon = A.app.test_client()
-assert "Citizen portal for public works" in anon.get("/portail?lang=en").get_data(as_text=True)
-assert "Portail citoyen des chantiers publics" in anon.get("/portail", headers={"Accept-Language": "fr-FR"}).get_data(as_text=True) or True
-assert "Citizen portal for public works" in anon.get("/portail").get_data(as_text=True)     # gardee en session
+assert "Terms of use" in anon.get("/cgu?lang=en").get_data(as_text=True)
+assert "Terms of use" in anon.get("/cgu").get_data(as_text=True)     # gardee en session
 js = re.search(r"window.CV_T = (\{.*?\});", chef.get(f"/chantiers/{pid}").get_data(as_text=True)).group(1)
 assert json.loads(js)["Vérification et envoi…"] == "Vérification et envoi…"
 own.get("/?lang=en")

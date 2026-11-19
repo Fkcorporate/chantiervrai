@@ -92,7 +92,7 @@ h = html(boss.get("/admin/equipe"))
 assert all(v in h for v in ("Vérification", "Commercial", "Finance", "Professionnel du BTP"))
 print("équipe : ajout par rôle, notification, 2FA exigée pour chacun")
 
-# --- 3. Donnees de travail : chantier, commande d'image, signalement ---
+# --- 3. Donnees de travail : chantier, commande d'image ---
 s.execute("INSERT INTO projects (owner_id, name, lat, lng, invite_code, created_at) VALUES (?,?,?,?,?,?)",
           (ids["client@x.ci"], "Villa Cocody", 5.35, -3.98, "INV-EQ1", A.now_iso()))
 pid = one("SELECT id FROM projects WHERE invite_code='INV-EQ1'")[0]
@@ -100,16 +100,14 @@ prov = next(iter(A.IMAGERY_PROVIDERS))
 s.execute("INSERT INTO imagery_orders (project_id, user_id, provider, status, created_at) VALUES (?,?,?,?,?)",
           (pid, ids["client@x.ci"], prov, "demandee", A.now_iso()))
 oid = one("SELECT id FROM imagery_orders")[0]
-s.execute("INSERT INTO signalements (project_id, text, created_at) VALUES (?,?,?)", (pid, "Travaux bruyants la nuit", A.now_iso()))
-sid = one("SELECT id FROM signalements")[0]
 s.commit()
 
 # --- 4. Chaque role ne voit que ses sections ---
 SECTIONS = {"images": "Images satellite très haute résolution", "verify": "Inspecteurs et fournisseurs à vérifier",
-            "disputes": "Litiges", "moderation": "Modération du portail citoyen", "accounts": "Rechercher un compte",
+            "disputes": "Litiges", "accounts": "Rechercher un compte",
             "journal": "Journal d&#39;administration", "escrow": "En séquestre", "commission": "FCFA de commission",
             "team": "/admin/equipe"}
-SEES = {"verification": {"verify"}, "support": {"disputes", "moderation", "accounts"},
+SEES = {"verification": {"verify"}, "support": {"disputes", "accounts"},
         "commercial": {"images"}, "finance": {"images", "escrow", "commission"}}
 for k, c in staff.items():
     h = html(c.get("/admin"))
@@ -127,9 +125,6 @@ assert post(cm, "/admin/action", dict(action="verify", id=iid), "/admin", follow
 post(v, "/admin/action", dict(action="verify", id=iid), "/admin")
 assert one("SELECT verified FROM users WHERE id=?", iid)[0] == 1
 assert post(v, "/admin/action", dict(action="block", id=ids["client@x.ci"]), "/admin", follow=False).status_code == 403
-assert post(v, "/admin/action", dict(action="hide_sig", id=sid), "/admin", follow=False).status_code == 403
-post(sp, "/admin/action", dict(action="hide_sig", id=sid), "/admin")
-assert one("SELECT hidden FROM signalements WHERE id=?", sid)[0] == 1
 assert post(sp, "/admin/action", dict(action="reset_link", id=ids["client@x.ci"]), "/admin", follow=False).status_code == 403
 assert post(sp, "/admin/action", dict(action="block", id=ids["fondateur@cv.ci"]), "/admin", follow=False).status_code == 403
 post(sp, "/admin/action", dict(action="block", id=ids["client@x.ci"]), "/admin")

@@ -1,5 +1,5 @@
 """Test des fonctions de mise en vente : securite des comptes, etapes modifiables, co-proprietaires,
-administration, litiges, paiement de l'inspecteur, camera integree, hors ligne, publication, sauvegardes.
+administration, litiges, paiement de l'inspecteur, camera integree, hors ligne, sauvegardes.
 Lancement : python3 test_vente.py
 """
 import io, json, os, re, shutil, sys, tempfile
@@ -246,20 +246,6 @@ post(adm, "/admin/inspections", dict(action="payout", id=iid, reference="WAVE-IN
 assert s.execute("SELECT paid, payout_status, pay_ref FROM inspections WHERE id=?", (iid,)).fetchone()[:] == (1, "verse", "WAVE-INSP-1")
 print("inspection vendue par ChantierVrai : attribution, rapport, inspecteur payé par la finance")
 
-# --- 11. Publication sur le portail (visages floutes) et moderation ---
-post(own, f"/chantiers/{pid}/marche", dict(kind="public", is_public="1", autorite="Mairie"), f"/chantiers/{pid}?onglet=dossier")
-pub = A.app.test_client()
-assert "/portail/photos/" not in html(pub.get(f"/portail/{pid}"))
-r = post(own, f"/preuves/{okp}/publier", {}, f"/chantiers/{pid}?onglet=preuves")
-assert "Photo publiée" in html(r)
-assert pub.get(f"/portail/photos/{okp}").status_code == 200
-face_img, n, available = A.VISION.blur_faces(Image.new("RGB", (100, 100), (200, 200, 200)))
-assert available is not None
-post(pub, f"/portail/{pid}/signaler", dict(text="Message insultant pour tester la modération"), f"/portail/{pid}")
-sid = s.execute("SELECT id FROM signalements").fetchone()[0]
-post(adm, "/admin/action", dict(action="hide_sig", id=sid), "/admin")
-assert "insultant" not in html(pub.get(f"/portail/{pid}"))
-print("publication des photos et modération ok")
 
 # --- 12. Admin : lien de reinitialisation, blocage ---
 k_id = s.execute("SELECT id FROM users WHERE email='k@x.ci'").fetchone()[0]

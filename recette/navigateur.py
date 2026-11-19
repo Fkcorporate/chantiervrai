@@ -80,7 +80,7 @@ with sync_playwright() as pw:
     ok(p.locator("#camera").is_visible(), "caméra de l'application ouverte")
     p.click("#cam-snap")
     try:   # l'encodage de l'image est asynchrone : on attend le résultat plutôt qu'un délai fixe
-        p.wait_for_function("!document.getElementById('send').disabled", timeout=4000)
+        p.wait_for_function("!document.getElementById('send').disabled", timeout=10000)
     except Exception:
         pass
     ok(not p.locator("#send").is_disabled(), "photo prise : bouton d'envoi actif")

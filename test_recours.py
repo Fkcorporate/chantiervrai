@@ -1,5 +1,5 @@
 """Test des recours : validation automatique (recours du chef), litiges avec delais, decision et recours,
-moderation du portail citoyen, reattribution d'une inspection, conditions fournisseur.
+reattribution d'une inspection, conditions fournisseur.
 Lancement : python3 test_recours.py
 """
 import os, re, sys, tempfile
@@ -227,29 +227,6 @@ s.execute("UPDATE disputes SET appeal_until=? WHERE id=?", (ago(1), did2)); s.co
 assert job(A.disputes_daily)["clos"] == 1 and one("SELECT status FROM disputes WHERE id=?", did2)[0] == "clos"
 print("litiges : échanges 5 j, médiation, décision motivée, recours unique, décision finale du fondateur")
 
-# --- 4. Portail citoyen : statuts, reponse publique obligatoire, rappels, moderation ---
-s.execute("UPDATE projects SET kind='public', is_public=1, require_inspection=1 WHERE id=?", (pid,)); s.commit()
-assert "reste obligatoire" in html(post(own, f"/chantiers/{pid}/reglages", dict(setting="inspection"), f"/chantiers/{pid}?onglet=dossier"))
-citizen = A.app.test_client()
-post(citizen, f"/portail/{pid}/signaler", dict(text="Le chantier bloque la route le soir, aucun balisage."), f"/portail/{pid}")
-sid = one("SELECT id FROM signalements")[0]
-assert "Reçu" in html(citizen.get(f"/portail/{pid}"))
-assert "réponse publique attendue sous 10 jours" in html(own.get(f"/chantiers/{pid}?onglet=dossier"))
-post(own, f"/signalements/{sid}/reponse", dict(status="en_cours"), f"/chantiers/{pid}?onglet=dossier")
-assert one("SELECT status FROM signalements WHERE id=?", sid)[0] == "en_cours" and "Pris en charge" in html(citizen.get(f"/portail/{pid}"))
-assert "Écrivez la réponse" in html(post(own, f"/signalements/{sid}/reponse", dict(status="traite"), f"/chantiers/{pid}?onglet=dossier"))
-s.execute("UPDATE signalements SET created_at=? WHERE id=?", (ago(6), sid)); s.commit()
-assert job(A.signalements_daily)["rappels"] == 1
-s.execute("UPDATE signalements SET created_at=? WHERE id=?", (ago(11), sid)); s.commit()
-assert job(A.signalements_daily)["support"] == 1 and notes("support@cv.ci", "Signalement citoyen sans réponse") == 1
-post(own, f"/signalements/{sid}/reponse", dict(status="traite", response="Balisage installé le 14/11, merci."), f"/chantiers/{pid}?onglet=dossier")
-assert "Balisage installé" in html(citizen.get(f"/portail/{pid}"))
-post(citizen, f"/portail/{pid}/signaler", dict(text="Message injurieux sans rapport avec le chantier ici."), f"/portail/{pid}")
-sid2 = one("SELECT MAX(id) FROM signalements")[0]
-post(sup_staff, "/admin/action", dict(action="hide_sig", id=sid2, note="injurieux"), "/admin")
-assert one("SELECT status, hidden, moderation_note FROM signalements WHERE id=?", sid2)[:] == ("rejete", 1, "injurieux")
-assert "injurieux" not in html(citizen.get(f"/portail/{pid}"))
-print("portail citoyen : statuts, réponse publique sous 10 jours, rappels, signalement écarté avec motif")
 
 # --- 5. Inspection : l'inspecteur refuse -> retour a l'attribution ; annulation avant paiement ---
 insp = register("i@x.ci", "inspecteur", zone="Bingerville", phone="0500000000")
