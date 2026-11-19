@@ -1240,3 +1240,72 @@ label.dr-search{flex-direction:row;align-items:center;gap:10px}
 .chef-kicker{color:var(--accent)}
 .wait-ico{background:#EEF1EF;color:var(--muted)}
 .wait-kicker{color:var(--muted)}
+
+/* ===================================================================
+   Accueil du propriétaire, « édition nuit »
+   Fond vert presque noir, chiffres fins, le doré seulement pour décider.
+   =================================================================== */
+body.night{--night:#06140E;--night-2:#0B1F16;--night-line:rgba(255,255,255,.09);--night-muted:#8FA79A;background:var(--night);color:#fff}
+body.night main{color:#fff;position:relative}
+body.night main::before{content:"";position:absolute;left:-120px;top:-160px;width:520px;height:520px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(201,164,106,.14),rgba(201,164,106,0) 65%)}
+body.night main>*{position:relative}
+body.night .muted,body.night .greet-date,body.night .band-kicker,body.night .band-sub{color:var(--night-muted)}
+body.night h1,body.night h2,body.night .section-title{color:#fff}
+body.night a{color:#fff}
+/* salutation : initiales dorées et nom complet */
+.greet-n{flex-direction:row;align-items:center;gap:12px}
+.greet-av{flex:0 0 46px;width:46px;height:46px;border-radius:50%;background:var(--gold);color:var(--gold-ink)!important;display:flex;align-items:center;
+  justify-content:center;font-size:15px;font-weight:700;text-decoration:none;letter-spacing:.02em}
+.greet-txt{display:flex;flex-direction:column;gap:1px;min-width:0}
+body.night .greet-hello{font-size:20px;color:#fff;letter-spacing:-.02em}
+/* le chiffre */
+body.night .band{background:transparent;padding:18px 0 4px;border-radius:0;box-shadow:none}
+body.night .band-kicker{letter-spacing:.14em;font-size:12px}
+body.night .band-big{font-size:68px;line-height:1;letter-spacing:-.06em;font-weight:300}
+body.night .band-big small{color:var(--night-muted);font-size:19px;font-weight:400;letter-spacing:-.01em}
+body.night .band-stats{border-top:1px solid var(--night-line);padding-top:14px;margin-top:16px}
+body.night .band-stats span{color:var(--night-muted)}
+/* versements des 6 derniers mois */
+.months{margin:18px 0 0;display:flex;flex-direction:column;gap:6px}
+.months-bars{display:flex;align-items:flex-end;gap:6px;height:64px}
+.months-bars .mb{flex:1;border-radius:5px;background:rgba(255,255,255,.12);transition:height .6s cubic-bezier(.2,.8,.2,1)}
+.months-bars .mb.now{background:var(--gold)}
+.months-labels{display:flex;gap:6px;font-size:11px;color:#5F7769}
+.months-labels span{flex:1;text-align:center}
+.months-labels .now{color:var(--gold);font-weight:600}
+/* décision : bordure dorée sur verre */
+body.night .decide-card{background:rgba(201,164,106,.08);border:1px solid rgba(201,164,106,.38);box-shadow:none;color:#fff}
+body.night .decide-card b{color:#fff}
+body.night .decide-ico{background:var(--gold);color:var(--gold-ink)}
+body.night .decide-kicker{color:var(--gold)}
+body.night .decide-amt{color:#fff}
+body.night .decide-amt small{color:var(--night-muted)}
+@media (hover:hover){body.night .decide-card:hover{background:rgba(201,164,106,.13);box-shadow:none}}
+/* cartes en verre */
+body.night main .card{background:rgba(255,255,255,.045);border:1px solid var(--night-line);box-shadow:none;color:#fff}
+body.night main .card b{color:#fff}
+body.night .feed-item{border-color:var(--night-line)}
+body.night .feed-dot{background:rgba(255,255,255,.25)}
+body.night .feed-dot.new{background:var(--gold)}
+body.night .onboard .bar,body.night .onboard [class*="track"]{background:rgba(255,255,255,.12)}
+body.night .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.22)}
+body.night .btn.ghost:hover{border-color:rgba(255,255,255,.4);color:#fff}
+body.night .pcard{box-shadow:0 18px 40px rgba(0,0,0,.35)}
+body.night .pcard-new{background:transparent;border:1.5px dashed rgba(255,255,255,.18);color:#fff}
+body.night .pcard-new .pn-plus{background:var(--gold);color:var(--gold-ink)}
+body.night .pcard-new .muted{color:var(--night-muted)}
+@media (hover:hover){body.night .pcard-new:hover{background:rgba(255,255,255,.04);border-color:rgba(201,164,106,.5)}}
+/* barres : en haut sur téléphone, menu en verre */
+@media (max-width:999px){
+  body.night .appbar{background:var(--night)}
+  body.night .appbar .ab-dot{border-color:var(--night)}
+  body.night .greet{background:var(--night)}
+  body.night .greet+.band{margin-top:0;padding-top:8px}
+  body.night .band{margin:0;background:transparent;padding-left:0;padding-right:0}
+  body.night .bottombar{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+  body.night .band-big{font-size:60px}
+}
+body.night main{overflow-x:clip}
+body.night{overflow-x:hidden}
+@media (min-width:1000px){body.night .months{max-width:520px}body.night .band-stats{max-width:520px}}
