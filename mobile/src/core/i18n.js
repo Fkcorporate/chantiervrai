@@ -2,6 +2,9 @@
 // Les messages venant du serveur (refus, statuts, alertes) arrivent deja traduits.
 
 const EN = {
+  'Vous achetez un terrain ?': 'Buying a plot?',
+  'Placez-le sur la carte satellite : alerte si quelqu\'un d\'autre a déclaré le même ACD ou les mêmes bornes, et pièces officielles à demander.': 'Place it on the satellite map: alert if someone else has declared the same ACD or markers, and the official documents to request.',
+  'Vérifier un terrain': 'Check a plot',
   'chaque franc justifié par une preuve vérifiée': 'every franc backed by a verified proof',
   'Fermer': 'Close',
   'Toutes les fonctions': 'All functions',

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Linking } from 'react-native';
 import { Screen, Card, T, Pill, Row, Button, Field, Banner, Band, PhotoCard, DecisionCard, NightGreeting } from '../components/ui';
 import { api, current, queue, setCounts } from '../services/session';
 import { t, getLang } from '../core/i18n';
@@ -103,6 +104,14 @@ export default function ProjectsScreen({ go }) {
           <T bold>{fcfa(o.total)}</T>
         </Card>
       ))}
+      {['proprio', 'pro'].includes(user.role) ? (
+        <Card onPress={() => Linking.openURL(api.url(`/terrains?lang=${getLang()}`))}
+          style={{ backgroundColor: '#0B2219', borderColor: 'rgba(201,164,106,.35)' }}>
+          <T bold white>{t('Vous achetez un terrain ?')}</T>
+          <T style={{ color: '#B9C8BF', fontSize: 13.5 }}>{t('Placez-le sur la carte satellite : alerte si quelqu\'un d\'autre a déclaré le même ACD ou les mêmes bornes, et pièces officielles à demander.')}</T>
+          <T bold style={{ color: '#C9A46A' }}>{t('Vérifier un terrain')} →</T>
+        </Card>
+      ) : null}
       {user.role === 'fournisseur' && !orders.length && !loading ? <Card><T muted>{t('Aucune commande pour l\'instant.')}</T></Card> : null}
       {user.role !== 'fournisseur' && !projects.length && !loading ? <Card><T muted>{t('Aucun chantier pour l\'instant.')}</T></Card> : null}
       {user.role === 'chef' ? (
