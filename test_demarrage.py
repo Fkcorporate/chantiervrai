@@ -66,7 +66,7 @@ print("liste « Bien démarrer » : 6 points pour le propriétaire")
 
 # --- 2. Creation simplifiee : budget reparti, options avancees repliees ---
 f = html(own.get("/chantiers/nouveau"))
-assert "Budget total des travaux" in f and "Répartir sur les étapes types" in f and "<details><summary>Options avancées" in f
+assert "Budget total des travaux" in f and "Proposer les étapes" in f and "Options avancées</summary>" in f
 data = dict(name="Villa", address="Bingerville", lat="5.3521", lng="-3.8892", radius="100",
             start_date=datetime.now().date().isoformat(), pay_mode="suivi")
 for i, (n, a, d) in enumerate(A.DEFAULT_STEPS):

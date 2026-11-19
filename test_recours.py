@@ -115,7 +115,7 @@ print("par défaut : aucune validation automatique, relances explicites, chef in
 # --- 1b. Le super-admin la propose (delai 10 j), le proprietaire l'accepte sur son chantier ---
 post(boss, "/admin/action", dict(action="auto_validate", on="1", days="10"), "/admin")
 assert A.auto_validate_on(s) and A.auto_validate_days(s) == 10
-assert "dans les 10 jours" in html(own.get("/chantiers/nouveau"))
+assert "Validation automatique après 10 jours" in html(own.get("/chantiers/nouveau"))
 assert "Une étape attend votre réponse" not in html(post(own, f"/chantiers/{pid}/reglages", dict(setting="auto_validate", on="1"),
                                                          f"/chantiers/{pid}?onglet=etapes"))
 assert one("SELECT auto_validate FROM projects WHERE id=?", pid)[0] == 1

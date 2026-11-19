@@ -1701,7 +1701,8 @@ def inject_globals():
             "escrow_on": escrow_enabled(), "PAY_MODES": tr(PAY_MODES), "advanced": g.get("advanced", True),
             "sub_banner": sub_banner(me), "SIG_STATUS": tr(SIG_STATUS), "DSTAGES": tr(DISPUTE_STAGES),
             "AUTO_VALIDATE_DAYS": auto_validate_days(), "auto_validate_on": auto_validate_on(),
-            "is_critical": is_critical, "NAV": app_nav(me) if me else None, "ago": ago, "compact": compact}
+            "is_critical": is_critical, "NAV": app_nav(me) if me else None, "ago": ago, "compact": compact,
+            "THEME": request.cookies.get("cv_theme") if request.cookies.get("cv_theme") in ("ivoire", "blanc", "nuit") else "ivoire"}
 
 
 def project_role(p, user=None):
@@ -2667,6 +2668,24 @@ def project_orders(db, project_id=None, supplier_id=None):
                       "JOIN steps st ON st.id = o.step_id WHERE " + where + " ORDER BY o.id DESC", args).fetchall()
 
 
+def floor_name(k):
+    return _("rez-de-chaussée") if k == 0 else (_("1er étage") if k == 1 else _("%(k)se étage", k=k))
+
+
+def step_plan(levels):
+    """Étapes types selon le nombre d'étages (R+n) : (nom, part du budget, jours)."""
+    levels = max(0, min(int(levels or 0), 10))
+    steps = [(_("Fondations"), 18, 30), (_("Soubassement"), 12, 20), (_("Dalle basse"), 14, 20)]
+    struct = 42 / (2 * levels + 1)
+    for k in range(levels + 1):
+        steps.append((_("Élévation des murs") + (f" ({floor_name(k)})" if levels else ""), struct, 30))
+        if k < levels:
+            steps.append((_("Dalle haute") + (f" ({floor_name(k + 1)})" if levels > 1 else ""), struct, 25))
+    steps.append((_("Toiture et finitions"), 14, 45))
+    total = sum(w for _n, w, _d in steps)
+    return [(n, round(w / total, 4), d) for n, w, d in steps]
+
+
 @app.route("/chantiers/nouveau", methods=["GET", "POST"])
 @role_required("proprio")
 def new_project():
@@ -2682,7 +2701,7 @@ def new_project():
         f = request.form
         lat, lng = to_float(f.get("lat")), to_float(f.get("lng"))
         steps = []
-        for i in range(12):
+        for i in range(20):
             n = f.get(f"step_name_{i}", "").strip()
             if n:
                 steps.append((n, to_int(f.get(f"step_amount_{i}")), to_int(f.get(f"step_days_{i}"), None)))
@@ -2704,6 +2723,19 @@ def new_project():
             get_db().execute("UPDATE projects SET auto_validate = ?, require_inspection = ? WHERE id = ?",
                              (1 if f.get("auto_validate") and auto_validate_on() else 0,
                               1 if f.get("require_inspection") else 0, pid))
+            btype = f.get("building_type") if f.get("building_type") in BUILDING_TYPES else None
+            levels = to_int(f.get("levels"), None)
+            get_db().execute("UPDATE projects SET building_type = ?, levels = ?, surface_floor = ? WHERE id = ?",
+                             (btype, min(levels, 60) if levels is not None and f.get("levels", "") != "" else None,
+                              to_float(f.get("surface_floor")) or None, pid))
+            plot = get_db().execute("SELECT * FROM plots WHERE id = ? AND user_id = ? AND project_id IS NULL AND archived = 0",
+                                    (to_int(f.get("plot_id"), None), user["id"])).fetchone() if f.get("plot_id") else None
+            if plot:
+                copy_plot_to_project(get_db(), plot, get_db().execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone(), user)
+            elif f.get("parcel"):
+                pts = GEO.parse(f.get("parcel"))
+                if pts:
+                    get_db().execute("UPDATE projects SET parcel = ? WHERE id = ?", (json.dumps(pts), pid))
             if f.get("auto_validate") and auto_validate_on():
                 log(pid, L("Validation automatique acceptée par le propriétaire : étape validée après %(n)s jours sans réponse",
                            n=auto_validate_days()), get_db(), user["id"])
@@ -2711,7 +2743,18 @@ def new_project():
             flash(_("Chantier créé. Donnez le code d'invitation à votre chef de chantier."), "ok")
             return redirect(url_for("project", project_id=pid))
     sub = get_sub(get_db(), user)
-    return render_template("new_project.html", default_steps=DEFAULT_STEPS,
+    db = get_db()
+    plots = []
+    for pl in db.execute("SELECT * FROM plots WHERE user_id = ? AND project_id IS NULL AND archived = 0 ORDER BY updated_at DESC",
+                         (user["id"],)).fetchall():
+        ev = plot_assessment(db, pl, g.lang)
+        c = GEO.centroid(ev["poly"]) if len(ev["poly"]) >= 3 else None
+        plots.append({"id": pl["id"], "name": pl["name"], "commune": pl["commune"] or "", "ref": pl["title_ref"] or "",
+                      "lat": c[0] if c else None, "lng": c[1] if c else None, "poly": ev["poly"], "level": ev["vlevel"],
+                      "level_label": LAND.label(LAND.LEVELS[ev["vlevel"]], g.lang), "alert": bool(ev["conflicts"])})
+    plans = {n: step_plan(n) for n in range(0, 6)}
+    return render_template("new_project.html", default_steps=[(_(n), a, d) for n, a, d in DEFAULT_STEPS], plans=plans, plots=plots,
+                           BUILDING_TYPES=tr(BUILDING_TYPES), COMMUNES=COMMUNES, pre_plot=to_int(request.args.get("terrain"), None),
                            default_total=sum(a for _n, a, _d in DEFAULT_STEPS),
                            default_inspection=bool(sub and sub["plan"] == "entreprise"), insp_price=inspection_prices()[0],
                            today=date.today().isoformat())
@@ -2782,6 +2825,78 @@ def proofs_of(project_id, db=None):
         "SELECT proofs.*, steps.name AS step_name, users.name AS author FROM proofs "
         "JOIN steps ON steps.id = proofs.step_id JOIN users ON users.id = proofs.user_id "
         "WHERE proofs.project_id = ? ORDER BY proofs.id DESC", (project_id,)).fetchall()
+
+
+def owner_feed(db, p, stats, proofs):
+    """Fil de preuves de la page d'accueil du propriétaire : étapes en « stories », preuves groupées par jour,
+    passages de drone et inspections, chacun avec ce qui le rend fiable."""
+    today = datetime.now(timezone.utc).date()
+    last_by_step = {}
+    for pr in proofs:                                            # du plus récent au plus ancien
+        if pr["ok"] and (pr["kind"] != "video" or pr["thumb"]) and pr["step_id"] not in last_by_step:
+            last_by_step[pr["step_id"]] = pr["id"]
+    stories = []
+    for st in stats["steps"]:
+        state = "done" if st["status"] in VALIDATED else (
+            "decl" if st["status"] == "declare" else ("now" if st["status"] == "en_cours" else "todo"))
+        stories.append({"id": st["id"], "name": st["name"], "state": state, "thumb": last_by_step.get(st["id"])})
+
+    def checks(pr):
+        out = []
+        if pr["distance"] is not None:
+            out.append(_("Prise sur le terrain, à %(n)s m", n=pr["distance"]))
+        if pr["capture"] == "app":
+            out.append(_("Photo prise dans l'application, à l'instant"))
+        out.append(_("Différente des photos précédentes"))
+        if pr["ai_status"] == "ok" and pr["ai_construction"]:
+            out.append(_("Analyse de l'image : chantier reconnu") + (f" · {pr['ai_step']}" if pr["ai_step"] else ""))
+        return out
+    items = []
+    for pr in proofs[:40]:
+        if not pr["ok"] or (pr["kind"] == "video" and not pr["thumb"]):
+            continue
+        items.append({"type": "proof", "at": pr["created_at"], "id": pr["id"], "step_id": pr["step_id"], "title": pr["step_name"],
+                      "author": pr["author"], "note": pr["note"], "checks": checks(pr), "video": pr["kind"] == "video",
+                      "role": _("chef de chantier") if pr["source"] == "chef" else (_("inspecteur") if pr["source"] == "inspecteur" else "")})
+    for m in db.execute("SELECT m.*, u.name AS pilot FROM aerial_missions m LEFT JOIN users u ON u.id = m.pilot_id "
+                        "WHERE m.project_id = ? AND m.status = 'faite' ORDER BY m.done_at DESC LIMIT 6", (p["id"],)).fetchall():
+        cov = db.execute("SELECT id, kind FROM media3d WHERE mission_id = ? AND kind != 'modele3d' ORDER BY (kind = 'orthophoto') DESC, id LIMIT 1",
+                         (m["id"],)).fetchone()
+        n = db.execute("SELECT COUNT(*) FROM media3d WHERE mission_id = ?", (m["id"],)).fetchone()[0]
+        items.append({"type": "drone", "at": m["done_at"], "media": cov["id"] if cov else None, "author": m["pilot"],
+                      "title": _("Passage du drone : %(n)s vue(s)", n=n), "note": m["note"]})
+    for i in db.execute("SELECT i.*, u.name AS insp, st.name AS step_name FROM inspections i JOIN users u ON u.id = i.inspector_id "
+                        "LEFT JOIN steps st ON st.id = i.step_id WHERE i.project_id = ? AND i.status = 'realisee' ORDER BY i.id DESC LIMIT 6",
+                        (p["id"],)).fetchall():
+        items.append({"type": "inspection", "at": i["done_at"] or i["created_at"], "author": i["insp"], "id": i["id"],
+                      "title": _("Inspection : %(s)s", s=i["step_name"] or _("chantier")), "verdict": i["verdict"],
+                      "verdict_label": _(VERDICTS[i["verdict"]]) if i["verdict"] in VERDICTS else None})
+    items.sort(key=lambda x: x["at"] or "", reverse=True)
+    days = []
+    for it in items[:10]:
+        try:
+            dday = datetime.fromisoformat(it["at"]).date()
+        except (TypeError, ValueError):
+            continue
+        label = _("Aujourd'hui") if dday == today else (_("Hier") if dday == today - timedelta(days=1) else format_d(dday.isoformat()))
+        if not days or days[-1][0] != label:
+            days.append((label, []))
+        days[-1][1].append(it)
+    month = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    recent = [pr for pr in proofs if pr["ok"] and pr["created_at"] >= month]
+    nxt = next((st for st in stats["steps"] if st["status"] in ("versement", "declare")), None) or stats.get("current")
+    insp_next = db.execute("SELECT wanted_date FROM inspections WHERE project_id = ? AND status NOT IN ('realisee', 'annulee') "
+                           "ORDER BY id LIMIT 1", (p["id"],)).fetchone()
+    viewer = [{"id": it["id"], "src": url_for("proof_thumb" if it["video"] else "proof_photo", proof_id=it["id"]),
+               "title": it["title"], "kicker": f"{it['author'] or ''} · {format_dt(it['at']) if it['at'] else ''}",
+               "sub": " · ".join(it["checks"][:2]), "step": it["step_id"]}
+              for _l, its in days for it in its if it["type"] == "proof"]
+    for st in stories:                      # les vignettes des étapes ouvrent aussi la visionneuse
+        if st["thumb"] and st["thumb"] not in {v["id"] for v in viewer}:
+            viewer.append({"id": st["thumb"], "src": url_for("proof_photo", proof_id=st["thumb"]), "title": st["name"],
+                           "kicker": "", "sub": "", "step": st["id"]})
+    return {"viewer": viewer, "stories": stories, "days": days, "photos_30": len(recent), "days_30": len({pr["created_at"][:10] for pr in recent}),
+            "next": nxt, "insp_next": insp_next["wanted_date"] if insp_next else None, "last_by_step": last_by_step}
 
 
 def show_advanced(db, user, project_id):
@@ -2872,6 +2987,8 @@ def project(project_id):
     ctx["alerts"] = project_alerts(p, stats, ctx["pred"])
     if tab == "accueil":
         ctx["trust"] = project_trust(p, stats, ctx["pred"], db)
+        if role == "owner":
+            ctx["feed"] = owner_feed(db, p, stats, proofs)
         if p["chef_id"]:
             ctx["chef_user"] = db.execute("SELECT * FROM users WHERE id = ?", (p["chef_id"],)).fetchone()
             ctx["my_review"] = db.execute("SELECT * FROM contractor_reviews WHERE project_id = ? AND author_id = ?",

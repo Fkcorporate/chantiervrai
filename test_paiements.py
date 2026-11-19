@@ -212,7 +212,7 @@ assert "partenaire agréé" in html(post(boss, "/admin/action", dict(action="esc
 assert not A.escrow_enabled(s)
 post(boss, "/admin/action", dict(action="escrow_on", partner="Banque Atlantique (séquestre)", confirm="1"), "/admin")
 assert A.escrow_enabled(s) and one("SELECT value FROM settings WHERE key='escrow_partner'")[0].startswith("Banque")
-assert "Séquestre : je dépose" in html(own.get("/chantiers/nouveau"))
+assert 'value="sequestre"' in html(own.get("/chantiers/nouveau"))
 pid2 = new_project(own, "sequestre", "Duplex")
 assert one("SELECT pay_mode FROM projects WHERE id=?", pid2)[0] == "sequestre"
 post(own, f"/chantiers/{pid2}/paiements/depot", dict(amount="2000000"), f"/chantiers/{pid2}?onglet=etapes")

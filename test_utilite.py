@@ -60,7 +60,7 @@ check(A.app.test_client().get(f"/photos/{pr['id']}/vignette").status_code in (30
 check("en attente de la validation du propriétaire" in html(chef.get(f"/chantiers/{pid}")), "le chef voit que l'étape attend le propriétaire")
 
 h = html(own.get(f"/chantiers/{pid}"))
-check('class="actionbar"' in h and h.index('class="actionbar"') < h.index("todo-list") < h.index("Avancement vérifié</b>"),
+check('class="actionbar"' in h and h.index('class="actionbar"') < h.index('class="post decision"') < h.index("todo-list"),
       "l'étape à valider est en tête de l'accueil (barre d'action)")
 t = A.TRUST.compute(dict(A.trust_inputs(s, s.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone(),
                                         A.project_stats(pid, s), None)))

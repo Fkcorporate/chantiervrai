@@ -33,8 +33,10 @@ own, chef = A.app.test_client(), A.app.test_client()
 s = A.connect()
 CAT = json.load(open(os.path.join(BASE, "translations", "en.json"), encoding="utf-8"))
 # textes francais qui ne doivent plus apparaitre dans une page anglaise
-FRENCH = sorted({fr for fr, en in CAT.items() if fr != en and len(fr) >= 12 and "%(" not in fr and "&" not in fr}, key=len,
-                reverse=True)
+# Les noms d'étapes sont des données saisies par le propriétaire (proposées en français ou en anglais à la création) : pas de l'interface
+STEP_NAMES = {n for n, _a, _d in A.DEFAULT_STEPS} | {"Élévation des murs", "Dalle haute", "Toiture et finitions", "Soubassement"}
+FRENCH = sorted({fr for fr, en in CAT.items() if fr != en and len(fr) >= 12 and "%(" not in fr and "&" not in fr
+                 and fr not in STEP_NAMES}, key=len, reverse=True)
 
 
 def tok(c, url="/"):

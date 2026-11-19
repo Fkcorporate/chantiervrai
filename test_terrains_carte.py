@@ -173,6 +173,28 @@ page = html(seller.get(f"/chantiers/{pid2}/foncier"))
 check("Le même numéro de titre a déjà été déclaré" in page, "page Terrain d'un chantier : même ACD signalé")
 check("Mariam" not in page and "Villa Assinie" not in page, "sans révéler l'autre propriétaire")
 
+
+print("Création de chantier à partir d'un terrain vérifié")
+r = post(buyer, "/terrains", {"name": "Lot 7 Cocody", "commune": "Cocody"}, follow=False)
+p5 = int(r.headers["Location"].split("/terrains/")[1].split("#")[0])
+post(buyer, f"/terrains/{p5}", {"action": "save", "name": "Lot 7 Cocody", "doc_type": "acd", "title_ref": "ACD 2023-7777"})
+post(buyer, f"/terrains/{p5}", {"action": "bornes", "bornes": "5.3600, -3.9870\n5.3600, -3.9868\n5.3602, -3.9868\n5.3602, -3.9870"})
+page = html(buyer.get(f"/chantiers/nouveau?terrain={p5}"))
+check("un terrain que vous avez vérifié" in page and "Lot 7 Cocody" in page, "le terrain vérifié est proposé à la création")
+data = dict(name="Villa Cocody", address="Cocody", lat="5.3601", lng="-3.9869", radius="100", pay_mode="suivi", plot_id=str(p5),
+            building_type="immeuble", levels="2", surface_floor="240", start_date=A.datetime.now().date().isoformat())
+plan = A.step_plan(2)
+for i, (n, w, d) in enumerate(plan):
+    data[f"step_name_{i}"], data[f"step_amount_{i}"], data[f"step_days_{i}"] = n, f"{int(30000000 * w):,}".replace(",", " "), str(d)
+post(buyer, "/chantiers/nouveau", data)
+pr = s.execute("SELECT * FROM projects WHERE name = 'Villa Cocody'").fetchone()
+check(pr["building_type"] == "immeuble" and pr["levels"] == 2 and pr["surface_floor"] == 240, "type, niveaux et surface enregistrés")
+check(s.execute("SELECT COUNT(*) FROM steps WHERE project_id = ?", (pr["id"],)).fetchone()[0] == len(plan) == 9, "R+2 : 9 étapes proposées")
+check(abs(sum(w for _n, w, _d in plan) - 1) < 0.001, "les parts des étapes font 100 %")
+check(s.execute("SELECT SUM(amount) FROM steps WHERE project_id = ?", (pr["id"],)).fetchone()[0] > 29000000, "montants avec espaces lus")
+check(s.execute("SELECT project_id FROM plots WHERE id = ?", (p5,)).fetchone()[0] == pr["id"], "terrain rattaché au nouveau chantier")
+check(pr["parcel"] and s.execute("SELECT title_ref FROM land_files WHERE project_id = ?", (pr["id"],)).fetchone()[0] == "ACD 2023-7777",
+      "bornes et ACD repris")
 print("Archivage")
 post(buyer, u4, {"action": "archive"})
 check("Terrain Assinie" not in html(buyer.get("/terrains")), "terrain retiré de la liste")
