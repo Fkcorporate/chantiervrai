@@ -1068,6 +1068,59 @@ CREATE TABLE IF NOT EXISTS camera_shots (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_camera_shots ON camera_shots(camera_id, taken);
+CREATE TABLE IF NOT EXISTS purchase_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    step_id INTEGER REFERENCES steps(id) ON DELETE SET NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL,
+    details TEXT,
+    supplier TEXT,
+    amount INTEGER NOT NULL,
+    quote_file TEXT,
+    status TEXT NOT NULL DEFAULT 'demande',
+    decided_by INTEGER REFERENCES users(id),
+    decided_at TEXT,
+    refusal TEXT,
+    paid_at TEXT,
+    pay_ref TEXT,
+    received_at TEXT,
+    delivery_file TEXT,
+    delivery_distance INTEGER,
+    delivered_at TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_purchase_project ON purchase_requests(project_id, status);
+CREATE TABLE IF NOT EXISTS change_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL,
+    reason TEXT,
+    amount INTEGER NOT NULL,
+    extra_days INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'proposee',
+    decided_by INTEGER REFERENCES users(id),
+    decided_at TEXT,
+    refusal TEXT,
+    step_id INTEGER REFERENCES steps(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS site_journal (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    day TEXT NOT NULL,
+    workers INTEGER,
+    weather TEXT,
+    stopped INTEGER NOT NULL DEFAULT 0,
+    stop_reason TEXT,
+    done TEXT,
+    problems TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT,
+    UNIQUE(project_id, day)
+);
 CREATE TABLE IF NOT EXISTS delivery_counts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -1702,7 +1755,8 @@ def inject_globals():
             "sub_banner": sub_banner(me), "SIG_STATUS": tr(SIG_STATUS), "DSTAGES": tr(DISPUTE_STAGES),
             "AUTO_VALIDATE_DAYS": auto_validate_days(), "auto_validate_on": auto_validate_on(),
             "is_critical": is_critical, "NAV": app_nav(me) if me else None, "ago": ago, "compact": compact,
-            "THEME": request.cookies.get("cv_theme") if request.cookies.get("cv_theme") in ("ivoire", "blanc", "nuit") else "ivoire"}
+            "THEME": request.cookies.get("cv_theme") if request.cookies.get("cv_theme") in ("ivoire", "blanc", "nuit") else "ivoire",
+            "quick_actions": quick_actions}
 
 
 def project_role(p, user=None):
@@ -1788,6 +1842,7 @@ def project_functions(p, role=None, advanced=None):
             it(_("Vues satellite et plan"), _("Comparer le terrain dans le temps"), tab("vues"), "sat"),
             it(_("Drone et caméra"), _("Passages de drone programmés, caméra du chantier"), u("aerial_page"), "drone"),
             it(_("Notes du chantier"), _("Messages vocaux et écrits du chef"), u("site_notes_page"), "note"),
+            it(_("Journal de chantier"), _("Chaque jour : ouvriers, météo, arrêts"), u("journal_page"), "sheet"),
             it(_("Comptes rendus"), _("Résumé de la semaine à partager"), u("reports"), "doc"),
             advanced and it(_("Avancement par zone"), _("Pièce par pièce, niveau par niveau"), u("zones_page"), "zones"),
         ])
@@ -1799,6 +1854,8 @@ def project_functions(p, role=None, advanced=None):
             advanced and it(_("Quantités installées"), _("Mètres, m² et m³ réellement posés"), u("quantities"), "qty"),
         ])
         grp("argent", _("Argent"), [
+            it(_("Demandes d'achat du chef"), _("Accepter, payer, voir la livraison"), u("purchases_page"), "money"),
+            it(_("Travaux supplémentaires"), _("Avenants : montant et délai à accepter"), u("change_orders_page"), "plan"),
             it(_("Situation des travaux et décompte"), _("Ce qui est fait, payé, restant"), u("decompte"), "money"),
             owner and it(_("Historique des paiements"), _("Chaque versement et sa référence"), u("payments_ledger"), "card"),
             it(_("Plan de financement"), _("Apport, crédit, échéances"), u("financing"), "bank"),
@@ -1831,6 +1888,9 @@ def project_functions(p, role=None, advanced=None):
     elif role == "chef":
         grp("travail", _("Mon travail"), [
             it(_("Envoyer une preuve"), _("Photo ou vidéo de l'étape en cours"), tab("accueil", "proof-form"), "cam"),
+            it(_("Journal du jour"), _("Ouvriers, météo, travaux faits, arrêts"), u("journal_page"), "note"),
+            it(_("Demander de l'argent pour un achat"), _("Ciment, fer, sable : le propriétaire paie, vous photographiez la livraison"), u("purchases_page"), "money"),
+            it(_("Travaux supplémentaires"), _("Proposer un montant et un délai avant de les faire"), u("change_orders_page"), "plan"),
             it(_("Mes preuves"), _("Acceptées, refusées et pourquoi"), tab("preuves"), "check"),
             it(_("Matériaux et factures"), _("Factures, bons de livraison"), tab("factures"), "bill"),
             it(_("Mes paiements"), _("Ce qui a été versé et quand"), url_for("payments_received"), "card"),
@@ -1883,6 +1943,7 @@ def load_project(project_id, roles=("owner", "chef", "inspecteur")):
     role = project_role(p)
     if role not in roles:
         abort(403)
+    g.project = p
     g.project_role = role
     return p
 
@@ -2035,6 +2096,15 @@ def project_alerts(p, s, pred, db=None):
                     _('Vérifiez les preuves avant de payer.')))
     if s["refused"]:
         out.append((_('%(refused)s preuve(s) refusée(s)', refused=s['refused']), 'preuves', _('Hors zone, ancienne, en double ou retouchée.')))
+    buy = db.execute("SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM purchase_requests WHERE project_id = ? AND status IN ('demande', 'acceptee')",
+                     (p["id"],)).fetchone()
+    if buy[0]:
+        out.append((_('%(n)s demande(s) d\'argent pour des achats', n=buy[0]), url_for("purchases_page", project_id=p["id"]),
+                    _('%(m)s FCFA demandés par le chef de chantier.', m=f"{buy[1]:,}".replace(",", " "))))
+    co = db.execute("SELECT COUNT(*) FROM change_orders WHERE project_id = ? AND status = 'proposee'", (p["id"],)).fetchone()[0]
+    if co:
+        out.append((_('%(n)s proposition(s) de travaux supplémentaires', n=co), url_for("change_orders_page", project_id=p["id"]),
+                    _('À accepter ou refuser avant qu\'ils soient faits.')))
     if s["days_silent"] is not None and s["days_silent"] >= 7:
         out.append((_('Aucune preuve depuis %(days_silent)s jours', days_silent=s['days_silent']), None, _("Le chantier est peut-être à l'arrêt.")))
     if pred and not pred["done"] and pred["delay"] > 7:
@@ -2497,9 +2567,34 @@ def notifications():
         db.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (me["id"],))
         db.commit()
         return redirect(url_for("notifications"))
-    rows = db.execute("SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 100",
+    rows = db.execute("SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 150",
                       (me["id"],)).fetchall()
-    return render_template("notifications.html", rows=rows)
+
+    def cat(n):
+        link = n["link"] or ""
+        for key, parts in (("argent", ("/achats", "/paiements", "/factures", "decompte", "financ", "/avenants")), ("drone", ("/drone", "missions-drone")),
+                           ("terrain", ("/terrains", "/foncier")), ("journal", ("/journal",)), ("decision", ("/etapes/",))):
+            if any(x in link for x in parts):
+                return key
+        return "chantier"
+    today = datetime.now(timezone.utc).date()
+    groups, sent = [], []
+    for n in rows:
+        if n["channel"] != "app":
+            sent.append(n)
+            continue
+        try:
+            dd = datetime.fromisoformat(n["created_at"]).date()
+        except (TypeError, ValueError):
+            dd = today
+        age = (today - dd).days
+        label = _("Aujourd'hui") if age <= 0 else _("Hier") if age == 1 else _("Cette semaine") if age < 7 else _("Plus ancien")
+        if not groups or groups[-1][0] != label:
+            groups.append((label, []))
+        c = cat(n)
+        groups[-1][1].append({"n": n, "cat": c, "todo": not n["is_read"] and c in ("decision", "argent")})
+    todo = sum(1 for _l, items in groups for it in items if it["todo"])
+    return render_template("notifications.html", rows=rows, groups=groups, sent=sent[:40], todo=todo)
 
 
 # --------------------------------------------------------------------------
@@ -2666,6 +2761,43 @@ def project_orders(db, project_id=None, supplier_id=None):
     return db.execute("SELECT o.*, p.name AS project_name, p.address, u.name AS supplier_name, st.name AS step_name "
                       "FROM orders o JOIN projects p ON p.id = o.project_id JOIN users u ON u.id = o.supplier_id "
                       "JOIN steps st ON st.id = o.step_id WHERE " + where + " ORDER BY o.id DESC", args).fetchall()
+
+
+def quick_actions(me):
+    """Menu du bouton ＋ (téléphone) : les gestes du quotidien selon le profil et le chantier ouvert."""
+    if not me:
+        return []
+    p = g.get("project")
+    role = g.get("project_role")
+    out = []
+
+    def a(label, desc, url, ic, primary=False):
+        out.append({"label": label, "desc": desc, "url": url, "ic": ic, "primary": primary})
+    if p is not None and role == "chef":
+        a(_("Photo ou vidéo"), _("Ouvre l'appareil photo"), url_for("project", project_id=p["id"]) + "#photo", "cam", True)
+        a(_("Journal du jour"), _("Ouvriers, météo, travaux"), url_for("journal_page", project_id=p["id"]), "note")
+        a(_("Argent pour un achat"), _("Ciment, fer, sable…"), url_for("purchases_page", project_id=p["id"]) + "#nouvelle", "money")
+        a(_("Travaux en plus"), _("Proposer prix et délai"), url_for("change_orders_page", project_id=p["id"]), "plan")
+        a(_("Facture d'achat"), _("Photographier une facture"), url_for("project", project_id=p["id"], onglet="factures"), "bill")
+    elif p is not None and role == "owner":
+        decl = get_db().execute("SELECT id FROM steps WHERE project_id = ? AND status = 'declare' ORDER BY position LIMIT 1", (p["id"],)).fetchone()
+        if decl:
+            a(_("Valider l'étape terminée"), _("Vérifier les preuves puis payer"), url_for("step_page", project_id=p["id"], step_id=decl["id"]) + "#decision", "check", True)
+        a(_("Demandes d'achat"), _("Accepter, payer, voir la livraison"), url_for("purchases_page", project_id=p["id"]), "money")
+        a(_("Passage de drone"), _("Vue d'en haut, une fois ou chaque mois"), url_for("aerial_page", project_id=p["id"]), "drone")
+        a(_("Inspection indépendante"), _("Un inspecteur vérifie sur place"), url_for("project", project_id=p["id"], onglet="etapes"), "insp")
+        a(_("Journal de chantier"), _("Ce qui s'est passé chaque jour"), url_for("journal_page", project_id=p["id"]), "sheet")
+    if me["role"] == "proprio":
+        a(_("Nouveau chantier"), _("Étapes, montants, terrain : 3 minutes"), url_for("new_project"), "steps", not out)
+    if me["role"] in ("proprio", "pro"):
+        a(_("Vérifier un terrain"), _("ACD, bornes, double vente"), url_for("plots_page"), "land")
+    if me["role"] == "chef" and p is None:
+        for pr in get_db().execute("SELECT id, name FROM projects WHERE chef_id = ? ORDER BY id DESC LIMIT 4", (me["id"],)).fetchall():
+            a(_("Photo : %(p)s", p=pr["name"]), _("Ouvre l'appareil photo"), url_for("project", project_id=pr["id"]) + "#photo", "cam", True)
+    if is_pilot(me):
+        a(_("Missions drone"), _("Passages prévus et photos à envoyer"), url_for("pilot_missions"), "drone", True)
+    a(_("Demander à l'assistant"), _("Une question sur le chantier"), url_for("assistant"), "ai")
+    return out
 
 
 def floor_name(k):
@@ -2871,6 +3003,14 @@ def owner_feed(db, p, stats, proofs):
         items.append({"type": "inspection", "at": i["done_at"] or i["created_at"], "author": i["insp"], "id": i["id"],
                       "title": _("Inspection : %(s)s", s=i["step_name"] or _("chantier")), "verdict": i["verdict"],
                       "verdict_label": _(VERDICTS[i["verdict"]]) if i["verdict"] in VERDICTS else None})
+    for j in db.execute("SELECT j.*, u.name AS author FROM site_journal j JOIN users u ON u.id = j.user_id WHERE j.project_id = ? "
+                        "ORDER BY j.day DESC LIMIT 7", (p["id"],)).fetchall():
+        items.append({"type": "journal", "at": j["created_at"], "author": j["author"], "workers": j["workers"], "weather": j["weather"],
+                      "stopped": j["stopped"], "stop_reason": j["stop_reason"], "done": j["done"], "problems": j["problems"]})
+    for b in db.execute("SELECT r.*, u.name AS author FROM purchase_requests r JOIN users u ON u.id = r.user_id WHERE r.project_id = ? "
+                        "ORDER BY r.id DESC LIMIT 6", (p["id"],)).fetchall():
+        items.append({"type": "buy", "at": b["delivered_at"] or b["paid_at"] or b["created_at"], "author": b["author"], "id": b["id"],
+                      "title": b["title"], "amount": b["amount"], "status": b["status"], "photo": bool(b["delivery_file"])})
     items.sort(key=lambda x: x["at"] or "", reverse=True)
     days = []
     for it in items[:10]:
@@ -2972,6 +3112,15 @@ def project(project_id):
         ctx["wa_number"], ctx["wa_link"] = (WA.display_number(), WA.wa_link()) if WA.configured() else (None, None)
         ctx["pending_pay"] = db.execute("SELECT id FROM payment_records WHERE project_id = ? AND payee_id = ? AND status = 'declare'",
                                         (project_id, current_user()["id"])).fetchall()
+        if tab == "accueil":
+            ctx["chef_quick"] = {
+                "journal_today": bool(db.execute("SELECT 1 FROM site_journal WHERE project_id = ? AND day = ?",
+                                                 (project_id, datetime.now(timezone.utc).date().isoformat())).fetchone()),
+                "buy_todo": db.execute("SELECT COUNT(*) FROM purchase_requests WHERE project_id = ? AND status = 'payee' AND delivered_at IS NULL",
+                                       (project_id,)).fetchone()[0],
+                "buy_wait": db.execute("SELECT COUNT(*) FROM purchase_requests WHERE project_id = ? AND status IN ('demande', 'acceptee')",
+                                       (project_id,)).fetchone()[0],
+                "co_wait": db.execute("SELECT COUNT(*) FROM change_orders WHERE project_id = ? AND status = 'proposee'", (project_id,)).fetchone()[0]}
         if tab == "factures":
             ctx.update(invoice_context(project_id))
             ctx["orders"] = project_orders(db, project_id)
@@ -9529,6 +9678,250 @@ def aerial_daily(db):
     return f"{late} passage(s) de drone en retard, {alerts} alerte(s) caméra"
 
 
+
+# --------------------------------------------------------------------------
+# Côté chef de chantier : demandes d'argent pour les achats, travaux supplémentaires, journal du jour
+# --------------------------------------------------------------------------
+BUY_DIR = os.path.join(UPLOAD_DIR, "achats")
+BUY_STATUS = {"demande": L("En attente du propriétaire"), "acceptee": L("Acceptée : paiement à faire"), "refusee": L("Refusée"),
+              "payee": L("Payée : achat à faire"), "livree": L("Livrée sur le chantier")}
+CO_STATUS = {"proposee": L("En attente du propriétaire"), "acceptee": L("Acceptée"), "refusee": L("Refusée")}
+SKY = {"soleil": L("Soleil"), "nuageux": L("Nuageux"), "pluie": L("Pluie"), "forte_pluie": L("Forte pluie")}
+
+
+def save_upload(file, folder, images_only=False):
+    """Enregistre une pièce (photo, PDF) sous un nom aléatoire. Renvoie (nom, image ou None) ou (None, None)."""
+    if not file or not file.filename:
+        return None, None
+    ext = ext_of(file.filename)
+    if ext in IMG_EXT:
+        try:
+            img = Image.open(io.BytesIO(file.read()))
+            img.load()
+        except Exception:
+            return None, None
+        os.makedirs(folder, exist_ok=True)
+        return save_image(img, folder, 2000), img
+    if images_only or ext not in DOC_EXT:
+        return None, None
+    os.makedirs(folder, exist_ok=True)
+    name = f"{secrets.token_hex(12)}.{ext}"
+    file.save(os.path.join(folder, name))
+    return name, None
+
+
+def chef_ids(p):
+    return [p["chef_id"]] if p["chef_id"] else []
+
+
+@app.route("/chantiers/<int:project_id>/achats", methods=["GET", "POST"])
+@login_required
+def purchases_page(project_id):
+    p = load_project(project_id, roles=("owner", "chef", "inspecteur", "intervenant"))
+    db = get_db()
+    me = current_user()
+    role = g.project_role
+    if request.method == "POST":
+        f = request.form
+        action = f.get("action")
+        r = db.execute("SELECT * FROM purchase_requests WHERE id = ? AND project_id = ?", (to_int(f.get("id")), project_id)).fetchone() \
+            if f.get("id") else None
+        back = redirect(url_for("purchases_page", project_id=project_id, _anchor=f"a{r['id']}" if r else ""))
+        if action == "create" and role == "chef":
+            title = (f.get("title") or "").strip()[:120]
+            amount = to_int(re.sub(r"\D", "", f.get("amount") or ""), 0)
+            if not title or amount <= 0:
+                flash(_("Indiquez ce qu'il faut acheter et le montant."), "error")
+                return back
+            quote, _img = save_upload(request.files.get("quote"), BUY_DIR)
+            step = db.execute("SELECT id FROM steps WHERE id = ? AND project_id = ?", (to_int(f.get("step_id")), project_id)).fetchone()
+            cur = db.execute("INSERT INTO purchase_requests (project_id, step_id, user_id, title, details, supplier, amount, quote_file, created_at) "
+                             "VALUES (?,?,?,?,?,?,?,?,?)", (project_id, step["id"] if step else None, me["id"], title,
+                                                            (f.get("details") or "").strip()[:1500] or None, (f.get("supplier") or "").strip()[:120] or None,
+                                                            amount, quote, now_iso()))
+            notify(project_id, owners_of(p, db), L("Demande d'argent pour un achat"),
+                   L("%(n)s demande %(m)s FCFA : %(t)s.", n=me["name"], m=f"{amount:,}".replace(",", " "), t=title),
+                   url_for("purchases_page", project_id=project_id, _anchor=f"a{cur.lastrowid}"), important=True, db=db)
+            log(project_id, L("Demande d'achat : %(t)s (%(m)s FCFA)", t=title, m=f"{amount:,}".replace(",", " ")))
+            flash(_("Demande envoyée au propriétaire."), "ok")
+        elif r is None:
+            abort(400)
+        elif action in ("accept", "refuse") and role == "owner" and r["status"] == "demande":
+            if action == "refuse" and not (f.get("refusal") or "").strip():
+                flash(_("Dites pourquoi vous refusez : le chef de chantier pourra corriger sa demande."), "error")
+                return back
+            st = "acceptee" if action == "accept" else "refusee"
+            db.execute("UPDATE purchase_requests SET status = ?, decided_by = ?, decided_at = ?, refusal = ? WHERE id = ?",
+                       (st, me["id"], now_iso(), (f.get("refusal") or "").strip()[:500] or None, r["id"]))
+            notify(project_id, chef_ids(p), L("Demande d'achat acceptée") if st == "acceptee" else L("Demande d'achat refusée"),
+                   L("%(t)s · %(m)s FCFA", t=r["title"], m=f"{r['amount']:,}".replace(",", " ")),
+                   url_for("purchases_page", project_id=project_id, _anchor=f"a{r['id']}"), important=True, db=db)
+        elif action == "paid" and role == "owner" and r["status"] in ("demande", "acceptee"):
+            db.execute("UPDATE purchase_requests SET status = 'payee', decided_by = COALESCE(decided_by, ?), decided_at = COALESCE(decided_at, ?), "
+                       "paid_at = ?, pay_ref = ? WHERE id = ?", (me["id"], now_iso(), now_iso(), (f.get("pay_ref") or "").strip()[:80] or None, r["id"]))
+            notify(project_id, chef_ids(p), L("Argent envoyé pour l'achat"),
+                   L("%(m)s FCFA pour « %(t)s ». Confirmez la réception, puis photographiez la livraison.", m=f"{r['amount']:,}".replace(",", " "), t=r["title"]),
+                   url_for("purchases_page", project_id=project_id, _anchor=f"a{r['id']}"), important=True, db=db)
+            log(project_id, L("Achat payé : %(t)s (%(m)s FCFA)", t=r["title"], m=f"{r['amount']:,}".replace(",", " ")))
+        elif action == "received" and role == "chef" and r["status"] == "payee" and not r["received_at"]:
+            db.execute("UPDATE purchase_requests SET received_at = ? WHERE id = ?", (now_iso(), r["id"]))
+            notify(project_id, owners_of(p, db), L("Argent reçu par le chef de chantier"), L("Pour « %(t)s ».", t=r["title"]),
+                   url_for("purchases_page", project_id=project_id, _anchor=f"a{r['id']}"), db=db)
+        elif action == "delivered" and role == "chef" and r["status"] == "payee":
+            name, img = save_upload(request.files.get("photo"), BUY_DIR, images_only=True)
+            if not name:
+                flash(_("Prenez une photo de la livraison sur le chantier."), "error")
+                return back
+            dist = None
+            lat, lng, _t = read_exif(img)
+            if lat is not None:
+                dist, limit, _par = site_distance(p, lat, lng)
+                if dist > limit + DRONE_EXTRA_METERS:
+                    os.remove(os.path.join(BUY_DIR, name))
+                    flash(_("Photo prise à %(d)s m du chantier : prenez-la sur place.", d=dist), "error")
+                    return back
+            db.execute("UPDATE purchase_requests SET status = 'livree', delivery_file = ?, delivery_distance = ?, delivered_at = ?, "
+                       "received_at = COALESCE(received_at, ?) WHERE id = ?", (name, dist, now_iso(), now_iso(), r["id"]))
+            notify(project_id, owners_of(p, db), L("Achat livré sur le chantier"), L("« %(t)s » : photo de la livraison disponible.", t=r["title"]),
+                   url_for("purchases_page", project_id=project_id, _anchor=f"a{r['id']}"), db=db)
+            log(project_id, L("Livraison photographiée : %(t)s", t=r["title"]))
+        elif action == "cancel" and role == "chef" and r["status"] == "demande" and r["user_id"] == me["id"]:
+            db.execute("DELETE FROM purchase_requests WHERE id = ?", (r["id"],))
+        else:
+            abort(403)
+        db.commit()
+        return back
+    rows = db.execute("SELECT r.*, st.name AS step_name, u.name AS author FROM purchase_requests r LEFT JOIN steps st ON st.id = r.step_id "
+                      "JOIN users u ON u.id = r.user_id WHERE r.project_id = ? ORDER BY (r.status = 'livree'), r.id DESC", (project_id,)).fetchall()
+    steps = db.execute("SELECT id, name, status FROM steps WHERE project_id = ? ORDER BY position", (project_id,)).fetchall()
+    cur = next((st for st in steps if st["status"] in ("en_cours", "attente")), None)
+    totals = {"paid": sum(r["amount"] for r in rows if r["status"] in ("payee", "livree")),
+              "waiting": sum(r["amount"] for r in rows if r["status"] in ("demande", "acceptee"))}
+    return render_template("purchases.html", p=p, rows=rows, steps=steps, cur=cur, totals=totals, role=role,
+                           BUY_STATUS={k: v for k, v in BUY_STATUS.items()})
+
+
+@app.route("/chantiers/<int:project_id>/achats/<int:req_id>/<kind>")
+@login_required
+def purchase_file(project_id, req_id, kind):
+    load_project(project_id, roles=("owner", "chef", "inspecteur", "intervenant"))
+    r = get_db().execute("SELECT * FROM purchase_requests WHERE id = ? AND project_id = ?", (req_id, project_id)).fetchone()
+    name = r and (r["quote_file"] if kind == "devis" else r["delivery_file"] if kind == "livraison" else None)
+    if not name:
+        abort(404)
+    return send_from_directory(BUY_DIR, name)
+
+
+@app.route("/chantiers/<int:project_id>/avenants", methods=["GET", "POST"])
+@login_required
+def change_orders_page(project_id):
+    p = load_project(project_id, roles=("owner", "chef", "inspecteur", "intervenant"))
+    db = get_db()
+    me = current_user()
+    role = g.project_role
+    if request.method == "POST":
+        f = request.form
+        action = f.get("action")
+        if action == "create" and role in ("chef", "owner"):
+            title = (f.get("title") or "").strip()[:120]
+            amount = to_int(re.sub(r"\D", "", f.get("amount") or ""), 0)
+            if not title or amount <= 0:
+                flash(_("Décrivez les travaux et leur montant."), "error")
+                return redirect(url_for("change_orders_page", project_id=project_id))
+            cur = db.execute("INSERT INTO change_orders (project_id, user_id, title, reason, amount, extra_days, created_at) VALUES (?,?,?,?,?,?,?)",
+                             (project_id, me["id"], title, (f.get("reason") or "").strip()[:1500] or None, amount,
+                              max(0, min(to_int(f.get("extra_days"), 0), 365)), now_iso()))
+            if role == "chef":
+                notify(project_id, owners_of(p, db), L("Travaux supplémentaires proposés"),
+                       L("%(t)s : %(m)s FCFA. Acceptez ou refusez avant qu'ils soient faits.", t=title, m=f"{amount:,}".replace(",", " ")),
+                       url_for("change_orders_page", project_id=project_id, _anchor=f"c{cur.lastrowid}"), important=True, db=db)
+                flash(_("Proposition envoyée au propriétaire."), "ok")
+            else:          # proposé par le propriétaire lui-même : accepté d'office
+                accept_change_order(db, p, db.execute("SELECT * FROM change_orders WHERE id = ?", (cur.lastrowid,)).fetchone(), me)
+                flash(_("Travaux ajoutés au chantier comme nouvelle étape."), "ok")
+        else:
+            c = db.execute("SELECT * FROM change_orders WHERE id = ? AND project_id = ?", (to_int(f.get("id")), project_id)).fetchone()
+            if not c or role != "owner" or c["status"] != "proposee" or action not in ("accept", "refuse"):
+                abort(403)
+            if action == "accept":
+                accept_change_order(db, p, c, me)
+            else:
+                if not (f.get("refusal") or "").strip():
+                    flash(_("Dites pourquoi vous refusez."), "error")
+                    return redirect(url_for("change_orders_page", project_id=project_id, _anchor=f"c{c['id']}"))
+                db.execute("UPDATE change_orders SET status = 'refusee', decided_by = ?, decided_at = ?, refusal = ? WHERE id = ?",
+                           (me["id"], now_iso(), f.get("refusal").strip()[:500], c["id"]))
+                notify(project_id, chef_ids(p), L("Travaux supplémentaires refusés"), L("« %(t)s » : ne les faites pas.", t=c["title"]),
+                       url_for("change_orders_page", project_id=project_id, _anchor=f"c{c['id']}"), important=True, db=db)
+        db.commit()
+        return redirect(url_for("change_orders_page", project_id=project_id))
+    rows = db.execute("SELECT c.*, u.name AS author, st.status AS step_status FROM change_orders c JOIN users u ON u.id = c.user_id "
+                      "LEFT JOIN steps st ON st.id = c.step_id WHERE c.project_id = ? ORDER BY (c.status != 'proposee'), c.id DESC",
+                      (project_id,)).fetchall()
+    base = db.execute("SELECT COALESCE(SUM(amount), 0) FROM steps WHERE project_id = ? AND id NOT IN "
+                      "(SELECT step_id FROM change_orders WHERE project_id = ? AND step_id IS NOT NULL)", (project_id, project_id)).fetchone()[0]
+    extra = sum(c["amount"] for c in rows if c["status"] == "acceptee")
+    return render_template("change_orders.html", p=p, rows=rows, role=role, base=base, extra=extra, CO_STATUS=CO_STATUS)
+
+
+def accept_change_order(db, p, c, me):
+    """Les travaux acceptés deviennent une étape payée comme les autres (preuves, validation, paiement)."""
+    pos = db.execute("SELECT COALESCE(MAX(position), 0) + 1 FROM steps WHERE project_id = ?", (p["id"],)).fetchone()[0]
+    cur = db.execute("INSERT INTO steps (project_id, position, name, amount, status, planned_days) VALUES (?,?,?,?,?,?)",
+                     (p["id"], pos, _("Travaux supplémentaires : %(t)s", t=c["title"]), c["amount"], "attente", c["extra_days"] or 7))
+    db.execute("UPDATE change_orders SET status = 'acceptee', decided_by = ?, decided_at = ?, step_id = ? WHERE id = ?",
+               (me["id"], now_iso(), cur.lastrowid, c["id"]))
+    log(p["id"], L("Travaux supplémentaires acceptés : %(t)s (%(m)s FCFA)", t=c["title"], m=f"{c['amount']:,}".replace(",", " ")))
+    if c["user_id"] != me["id"]:
+        notify(p["id"], chef_ids(p), L("Travaux supplémentaires acceptés"),
+               L("« %(t)s » est ajouté comme étape : %(m)s FCFA, payés comme les autres étapes.", t=c["title"], m=f"{c['amount']:,}".replace(",", " ")),
+               url_for("step_page", project_id=p["id"], step_id=cur.lastrowid), important=True, db=db)
+
+
+@app.route("/chantiers/<int:project_id>/journal", methods=["GET", "POST"])
+@login_required
+def journal_page(project_id):
+    p = load_project(project_id, roles=("owner", "chef", "inspecteur", "intervenant"))
+    db = get_db()
+    me = current_user()
+    role = g.project_role
+    today = datetime.now(timezone.utc).date()
+    if request.method == "POST":
+        if role != "chef":
+            abort(403)
+        f = request.form
+        try:
+            day = date.fromisoformat(f.get("day") or today.isoformat())
+        except ValueError:
+            day = today
+        if day > today or (today - day).days > 7:
+            flash(_("Le journal se remplit le jour même, ou dans les 7 jours."), "error")
+            return redirect(url_for("journal_page", project_id=project_id))
+        vals = (to_int(f.get("workers"), None), f.get("weather") if f.get("weather") in SKY else None, 1 if f.get("stopped") else 0,
+                (f.get("stop_reason") or "").strip()[:300] or None, (f.get("done") or "").strip()[:1500] or None,
+                (f.get("problems") or "").strip()[:1500] or None)
+        if db.execute("SELECT 1 FROM site_journal WHERE project_id = ? AND day = ?", (project_id, day.isoformat())).fetchone():
+            db.execute("UPDATE site_journal SET workers = ?, weather = ?, stopped = ?, stop_reason = ?, done = ?, problems = ?, updated_at = ?, "
+                       "user_id = ? WHERE project_id = ? AND day = ?", vals + (now_iso(), me["id"], project_id, day.isoformat()))
+        else:
+            db.execute("INSERT INTO site_journal (project_id, user_id, day, workers, weather, stopped, stop_reason, done, problems, created_at) "
+                       "VALUES (?,?,?,?,?,?,?,?,?,?)", (project_id, me["id"], day.isoformat()) + vals + (now_iso(),))
+            if vals[2] or vals[5]:
+                notify(project_id, owners_of(p, db), L("Chantier arrêté aujourd'hui") if vals[2] else L("Problème signalé sur le chantier"),
+                       vals[3] or vals[5] or "", url_for("journal_page", project_id=project_id), important=bool(vals[2]), db=db)
+        db.commit()
+        flash(_("Journal du %(d)s enregistré.", d=format_d(day.isoformat())), "ok")
+        return redirect(url_for("journal_page", project_id=project_id))
+    rows = db.execute("SELECT j.*, u.name AS author FROM site_journal j JOIN users u ON u.id = j.user_id WHERE j.project_id = ? "
+                      "ORDER BY j.day DESC LIMIT 90", (project_id,)).fetchall()
+    todays = next((r for r in rows if r["day"] == today.isoformat()), None)
+    month = [r for r in rows if r["day"] >= (today - timedelta(days=30)).isoformat()]
+    stats = {"days": len(month), "stopped": sum(1 for r in month if r["stopped"]), "rain": sum(1 for r in month if r["weather"] in ("pluie", "forte_pluie")),
+             "workers": round(sum(r["workers"] or 0 for r in month) / max(1, sum(1 for r in month if r["workers"]))) if month else 0}
+    return render_template("journal.html", p=p, rows=rows, todays=todays, role=role, stats=stats, SKY=SKY,
+                           today=today.isoformat(), min_day=(today - timedelta(days=7)).isoformat())
+
+
 # --------------------------------------------------------------------------
 # Comptage des livraisons
 # --------------------------------------------------------------------------
@@ -11120,7 +11513,7 @@ MIGRATION_ORDER = ["users", "projects", "steps", "proofs", "activity", "transact
                    "billing_invoices", "inspection_requests", "payment_records", "quality_reviews", "quality_photos",
                    "quality_points", "quality_messages", "wa_sessions", "wa_messages", "site_notes",
                    "fin_profiles", "fin_sources", "fin_receipts", "fin_costs", "fin_documents", "land_files",
-                   "land_requests", "plots", "plot_documents", "plot_alerts", "aerial_plans", "aerial_missions", "site_cameras", "camera_shots", "delivery_counts", "plan_items", "plan_item_photos", "offsite_files"]
+                   "land_requests", "plots", "plot_documents", "plot_alerts", "aerial_plans", "aerial_missions", "site_cameras", "camera_shots", "purchase_requests", "change_orders", "site_journal", "delivery_counts", "plan_items", "plan_item_photos", "offsite_files"]
 
 
 @app.cli.command("migrer-vers-postgres")
@@ -11358,6 +11751,30 @@ def demo_cli(force):
                 name = save_image(img, CAM_DIR, 960, prefix=f"cam{cc.lastrowid}_")
                 db.execute("INSERT INTO camera_shots (camera_id, project_id, filename, taken, change, created_at) VALUES (?,?,?,?,?,?)",
                            (cc.lastrowid, pid, name, when.isoformat(timespec="seconds"), 0.01 if sunday else 0.12, when.isoformat()))
+        # Cote chef : journal de la semaine, demandes d'achat, travaux supplementaires
+        for back, wk, wt, stop, why, done_, pb in ((6, 7, "soleil", 0, None, "Coffrage et ferraillage de la dalle basse.", None),
+                                                  (5, 8, "nuageux", 0, None, "Coulage de la dalle basse, vibration du béton.", None),
+                                                  (4, 0, "forte_pluie", 1, "Forte pluie toute la journée", None, None),
+                                                  (3, 4, "pluie", 0, None, "Arrosage de la dalle, rangement du chantier.", None),
+                                                  (2, 6, "soleil", 0, None, "Décoffrage, implantation des murs du RDC.", "Il manque 2 tonnes de fer de 10."),
+                                                  (1, 6, "soleil", 0, None, "Premières rangées de parpaings, salon et chambres.", None)):
+            db.execute("INSERT INTO site_journal (project_id, user_id, day, workers, weather, stopped, stop_reason, done, problems, created_at) "
+                       "VALUES (?,?,?,?,?,?,?,?,?,?)", (pid, chef, (now - timedelta(days=back)).date().isoformat(), wk, wt, stop, why, done_, pb,
+                                                        (now - timedelta(days=back)).replace(hour=18).isoformat()))
+        os.makedirs(BUY_DIR, exist_ok=True)
+        deliv = save_image(DEMO.site_photo(2, 77), BUY_DIR, 1600)
+        steps_ = db.execute("SELECT id, name FROM steps WHERE project_id = ? ORDER BY position", (pid,)).fetchall()
+        db.execute("INSERT INTO purchase_requests (project_id, step_id, user_id, title, details, supplier, amount, status, decided_by, decided_at, "
+                   "paid_at, pay_ref, received_at, delivery_file, delivery_distance, delivered_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                   (pid, steps_[2]["id"], chef, "45 sacs de ciment CPJ 45", "45 sacs × 5 600 FCFA, livraison comprise", "Quincaillerie de Bingerville",
+                    252000, "livree", own, ago(9), ago(9), "OM-MP2611.1842", ago(8), deliv, 14, ago(8), ago(10)))
+        db.execute("INSERT INTO purchase_requests (project_id, step_id, user_id, title, details, supplier, amount, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                   (pid, steps_[3]["id"], chef, "2 tonnes de fer de 10 et 1 tonne de fer de 8",
+                    "Fer de 10 : 2 t × 520 000 FCFA. Fer de 8 : 1 t × 540 000 FCFA. Pour les poteaux et chaînages du RDC.",
+                    "Quincaillerie de Bingerville", 1580000, ago(1)))
+        db.execute("INSERT INTO change_orders (project_id, user_id, title, reason, amount, extra_days, created_at) VALUES (?,?,?,?,?,?,?)",
+                   (pid, chef, "Mur de clôture côté rue (25 m)", "Le terrain voisin est ouvert : les matériaux disparaissent la nuit. "
+                    "Un mur de 2 m sur la façade protège le chantier et servira à la maison.", 1850000, 10, ago(2)))
         # Terrains a verifier avant achat : un second lot envisage a Songon
         for name, commune, doc, ref, holder, seller, area, pts, checks_, ef in (
                 ("Lot 112, îlot 9 — Songon", "Songon", "acd", "ACD n° 2021-1184", "Famille Yapo", "Serge Yapo", 500,
