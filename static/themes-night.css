@@ -248,3 +248,20 @@ body.theme-nuit .post-checks li::before{background:#11271C;color:#74DBA8}
 body.theme-nuit .post-checks li.ko::before{background:#2A1912;color:#F3A188}
 body.theme-nuit .fp-kv div{border-bottom-color:rgba(255,255,255,.1)}
 body.theme-nuit .vw-prog i.on{background:#101B16;color:#ECE8DD}
+body.theme-nuit .fp-sc{background:#101B16;color:#ECE8DD}
+body.theme-nuit .buy-track li{border-top-color:rgba(255,255,255,.1)}
+body.theme-nuit .buy-track li.done{color:#74DBA8}
+body.theme-nuit .buy-track li.ko{color:#F3A188}
+body.theme-nuit .j-date{background:#101B16;color:#ECE8DD}
+body.theme-nuit .j-pb{color:#F3A188}
+body.theme-nuit .chef-quick a{background:#101B16;color:#ECE8DD}
+body.theme-nuit .chef-quick .badge{background:#2A1912;color:#F3A188}
+body.theme-nuit .qs-item{background:#101B16;color:#ECE8DD}
+body.theme-nuit .story-ico{background:#101B16;color:#74DBA8}
+body.theme-nuit .act-chips button{background:#101B16;color:#ECE8DD}
+body.theme-nuit .act-day{color:#E3C48E}
+body.theme-nuit .act-txt span{color:#93A69D}
+body.theme-nuit .pv-switch{background:#101B16;color:#ECE8DD}
+body.theme-nuit .pv-switch button{color:#93A69D}
+body.theme-nuit .pv-switch button.on{background:#101B16;color:#74DBA8}
+body.theme-nuit .ig-grid a{background:#101B16;color:#ECE8DD}

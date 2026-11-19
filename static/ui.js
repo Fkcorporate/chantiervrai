@@ -333,3 +333,36 @@
     }
   });
 })();
+
+/* Raccourcis de l'accueil : ouvrent « Toutes les fonctions » directement à la bonne famille */
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('[data-group-go]');
+  if (!b) return;
+  setTimeout(function () {
+    var g = document.getElementById(b.dataset.groupGo);
+    if (!g) return;
+    g.scrollIntoView({block: 'start'});
+    g.classList.add('dr-flash');
+    setTimeout(function () { g.classList.remove('dr-flash'); }, 1400);
+  }, 80);
+});
+
+/* Montants lisibles pendant la saisie : 1250000 → 1 250 000 */
+document.querySelectorAll('input[data-money]').forEach(function (i) {
+  i.addEventListener('input', function () {
+    var v = parseInt(i.value.replace(/\D/g, ''), 10);
+    i.value = v ? v.toLocaleString('fr-FR').replace(/ | /g, ' ') : '';
+  });
+});
+
+/* « ＋ › Photo » : la page du chantier s'ouvre directement sur l'appareil photo, comme Snapchat */
+(function () {
+  if (location.hash !== '#photo') return;
+  var go = function () {
+    var b = document.getElementById('shoot');
+    if (!b) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    b.scrollIntoView({block: 'center'}); b.click();
+  };
+  if (document.readyState === 'complete') setTimeout(go, 150); else window.addEventListener('load', function () { setTimeout(go, 150); });
+})();

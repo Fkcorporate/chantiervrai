@@ -176,3 +176,20 @@ body.theme-nuit .lvl-steps li:not(:first-child)::before{background:#1A2620}
 body.theme-nuit .lvl-steps li.done i{background:#C9A46A;color:#0B2219}
 body.theme-nuit .lvl-steps li.done:not(:first-child)::before{background:#C9A46A}
 body.theme-nuit .lvl-steps li.now span{color:#F7F3EA}
+body.theme-nuit .fp-sc{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015)),#0C1712;box-shadow:0 0 0 1px rgba(255,255,255,.07)}
+body.theme-nuit .fp-sc-ico{background:rgba(201,164,106,.14)}
+body.theme-blanc .fp-sc{box-shadow:0 0 0 1px #EDEDEB,0 10px 24px -20px rgba(0,0,0,.2)}
+body.theme-blanc .fp-sc-ico{background:#0B0F0D}
+body.theme-nuit .qs-item{background:#101B16}
+body.theme-nuit .qs-item.primary{background:linear-gradient(135deg,#1A3A2B,#0F2219);box-shadow:0 0 0 1px rgba(201,164,106,.3)}
+body.theme-nuit .qs-ico{background:#1A2620}
+body.theme-blanc .qs-item{background:#F4F4F2}
+body.theme-nuit .act-chips button{background:#14211B;color:#B9C8BF}
+body.theme-nuit .act-chips button.on{background:#C9A46A;color:#0B2219}
+body.theme-nuit .act-row:hover{background:rgba(255,255,255,.04)}
+body.theme-nuit .act-txt span{color:#B5C2BB}
+body.theme-nuit .act-ico{background:#1A2620}
+body.theme-blanc .act-chips button{background:#F2F2F0}
+body.theme-nuit .pv-switch{background:#14211B}
+body.theme-nuit .pv-switch button{color:#93A69D}
+body.theme-nuit .pv-switch button.on{background:#24342C;color:#F4F0E7}
