@@ -23,7 +23,7 @@ PLANS = {
     "pro": {"label": "Pro", "sites": 5, "price": 45000,
             "pitch": "Jusqu'à 5 chantiers en même temps, équipe et circuit de paiement à deux niveaux."},
     "entreprise": {"label": "Entreprise", "sites": None, "price": None,
-                   "pitch": "Chantiers illimités, marchés publics, API : prix sur devis."},
+                   "pitch": "Chantiers illimités, équipes, API : prix sur devis."},
     "inspection": {"label": "Inspection indépendante", "sites": None, "price": None,
                    "pitch": "Visite d'un inspecteur attribué par ChantierVrai, rapport et photos vérifiées."},
 }

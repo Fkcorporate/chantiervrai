@@ -117,7 +117,7 @@ ROLES = {"proprio": "Propriétaire / maître d'ouvrage", "chef": "Chef de chanti
 ROLE_CHECK = "(role IN ('proprio', 'chef', 'inspecteur', 'fournisseur', 'pro'))"
 PROFESSIONS = {"architecte": "Architecte", "ingenieur": "Ingénieur (structure, génie civil)",
                "bureau_controle": "Bureau de contrôle", "conducteur": "Conducteur de travaux",
-               "entrepreneur": "Entrepreneur", "comptable": "Comptable"}
+               "entrepreneur": "Entrepreneur", "comptable": "Comptable", "pilote_drone": "Télépilote de drone"}
 BUILDING_TYPES = {"maison": "Maison individuelle", "immeuble": "Immeuble (R+1 et plus)", "residence": "Résidence immobilière",
                   "ecole": "École ou université", "sante": "Hôpital ou centre de santé", "administratif": "Bâtiment administratif",
                   "infrastructure": "Route, pont ou infrastructure", "industriel": "Zone industrielle ou grand projet public"}
@@ -974,6 +974,100 @@ CREATE TABLE IF NOT EXISTS land_requests (
     created_at TEXT NOT NULL,
     handled_at TEXT
 );
+-- Terrains vérifiés avant achat (ou rattachés ensuite à un chantier) : carte, pièces, preuves officielles
+CREATE TABLE IF NOT EXISTS plots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    commune TEXT,
+    doc_type TEXT,
+    title_ref TEXT,
+    ref_norm TEXT,
+    holder_name TEXT,
+    seller_name TEXT,
+    area_declared REAL,
+    poly TEXT,
+    area_m2 REAL,
+    min_lat REAL, max_lat REAL, min_lng REAL, max_lng REAL,
+    checks TEXT,
+    ef_date TEXT, ef_owner TEXT, ef_result TEXT,
+    adu_code TEXT, adu_result TEXT, adu_date TEXT,
+    pos_date TEXT, pos_result TEXT,
+    archived INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_plots_user ON plots(user_id);
+CREATE INDEX IF NOT EXISTS idx_plots_ref ON plots(ref_norm);
+CREATE TABLE IF NOT EXISTS plot_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plot_id INTEGER NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    original_name TEXT,
+    sha256 TEXT,
+    size INTEGER,
+    created_at TEXT NOT NULL
+);
+-- Une alerte « double vente » n'est envoyée qu'une fois par paire de terrains et par motif
+CREATE TABLE IF NOT EXISTS plot_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    a TEXT NOT NULL,
+    b TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (a, b, reason)
+);
+CREATE TABLE IF NOT EXISTS aerial_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    frequency TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'demande',
+    price INTEGER,
+    pilot_id INTEGER REFERENCES users(id),
+    message TEXT,
+    requested_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    activated_at TEXT,
+    ended_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_aerial_plans_project ON aerial_plans(project_id);
+CREATE TABLE IF NOT EXISTS aerial_missions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES aerial_plans(id) ON DELETE CASCADE,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    pilot_id INTEGER REFERENCES users(id),
+    due_on TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'prevue',
+    done_at TEXT,
+    note TEXT,
+    reminded INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_aerial_missions_pilot ON aerial_missions(pilot_id, status);
+CREATE TABLE IF NOT EXISTS site_cameras (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    active INTEGER NOT NULL DEFAULT 1,
+    last_seen TEXT,
+    last_alert TEXT,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS camera_shots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    camera_id INTEGER NOT NULL REFERENCES site_cameras(id) ON DELETE CASCADE,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    taken TEXT NOT NULL,
+    change REAL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_camera_shots ON camera_shots(camera_id, taken);
 CREATE TABLE IF NOT EXISTS delivery_counts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -1019,7 +1113,8 @@ CREATE TABLE IF NOT EXISTS offsite_files (
 """
 
 MIGRATIONS = {
-    "users": [("notify_email", "INTEGER NOT NULL DEFAULT 1"), ("notify_sms", "INTEGER NOT NULL DEFAULT 0"),
+    "media3d": [("mission_id", "INTEGER")],
+    "users": [("anac_ref", "TEXT"), ("notify_email", "INTEGER NOT NULL DEFAULT 1"), ("notify_sms", "INTEGER NOT NULL DEFAULT 0"),
               ("notify_whatsapp", "INTEGER NOT NULL DEFAULT 1"), ("zone", "TEXT"), ("tarif", "INTEGER"),
               ("bio", "TEXT"), ("totp_secret", "TEXT"), ("totp_on", "INTEGER NOT NULL DEFAULT 0"),
               ("backup_codes", "TEXT"), ("verified", "INTEGER NOT NULL DEFAULT 0"),
@@ -1277,7 +1372,7 @@ STAFF_ROLES = {"super": "Super-admin (fondateur)", "verification": "Vérificatio
 STAFF_ROLE_HELP = {
     "super": "Tout, y compris l'équipe, la récupération des comptes et le journal.",
     "verification": "Valide inspecteurs, fournisseurs, entrepreneurs et bureaux d'études ; attribue les inspections. Aucun montant.",
-    "support": "Litiges, modération du portail citoyen, blocage des comptes. Ouvre un chantier seulement pour un dossier.",
+    "support": "Litiges, blocage des comptes. Ouvre un chantier seulement pour un dossier.",
     "commercial": "Activité des achats de matériaux et devis d'images satellite. Ne voit pas les commissions.",
     "finance": "Séquestre, commissions, volumes d'achats et images satellite. Ne valide pas les vérifications.",
 }
@@ -1556,6 +1651,8 @@ def app_nav(me):
         "home": (home_label, url_for("home"), "home", HOME_ENDPOINTS),
         "payments": (_("Paiements"), url_for("payments_received"), "wallet", ("payments_received",)),
         "map": (_("Carte"), url_for("map_view"), "map", ("map_view",)),
+        "land": (_("Terrains"), url_for("plots_page"), "land", ("plots_page", "plot_page")),
+        "drone": (_("Missions drone"), url_for("pilot_missions"), "drone", ("pilot_missions", "pilot_mission")),
         "assistant": (_("Assistant"), url_for("assistant"), "chat", ("assistant",)),
         "academy": (_("Académie"), url_for("academy"), "book", ("academy", "academy_course", "calculator_public")),
         "contractors": (_("Entrepreneurs"), url_for("contractors"), "people", ("contractors", "contractor")),
@@ -1566,10 +1663,13 @@ def app_nav(me):
     primary = {"proprio": ["home", "map", "assistant", "help"], "pro": ["home", "payments", "assistant", "help"],
                "chef": ["home", "payments", "assistant", "help"], "inspecteur": ["home", "payments", "academy", "help"],
                "fournisseur": ["home", "payments", "help"]}.get(role, ["home", "help"])
-    allowed = {"proprio": ["home", "map", "academy", "assistant", "contractors"], "pro": ["home", "payments", "map", "academy", "assistant"],
+    allowed = {"proprio": ["home", "map", "land", "academy", "assistant", "contractors"],
+               "pro": ["home", "payments", "map", "land", "academy", "assistant"],
                "chef": ["home", "payments", "academy", "assistant"], "inspecteur": ["home", "payments", "academy"],
                "fournisseur": ["home", "payments"]}.get(role, ["home"])
-    order = ["home", "payments", "map", "assistant", "academy", "contractors", "help", "alerts", "account"]
+    if is_pilot(me):
+        primary, allowed = ["home", "drone", "payments", "help"], ["home", "drone", "payments", "academy"]
+    order = ["home", "drone", "payments", "map", "land", "assistant", "academy", "contractors", "help", "alerts", "account"]
     full = [k for k in order if k in allowed or k in ("help", "alerts", "account")]
     more = [k for k in full if k not in primary and k != "alerts"]
     mk = lambda k: dict(key=k, label=items[k][0], url=items[k][1], icon=items[k][2], eps=items[k][3])
@@ -1596,7 +1696,7 @@ def inject_globals():
             "dt": format_dt, "dts": format_dt_short, "project_functions": project_functions, "d": format_d, "unread": unread, "INSP_STATUS": tr(INSP_STATUS), "VERDICTS": tr(VERDICTS),
             "ai_on": VISION.ai_enabled(), "sat_on": SAT.configured(), "SAT_LAYERS": tr(SAT.LAYERS),
             "DOC_CATEGORIES": DOC_CATEGORIES, "MATERIALS": list(MAT.CATALOG), "ORDER_STATUS": tr(ORDER_STATUS), "MEMBER_ROLES": tr(MEMBER_ROLES), "PROFESSIONS": tr(PROFESSIONS), "IMAGERY_PROVIDERS": IMAGERY_PROVIDERS,
-            "IMAGERY_STATUS": tr(IMAGERY_STATUS), "sigomap_portal": env("SIGOMAP_URL"),
+            "IMAGERY_STATUS": tr(IMAGERY_STATUS),
             "can": can, "STAFF_ROLES": tr(STAFF_ROLES), "my_staff_role": staff_role(me),
             "escrow_on": escrow_enabled(), "PAY_MODES": tr(PAY_MODES), "advanced": g.get("advanced", True),
             "sub_banner": sub_banner(me), "SIG_STATUS": tr(SIG_STATUS), "DSTAGES": tr(DISPUTE_STAGES),
@@ -1685,6 +1785,7 @@ def project_functions(p, role=None, advanced=None):
             it(_("Preuves photo et vidéo"), _("Tout ce qui a été vérifié sur le terrain"), tab("preuves"), "cam"),
             it(_("Étapes et paiements"), _("Avancement, validations, bons à payer"), tab("etapes"), "steps"),
             it(_("Vues satellite et plan"), _("Comparer le terrain dans le temps"), tab("vues"), "sat"),
+            it(_("Drone et caméra"), _("Passages de drone programmés, caméra du chantier"), u("aerial_page"), "drone"),
             it(_("Notes du chantier"), _("Messages vocaux et écrits du chef"), u("site_notes_page"), "note"),
             it(_("Comptes rendus"), _("Résumé de la semaine à partager"), u("reports"), "doc"),
             advanced and it(_("Avancement par zone"), _("Pièce par pièce, niveau par niveau"), u("zones_page"), "zones"),
@@ -1751,6 +1852,8 @@ def project_functions(p, role=None, advanced=None):
             grp("avance", _("Outils avancés"), [
                 it(_("Maquette numérique"), _("Fichier IFC et avancement en 3D"), u("bim"), "bim"),
                 it(_("Visites 360°"), _("Se déplacer dans le chantier"), u("panos"), "pano"),
+            it(_("Drone et caméra"), _("Vues aériennes et caméra du chantier"), u("aerial_page"), "drone"),
+                it(_("Drone et caméra"), _("Vues aériennes et caméra du chantier"), u("aerial_page"), "drone"),
                 it(_("Capteurs et météo"), _("Pluie, température, humidité du béton"), u("sensors_page"), "sensor"),
             ])
     elif role == "inspecteur":
@@ -1978,10 +2081,6 @@ def project_alerts(p, s, pred, db=None):
     nd = db.execute("SELECT COUNT(*) FROM disputes WHERE project_id = ? AND status = 'ouvert'", (p["id"],)).fetchone()[0]
     if nd:
         out.append((_('%(nd)s litige(s) en cours', nd=nd), 'dossier', _('Suivez la médiation dans le dossier du chantier.')))
-    sig = db.execute("SELECT COUNT(*) FROM signalements WHERE project_id = ? AND status = 'nouveau'",
-                     (p["id"],)).fetchone()[0]
-    if sig:
-        out.append((_('%(sig)s signalement(s) citoyen(s) à traiter', sig=sig), 'dossier', _('Reçu(s) sur le portail public.')))
     return out
 
 
@@ -2215,6 +2314,12 @@ def account():
                     1 if f.get("notify_email") else 0, f.get("zone", "").strip()[:80] or None,
                     to_int(f.get("tarif"), None), f.get("bio", "").strip()[:500] or None, me["id"]))
         db.execute("UPDATE users SET advanced = ? WHERE id = ?", (1 if f.get("advanced") else 0, me["id"]))
+        if is_pilot(me):
+            ref = f.get("anac_ref", "").strip()[:80] or None
+            db.execute("UPDATE users SET anac_ref = ? WHERE id = ?", (ref, me["id"]))
+            if ref and ref != me["anac_ref"] and not me["verified"]:
+                notify(None, admins(db, "verify"), L("Télépilote à vérifier"),
+                       L("%(n)s a renseigné son autorisation ANAC : %(r)s.", n=me["name"], r=ref), "/admin#verifier", db=db)
         if is_contractor(me):
             company = f.get("company", "").strip()[:150] or None
             want = 1 if f.get("verify_requested") else 0
@@ -2593,7 +2698,6 @@ def new_project():
         else:
             pid = create_project(get_db(), user["id"], f["name"].strip(), f.get("address", "").strip(), lat, lng,
                                  int(to_float(f.get("radius")) or 100), steps, start,
-                                 kind="public" if f.get("kind") == "public" else "prive",
                                  pay_mode=allowed_pay_mode(f.get("pay_mode"), fallback="manuel"),
                                  description=f.get("description", "").strip()[:2000],
                                  require_app_capture=1 if f.get("require_app_capture") else 0)
@@ -2607,7 +2711,7 @@ def new_project():
             flash(_("Chantier créé. Donnez le code d'invitation à votre chef de chantier."), "ok")
             return redirect(url_for("project", project_id=pid))
     sub = get_sub(get_db(), user)
-    return render_template("new_project.html", default_steps=DEFAULT_STEPS, public_steps=PUBLIC_STEPS,
+    return render_template("new_project.html", default_steps=DEFAULT_STEPS,
                            default_total=sum(a for _n, a, _d in DEFAULT_STEPS),
                            default_inspection=bool(sub and sub["plan"] == "entreprise"), insp_price=inspection_prices()[0],
                            today=date.today().isoformat())
@@ -2804,8 +2908,6 @@ def project(project_id):
                                        "AND deleted = 0 ORDER BY zone, name").fetchall()
         ctx["disputes"] = db.execute("SELECT * FROM disputes WHERE project_id = ? ORDER BY id DESC",
                                      (project_id,)).fetchall()
-        ctx["signalements"] = db.execute("SELECT * FROM signalements WHERE project_id = ? ORDER BY id DESC",
-                                         (project_id,)).fetchall()
         ctx["members"] = db.execute("SELECT u.id, u.name, u.email, m.role AS member_role FROM project_members m JOIN users u ON u.id = m.user_id "
                                     "WHERE m.project_id = ?", (project_id,)).fetchall()
         ctx["owner_user"] = db.execute("SELECT name FROM users WHERE id = ?", (p["owner_id"],)).fetchone()
@@ -2947,38 +3049,6 @@ def project_settings(project_id):
     db.commit()
     flash(_('Réglage enregistré.'), "ok")
     return redirect(url_for("project", project_id=project_id, onglet=tab))
-
-
-@app.route("/preuves/<int:proof_id>/publier", methods=["POST"])
-@login_required
-def publish_proof(proof_id):
-    db = get_db()
-    pr = db.execute("SELECT * FROM proofs WHERE id = ?", (proof_id,)).fetchone()
-    if pr is None:
-        abort(404)
-    p = load_project(pr["project_id"], roles=("owner",))
-    back = redirect(url_for("project", project_id=p["id"], onglet="preuves", _anchor=f"preuve-{proof_id}"))
-    if pr["is_published"]:
-        db.execute("UPDATE proofs SET is_published = 0 WHERE id = ?", (proof_id,))
-        db.commit()
-        flash(_('Photo retirée du portail.'), "ok")
-        return back
-    if not pr["ok"] or p["kind"] != "public":
-        flash(_("Seules les preuves vérifiées d'un chantier public peuvent être publiées."), "error")
-        return back
-    src = pr["thumb"] if pr["kind"] == "video" else pr["filename"]
-    if not src:
-        flash(_("Cette vidéo n'a pas d'image à publier."), "error")
-        return back
-    img, n, available = VISION.blur_faces(Image.open(os.path.join(UPLOAD_DIR, src)))
-    name = save_image(img, UPLOAD_DIR, 1600, prefix="pub_")
-    db.execute("UPDATE proofs SET is_published = 1, public_file = ? WHERE id = ?", (name, proof_id))
-    db.commit()
-    if not available:
-        flash(_("Photo publiée. Attention : le floutage automatique des visages n'est pas installé sur ce serveur (opencv). Vérifiez qu'aucun visage n'est reconnaissable."), "error")
-    else:
-        flash(_('Photo publiée sur le portail') + (_(', %(n)s visage(s) flouté(s).', n=n) if n else _(', aucun visage détecté.')), "ok")
-    return back
 
 
 @app.route("/chantiers/<int:project_id>/membres", methods=["POST"])
@@ -4108,30 +4178,6 @@ SIG_STATUS = {"nouveau": "Reçu", "en_cours": "Pris en charge", "traite": "Trait
               "rejete": "Écarté par la modération"}
 
 
-def signalements_daily(db):
-    """Signalement citoyen sans reponse : rappel au maitre d'ouvrage a J+5, puis au support a J+10."""
-    now = datetime.now(timezone.utc)
-    out = {"rappels": 0, "support": 0}
-    for sg in db.execute("SELECT * FROM signalements WHERE status IN ('nouveau', 'en_cours') AND hidden = 0").fetchall():
-        p = db.execute("SELECT * FROM projects WHERE id = ?", (sg["project_id"],)).fetchone()
-        days = (now - datetime.fromisoformat(sg["created_at"])).days
-        if days >= SIG_ANSWER_DAYS and sg["reminded"] < 2:
-            notify(p["id"], admins(db, "moderation"), L("Signalement citoyen sans réponse"),
-                   L("%(p)s : signalement reçu il y a %(n)s jours, toujours sans réponse publique.", p=p["name"], n=days),
-                   "/admin#moderation", db=db)
-            db.execute("UPDATE signalements SET reminded = 2 WHERE id = ?", (sg["id"],))
-            out["support"] += 1
-        elif days >= SIG_ANSWER_DAYS // 2 and sg["reminded"] < 1:
-            notify(p["id"], owners_of(p, db), L("Signalement citoyen à traiter"),
-                   L("Un habitant attend votre réponse depuis %(n)s jours. Répondez avant %(m)s jours : la réponse est publiée sur le portail.",
-                     n=days, m=SIG_ANSWER_DAYS), url_for("project", project_id=p["id"], onglet="dossier", _anchor="signalements"),
-                   important=True, db=db)
-            db.execute("UPDATE signalements SET reminded = 1 WHERE id = ?", (sg["id"],))
-            out["rappels"] += 1
-    db.commit()
-    return out
-
-
 def remind_payments(db):
     """Relance le beneficiaire qui n'a pas confirme un paiement declare depuis 3 jours."""
     limit = (datetime.now(timezone.utc) - timedelta(days=REMIND_AFTER_DAYS)).isoformat()
@@ -4954,15 +5000,9 @@ def monthly_satellite(db):
     return n
 
 
-@app.route("/chantiers/<int:project_id>/drone", methods=["POST"])
-@login_required
-def upload_media3d(project_id):
-    p = load_project(project_id, roles=("owner", "chef", "inspecteur"))
-    files = request.files.getlist("files")
-    kind = request.form.get("kind", "drone")
-    if kind not in ("drone", "modele3d", "orthophoto"):
-        abort(400)
-    db = get_db()
+def save_media3d(db, p, user, files, kind, note="", mission_id=None, need_gps=False):
+    """Enregistre des vues de drone, orthophotos ou modèles 3D. Une photo prise hors du terrain est refusée.
+    Renvoie (nombre ajouté, motifs de refus)."""
     added, refused = 0, []
     for file in files:
         if not file or not file.filename:
@@ -4987,6 +5027,9 @@ def upload_media3d(project_id):
                 continue
             lat, lng, t = read_exif(img)
             taken = t.isoformat() if t else None
+            if lat is None and need_gps and kind == "drone":
+                refused.append(_("%(filename)s : pas de position GPS dans la photo (activez-la sur le drone)", filename=file.filename))
+                continue
             if lat is not None:
                 dist, limit, _parcel = site_distance(p, lat, lng)
                 if dist > limit + DRONE_EXTRA_METERS:
@@ -4994,10 +5037,22 @@ def upload_media3d(project_id):
                     continue
             name = save_image(img, M3D_DIR, 4000 if kind == "orthophoto" else 2400)
         db.execute("INSERT INTO media3d (project_id, user_id, kind, filename, original_name, lat, lng, distance, taken, "
-                   "note, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                   (project_id, current_user()["id"], kind, name, file.filename[:150], lat, lng, dist, taken,
-                    request.form.get("note", "").strip()[:300], now_iso()))
+                   "note, created_at, mission_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                   (p["id"], user["id"], kind, name, file.filename[:150], lat, lng, dist, taken,
+                    (note or "").strip()[:300], now_iso(), mission_id))
         added += 1
+    return added, refused
+
+
+@app.route("/chantiers/<int:project_id>/drone", methods=["POST"])
+@login_required
+def upload_media3d(project_id):
+    p = load_project(project_id, roles=("owner", "chef", "inspecteur"))
+    kind = request.form.get("kind", "drone")
+    if kind not in ("drone", "modele3d", "orthophoto"):
+        abort(400)
+    db = get_db()
+    added, refused = save_media3d(db, p, current_user(), request.files.getlist("files"), kind, request.form.get("note", ""))
     if added:
         label = {"drone": L("vue(s) de drone"), "modele3d": L("modèle(s) 3D"), "orthophoto": L("orthophoto(s)")}[kind]
         log(project_id, L('%(added)s %(label)s ajouté(s)', added=added, label=label))
@@ -5018,7 +5073,10 @@ def media3d_file(media_id):
     m = get_db().execute("SELECT * FROM media3d WHERE id = ?", (media_id,)).fetchone()
     if m is None:
         abort(404)
-    load_project(m["project_id"], roles=("owner", "chef", "inspecteur", "intervenant"))
+    me = current_user()
+    ms = get_db().execute("SELECT pilot_id FROM aerial_missions WHERE id = ?", (m["mission_id"],)).fetchone() if m["mission_id"] else None
+    if not (ms and ms["pilot_id"] == me["id"]):
+        load_project(m["project_id"], roles=("owner", "chef", "inspecteur", "intervenant"))
     mt = "model/gltf-binary" if m["filename"].endswith(".glb") else None
     return send_from_directory(M3D_DIR, m["filename"], mimetype=mt)
 
@@ -5506,7 +5564,7 @@ def admin():
                                      "FROM transactions").fetchone()[0]
     if can("verify"):
         pending = db.execute("SELECT * FROM users WHERE (role IN ('inspecteur', 'fournisseur') OR (role = 'pro' AND profession IN "
-                             "('ingenieur', 'bureau_controle')) OR ((role = 'chef' OR (role = 'pro' AND profession = 'entrepreneur')) "
+                             "('ingenieur', 'bureau_controle', 'pilote_drone')) OR ((role = 'chef' OR (role = 'pro' AND profession = 'entrepreneur')) "
                              "AND verify_requested = 1)) AND verified = 0 AND deleted = 0 AND blocked = 0 ORDER BY id").fetchall()
     if can("commerce"):
         stats["orders"] = db.execute("SELECT COUNT(*) AS n, COALESCE(SUM(received_total), 0) AS v, COALESCE(SUM(commission), 0) AS c "
@@ -5521,9 +5579,6 @@ def admin():
                                             "p.id = o.project_id WHERE o.status = 'litige' ORDER BY o.id").fetchall()
         disputes = db.execute("SELECT d.*, p.name AS project_name FROM disputes d JOIN projects p ON p.id = d.project_id "
                               "ORDER BY d.status IN ('en_appel', 'ouvert') DESC, d.id DESC LIMIT 30").fetchall()
-    if can("moderation"):
-        sigs = db.execute("SELECT s.*, p.name AS project_name FROM signalements s JOIN projects p ON p.id = s.project_id "
-                          "ORDER BY s.id DESC LIMIT 30").fetchall()
     if can("platform"):
         stats["escrow_on"] = escrow_enabled(db)
         stats["auto_on"], stats["auto_days"] = auto_validate_on(db), auto_validate_days(db)
@@ -5545,6 +5600,11 @@ def admin():
         stats["escrow_changed"] = db.execute("SELECT s.updated_at, u.email FROM settings s LEFT JOIN users u ON u.id = s.updated_by "
                                              "WHERE s.key = 'escrow_enabled'").fetchone()
     if can("verify"):
+        stats["aerial_plans"] = db.execute("SELECT a.*, p.name AS project_name, p.commune, u.name AS owner_name, u.email AS owner_email, "
+                                           "u.phone AS owner_phone, pi.name AS pilot_name FROM aerial_plans a JOIN projects p ON p.id = a.project_id "
+                                           "JOIN users u ON u.id = p.owner_id LEFT JOIN users pi ON pi.id = a.pilot_id "
+                                           "WHERE a.status IN ('demande', 'actif') ORDER BY (a.status = 'actif'), a.id").fetchall()
+        stats["pilots"] = verified_pilots(db)
         stats["land_requests"] = db.execute("SELECT r.*, p.name AS project_name, u.name AS owner_name, u.email AS owner_email, "
                                             "u.phone AS owner_phone, lf.doc_type, lf.title_ref FROM land_requests r "
                                             "JOIN projects p ON p.id = r.project_id JOIN users u ON u.id = r.user_id "
@@ -5596,6 +5656,8 @@ def admin():
     todo = []                                    # ce qui attend une action, en tete de page
     if can("verify") and pending:
         todo.append((_("Comptes à vérifier"), len(pending), "verifier"))
+    if can("verify") and any(a["status"] == "demande" for a in stats.get("aerial_plans") or []):
+        todo.append((_("Vues de drone à organiser"), sum(1 for a in stats["aerial_plans"] if a["status"] == "demande"), "drone"))
     if can("verify") and stats.get("land_requests"):
         todo.append((_("Vérifications foncières demandées"), len(stats["land_requests"]), "foncier"))
     if can("inspections") and stats.get("insp_requests"):
@@ -5604,10 +5666,6 @@ def admin():
         n_open = len([x for x in disputes if (x["stage"] if "stage" in x.keys() else "") not in ("clos", "resolu")])
         if n_open:
             todo.append((_("Litiges à suivre"), n_open, "litiges"))
-    if can("moderation"):
-        n_sig = len([x for x in sigs if x["status"] == "nouveau"])
-        if n_sig:
-            todo.append((_("Signalements citoyens à traiter"), n_sig, "moderation"))
     if can("money"):
         n_inv = db.execute("SELECT COUNT(*) FROM billing_invoices WHERE status = 'a_payer'").fetchone()[0]
         if n_inv:
@@ -5727,8 +5785,8 @@ def admin_billing():
 
 # Action -> permission requise. block/unblock : support, ou verification pour refuser un dossier en attente.
 ADMIN_ACTION_PERM = {"verify": "verify", "unverify": "verify", "block": "accounts", "unblock": "accounts",
-                     "reset_link": "recovery", "disable_2fa": "recovery", "hide_sig": "moderation", "show_sig": "moderation",
-                     "escrow_on": "platform", "escrow_off": "platform", "auto_validate": "platform", "quality_ai": "platform", "land_request": "verify"}
+                     "reset_link": "recovery", "disable_2fa": "recovery",
+                     "escrow_on": "platform", "escrow_off": "platform", "auto_validate": "platform", "quality_ai": "platform", "land_request": "verify", "aerial_assign": "verify", "aerial_end": "verify"}
 
 
 @app.route("/admin/action", methods=["POST"])
@@ -5756,6 +5814,10 @@ def admin_action():
             notify(None, [target], L("Entreprise vérifiée"),
                    L("Votre profil d'entrepreneur vérifié apparaît dans l'annuaire : les propriétaires peuvent vous inviter."),
                    f"/entrepreneurs/{target}", important=True)
+        elif action == "verify" and tu and tu["role"] == "pro" and tu["profession"] == "pilote_drone":
+            notify(None, [target], L("Télépilote vérifié"),
+                   L("Votre autorisation ANAC est vérifiée : ChantierVrai peut vous confier des missions de drone."), "/missions-drone",
+                   important=True)
         elif action == "verify" and tu and tu["role"] == "pro":
             notify(None, [target], L("Qualifications vérifiées"),
                    L("Vous pouvez être ajouté aux chantiers comme ingénieur ou bureau de contrôle et valider des contrôles."), "/",
@@ -5778,10 +5840,6 @@ def admin_action():
             session["admin_reset_link"] = (u["name"], request.host_url.rstrip("/") + create_reset_link(db, u))
     elif action == "disable_2fa":
         db.execute("UPDATE users SET totp_on = 0, totp_secret = NULL, backup_codes = NULL WHERE id = ?", (target,))
-    elif action in ("hide_sig", "show_sig"):
-        db.execute("UPDATE signalements SET hidden = ?, status = CASE WHEN ? = 1 THEN 'rejete' WHEN status = 'rejete' "
-                   "THEN 'nouveau' ELSE status END, moderation_note = ? WHERE id = ?",
-                   (int(action == "hide_sig"), int(action == "hide_sig"), f.get("note", "").strip()[:300] or None, target))
     elif action == "escrow_on":
         if not f.get("partner", "").strip() or not f.get("confirm"):
             flash(_("Indiquez le partenaire agréé qui garde les fonds et cochez la confirmation."), "error")
@@ -5799,6 +5857,31 @@ def admin_action():
             notify(lr["project_id"], [lr["user_id"]], L("Vérification foncière"),
                    L("Votre demande de vérification du terrain est %(s)s.", s=L("terminée") if st_ == "faite" else L("prise en charge")),
                    f"/chantiers/{lr['project_id']}/foncier", important=st_ == "faite")
+    elif action == "aerial_assign":
+        plan = db.execute("SELECT * FROM aerial_plans WHERE id = ?", (target,)).fetchone()
+        pilot = to_int(f.get("pilot_id"))
+        if not plan or pilot not in {u["id"] for u in verified_pilots(db)}:
+            flash(_("Choisissez un télépilote vérifié (autorisation ANAC renseignée)."), "error")
+            return redirect(url_for("admin", _anchor="drone"))
+        try:
+            first = date.fromisoformat(f.get("first") or "")
+        except ValueError:
+            first = datetime.now(timezone.utc).date() + timedelta(days=3)
+        price = to_int(f.get("price")) or plan["price"]
+        was_active = plan["status"] == "actif"
+        db.execute("UPDATE aerial_plans SET pilot_id = ?, price = ?, status = 'actif', activated_at = COALESCE(activated_at, ?) WHERE id = ?",
+                   (pilot, price, now_iso(), target))
+        db.execute("UPDATE aerial_missions SET pilot_id = ? WHERE plan_id = ? AND status = 'prevue'", (pilot, target))
+        plan = db.execute("SELECT * FROM aerial_plans WHERE id = ?", (target,)).fetchone()
+        if not was_active:
+            schedule_mission(db, plan, first)
+            pr = db.execute("SELECT * FROM projects WHERE id = ?", (plan["project_id"],)).fetchone()
+            notify(plan["project_id"], owners_of(pr, db), L("Vues de drone confirmées"),
+                   L("Un télépilote agréé passera à partir du %(d)s, pour %(m)s FCFA par passage.", d=first.isoformat(),
+                     m=f"{price:,}".replace(",", " ")), f"/chantiers/{plan['project_id']}/drone-camera", important=True, db=db)
+    elif action == "aerial_end":
+        db.execute("UPDATE aerial_plans SET status = 'termine', ended_at = ? WHERE id = ?", (now_iso(), target))
+        db.execute("UPDATE aerial_missions SET status = 'annulee' WHERE plan_id = ? AND status = 'prevue'", (target,))
     elif action == "quality_ai":
         set_setting(db, "quality_ai", "1" if f.get("on") else "0", me["id"])
     elif action == "auto_validate":
@@ -8570,8 +8653,14 @@ def land_view(db, p, lang):
         if by_kind.get(kind) and check_id in ("copie",):
             done[check_id] = True
     flags = LAND.flags_for(f, {"lat": p["lat"], "lng": p["lng"]}, lang, done)
-    level, _f = LAND.assess(f["doc_type"], done, flags) if f["doc_type"] else (None, [])
     poly = LAND.parse_bornes(f["bornes"])
+    # Double vente : même titre ou terrain qui chevauche celui d'un autre utilisateur (sans dire qui)
+    linked = tuple(f"plot:{r[0]}" for r in db.execute("SELECT id FROM plots WHERE project_id = ?", (p["id"],)))
+    shape = poly if len(poly) >= 3 else [tuple(x) for x in (GEO.parse(p["parcel"]) or [])]
+    conflicts = land_conflicts(db, p["owner_id"], shape, LAND.norm_ref(f["title_ref"] or p["land_ref"]),
+                               exclude=(f"project:{p['id']}",) + linked)
+    flags = flags + [conflict_text(c) for c in conflicts]
+    level, _f = LAND.assess(f["doc_type"], done, flags) if f["doc_type"] else (None, [])
     return f, done, docs, by_kind, flags, level, poly
 
 
@@ -8643,6 +8732,15 @@ def land_page(project_id):
         else:
             abort(400)
         db.commit()
+        if action == "save":
+            fr = land_row(db, project_id)
+            pts = LAND.parse_bornes(fr["bornes"])
+            shape = pts if len(pts) >= 3 else [tuple(x) for x in (GEO.parse(p["parcel"]) or [])]
+            linked = tuple(f"plot:{r[0]}" for r in db.execute("SELECT id FROM plots WHERE project_id = ?", (project_id,)))
+            found = land_conflicts(db, p["owner_id"], shape, LAND.norm_ref(fr["title_ref"]), exclude=(f"project:{project_id}",) + linked)
+            if found:
+                alert_conflicts(db, f"project:{project_id}", p["owner_id"], url_for("land_page", project_id=project_id), found)
+                db.commit()
         return back
     lang = g.lang
     f, done, docs, by_kind, flags, level, poly = land_view(db, p, lang)
@@ -8661,6 +8759,657 @@ def land_risk(db, p):
     if not f["doc_type"]:
         return None
     return land_view(db, p, g.get("lang", "fr"))[5]
+
+
+
+# --------------------------------------------------------------------------
+# Terrains : vérifier un terrain avant d'acheter (et ensuite celui du chantier)
+# ChantierVrai ne certifie aucun titre : il compare ce que les utilisateurs déclarent (alerte « double vente »),
+# guide vers les pièces officielles et affiche un niveau de vérification honnête.
+# --------------------------------------------------------------------------
+PLOT_DOC_KINDS = LAND.DOC_KINDS + ("adu_capture", "position")
+PLOT_DOC_LABELS = dict(LAND.DOC_LABELS, adu_capture=LAND.t("Capture de la vérification ADU", "Screenshot of the ADU check"),
+                       position=LAND.t("Position foncière", "Land position"))
+OVERLAP_MIN_M2, OVERLAP_MIN_SHARE = 15, 0.05      # en dessous : imprécision des clics ou des bornes, pas un vrai chevauchement
+COMMUNES = {   # centre de la carte quand le terrain n'a pas encore de bornes
+    "Abidjan": (5.3364, -4.0267), "Abobo": (5.4214, -4.0167), "Anyama": (5.4946, -4.0518), "Bingerville": (5.3561, -3.8854),
+    "Cocody": (5.3599, -3.9876), "Koumassi": (5.2930, -3.9500), "Marcory": (5.3047, -3.9839), "Port-Bouët": (5.2557, -3.9265),
+    "Songon": (5.3200, -4.2600), "Yopougon": (5.3463, -4.0806), "Grand-Bassam": (5.2111, -3.7383), "Assinie": (5.1333, -3.2833),
+    "Jacqueville": (5.2052, -4.4146), "Dabou": (5.3256, -4.3767), "Yamoussoukro": (6.8276, -5.2893), "Bouaké": (7.6906, -5.0300),
+    "San-Pédro": (4.7485, -6.6363), "Daloa": (6.8770, -6.4502), "Korhogo": (9.4580, -5.6296), "Man": (7.4125, -7.5538),
+}
+
+
+def plot_row(db, plot_id, user):
+    pl = db.execute("SELECT * FROM plots WHERE id = ?", (plot_id,)).fetchone()
+    if not pl or (pl["user_id"] != user["id"] and not can("projects", user)):
+        abort(404)                       # pas de 403 : on ne révèle pas qu'un terrain existe
+    return pl
+
+
+def plot_poly(pl):
+    try:
+        return [tuple(x) for x in json.loads(pl["poly"])] if pl and pl["poly"] else []
+    except (TypeError, ValueError):
+        return []
+
+
+def land_conflicts(db, owner_id, poly, ref_norm, exclude=()):
+    """Terrains déclarés par d'autres utilisateurs qui chevauchent celui-ci ou portent le même numéro de titre.
+    Ne renvoie jamais qui : seulement le motif, l'ampleur et la date."""
+    out, seen = [], set()
+    area = LAND.area_m2(poly) if len(poly) >= 3 else None
+
+    def consider(key, uid, other_poly, other_ref, since):
+        if uid == owner_id or key in exclude or key in seen:
+            return
+        if ref_norm and other_ref and LAND.norm_ref(other_ref) == ref_norm:
+            seen.add(key)
+            out.append({"key": key, "owner": uid, "reason": "same_ref", "m2": None, "since": since})
+            return
+        if area and len(other_poly) >= 3:
+            b0, b1 = LAND.bbox(poly), LAND.bbox(other_poly)
+            if b0[1] < b1[0] or b1[1] < b0[0] or b0[3] < b1[2] or b1[3] < b0[2]:
+                return
+            m2 = LAND.overlap_m2(poly, other_poly)
+            small = min(area, LAND.area_m2(other_poly) or area)
+            if m2 >= OVERLAP_MIN_M2 and m2 >= OVERLAP_MIN_SHARE * small:
+                seen.add(key)
+                out.append({"key": key, "owner": uid, "reason": "overlap", "m2": m2, "since": since})
+
+    if len(poly) >= 3:
+        a0, a1, o0, o1 = LAND.bbox(poly)
+        rows = db.execute("SELECT id, user_id, poly, title_ref, created_at FROM plots WHERE archived = 0 AND project_id IS NULL AND "
+                          "((max_lat >= ? AND min_lat <= ? AND max_lng >= ? AND min_lng <= ?) OR (ref_norm IS NOT NULL AND ref_norm = ?))",
+                          (a0, a1, o0, o1, ref_norm or "")).fetchall()
+    else:
+        rows = db.execute("SELECT id, user_id, poly, title_ref, created_at FROM plots WHERE archived = 0 AND project_id IS NULL "
+                          "AND ref_norm = ?", (ref_norm or "",)).fetchall() if ref_norm else []
+    for r in rows:
+        consider(f"plot:{r['id']}", r["user_id"], plot_poly(r), r["title_ref"], r["created_at"])
+    # Terrains des chantiers : bornes du géomètre (page Terrain) ou parcelle dessinée (fiche du projet)
+    for r in db.execute("SELECT p.id, p.owner_id, p.parcel, p.created_at, p.land_ref, lf.bornes, lf.title_ref FROM projects p "
+                        "LEFT JOIN land_files lf ON lf.project_id = p.id WHERE p.owner_id != ?", (owner_id,)).fetchall():
+        other = LAND.parse_bornes(r["bornes"]) or [tuple(x) for x in (GEO.parse(r["parcel"]) or [])]
+        consider(f"project:{r['id']}", r["owner_id"], other, r["title_ref"] or r["land_ref"], r["created_at"])
+    return out
+
+
+def conflict_text(c, lang=None):
+    when = format_d(c["since"]) if c.get("since") else ""
+    if c["reason"] == "same_ref":
+        return _("Le même numéro de titre a déjà été déclaré par un autre utilisateur de ChantierVrai (le %(d)s).", d=when)
+    return _("Un autre utilisateur de ChantierVrai a déclaré un terrain qui chevauche celui-ci sur environ %(m)s m² (le %(d)s).",
+             m=f"{c['m2']:,}".replace(",", " "), d=when)
+
+
+def alert_conflicts(db, my_key, my_owner, my_link, conflicts):
+    """Prévient les deux propriétaires, une seule fois par paire et par motif, sans dévoiler l'identité de l'autre."""
+    for c in conflicts:
+        a, b = sorted([my_key, c["key"]])
+        if db.execute("SELECT 1 FROM plot_alerts WHERE a = ? AND b = ? AND reason = ?", (a, b, c["reason"])).fetchone():
+            continue
+        db.execute("INSERT INTO plot_alerts (a, b, reason, created_at) VALUES (?,?,?,?) ON CONFLICT DO NOTHING",
+                   (a, b, c["reason"], now_iso()))
+        title = L("Alerte : terrain peut-être vendu deux fois")
+        body_me = L("Un autre utilisateur a déclaré le même terrain. Ne versez rien avant d'avoir un état foncier récent.")
+        body_other = L("Quelqu'un vient de déclarer un terrain qui correspond au vôtre. Si vous ne le vendez pas, vérifiez vos bornes "
+                       "et votre titre auprès de la conservation foncière.")
+        notify(None, [my_owner], title, body_me, my_link, important=True, db=db)
+        other_link = url_for("plot_page", plot_id=int(c["key"].split(":")[1])) if c["key"].startswith("plot:") \
+            else url_for("land_page", project_id=int(c["key"].split(":")[1]))
+        notify(None if c["key"].startswith("plot:") else int(c["key"].split(":")[1]), [c["owner"]], title, body_other,
+               other_link, important=True, db=db)
+
+
+def plot_assessment(db, pl, lang):
+    """Niveau de vérification (0..3), niveau de risque (LAND.assess) et alertes, pour un terrain."""
+    poly = plot_poly(pl)
+    done = json.loads(pl["checks"] or "{}")
+    docs = db.execute("SELECT * FROM plot_documents WHERE plot_id = ? ORDER BY id", (pl["id"],)).fetchall()
+    by_kind = {}
+    for d in docs:
+        by_kind.setdefault(d["kind"], []).append(d)
+    if by_kind.get("titre"):
+        done["copie"] = True
+    fields = {"holder_name": pl["holder_name"], "seller_name": pl["seller_name"], "area_declared": pl["area_declared"],
+              "bornes": "\n".join(f"{a}, {b}" for a, b in poly)}
+    flags = LAND.flags_for(fields, {"lat": None}, lang, done)
+    if len(poly) >= 3 and pl["area_declared"]:
+        a = LAND.area_m2(poly)
+        if a and abs(a - pl["area_declared"]) / pl["area_declared"] > 0.15:
+            flags.append(_("Surface mesurée sur la carte (%(a)s m²) très différente de celle du document (%(d)s m²).",
+                           a=f"{a:,}".replace(",", " "), d=f"{int(pl['area_declared']):,}".replace(",", " ")))
+    conflicts = land_conflicts(db, pl["user_id"], poly, pl["ref_norm"],
+                               exclude=(f"plot:{pl['id']}",) + ((f"project:{pl['project_id']}",) if pl["project_id"] else ()))
+    flags += [conflict_text(c) for c in conflicts]
+    ef_fresh = bool(pl["ef_date"]) and (datetime.now(timezone.utc).date() - date.fromisoformat(pl["ef_date"])).days <= LAND.FRESH_DAYS
+    if pl["ef_result"] in ("hypotheque", "opposition", "autre_proprio"):
+        flags.append(LAND.label(LAND.EF_RESULTS[pl["ef_result"]], lang))
+    if pl["ef_owner"] and pl["seller_name"] and not LAND.same_name(pl["ef_owner"], pl["seller_name"]):
+        flags.append(_("L'état foncier indique un autre propriétaire que le vendeur."))
+    if pl["adu_result"] in ("vendu", "introuvable"):
+        flags.append(LAND.label(LAND.ADU_RESULTS[pl["adu_result"]], lang))
+    if pl["pos_result"] == "non_conforme":
+        flags.append(LAND.label(LAND.POS_RESULTS["non_conforme"], lang))
+    if pl["ef_result"] == "libre" and ef_fresh:      # un état foncier périmé ne vaut plus vérification
+        done["etat_foncier"] = True
+    elif pl["ef_date"] and not ef_fresh:
+        done["etat_foncier"] = False
+    level_risk, _f = LAND.assess(pl["doc_type"], done, flags) if pl["doc_type"] else (None, [])
+    # Niveau de vérification : ce que l'on sait vraiment, pas ce que l'on espère
+    official_ok = (ef_fresh and pl["ef_result"] == "libre" and by_kind.get("etat_foncier")) or \
+                  (pl["adu_result"] == "conforme" and by_kind.get("adu_capture"))
+    if official_ok and not conflicts and not [x for x in flags]:
+        vlevel = 3
+    elif pl["doc_type"] and by_kind.get("titre") and by_kind.get("piece_vendeur"):
+        vlevel = 2
+    elif pl["doc_type"] and (pl["title_ref"] or len(poly) >= 3):
+        vlevel = 1
+    else:
+        vlevel = 0
+    return {"poly": poly, "area": LAND.area_m2(poly) if len(poly) >= 3 else None, "done": done, "docs": docs, "by_kind": by_kind,
+            "flags": flags, "conflicts": conflicts, "risk": level_risk, "vlevel": vlevel, "ef_fresh": ef_fresh}
+
+
+def save_plot_geometry(db, plot_id, poly):
+    if len(poly) >= 3:
+        a0, a1, o0, o1 = LAND.bbox(poly)
+        db.execute("UPDATE plots SET poly = ?, area_m2 = ?, min_lat = ?, max_lat = ?, min_lng = ?, max_lng = ?, updated_at = ? WHERE id = ?",
+                   (json.dumps([[round(a, 7), round(b, 7)] for a, b in poly]), LAND.area_m2(poly), a0, a1, o0, o1, now_iso(), plot_id))
+    else:
+        db.execute("UPDATE plots SET poly = NULL, area_m2 = NULL, min_lat = NULL, max_lat = NULL, min_lng = NULL, max_lng = NULL, "
+                   "updated_at = ? WHERE id = ?", (now_iso(), plot_id))
+
+
+def plots_allowed(user):
+    return user["role"] in ("proprio", "pro") or user["is_admin"]
+
+
+@app.route("/terrains", methods=["GET", "POST"])
+@login_required
+def plots_page():
+    me = current_user()
+    if not plots_allowed(me):
+        abort(404)
+    db = get_db()
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()[:120]
+        commune = (request.form.get("commune") or "").strip()[:80] or None
+        if not name:
+            flash(_("Donnez un nom au terrain (par exemple « Lot 24, Bingerville »)."), "error")
+            return redirect(url_for("plots_page"))
+        cur = db.execute("INSERT INTO plots (user_id, name, commune, created_at, updated_at) VALUES (?,?,?,?,?)",
+                         (me["id"], name, commune, now_iso(), now_iso()))
+        db.commit()
+        return redirect(url_for("plot_page", plot_id=cur.lastrowid, _anchor="carte"))
+    rows = db.execute("SELECT * FROM plots WHERE user_id = ? AND archived = 0 ORDER BY updated_at DESC", (me["id"],)).fetchall()
+    lang = g.lang
+    items = [(pl, plot_assessment(db, pl, lang)) for pl in rows]
+    return render_template("plots.html", items=items, COMMUNES=sorted(COMMUNES),
+                           LEVELS={k: LAND.label(v, lang) for k, v in LAND.LEVELS.items()},
+                           RISK={k: LAND.label(v, lang) for k, v in LAND.RISK.items()})
+
+
+@app.route("/terrains/<int:plot_id>", methods=["GET", "POST"])
+@login_required
+def plot_page(plot_id):
+    me = current_user()
+    db = get_db()
+    pl = plot_row(db, plot_id, me)
+    lang = g.lang
+    if request.method == "POST":
+        f = request.form
+        action = f.get("action")
+        back = redirect(url_for("plot_page", plot_id=plot_id, _anchor=f.get("anchor") or ""))
+        if action == "save":
+            doc_type = f.get("doc_type") if f.get("doc_type") in LAND.DOCS else None
+            ref = f.get("title_ref", "").strip()[:80] or None
+            db.execute("UPDATE plots SET name = ?, commune = ?, doc_type = ?, title_ref = ?, ref_norm = ?, holder_name = ?, seller_name = ?, "
+                       "area_declared = ?, updated_at = ? WHERE id = ?",
+                       ((f.get("name") or pl["name"]).strip()[:120], (f.get("commune") or "").strip()[:80] or None, doc_type, ref,
+                        LAND.norm_ref(ref), f.get("holder_name", "").strip()[:120] or None, f.get("seller_name", "").strip()[:120] or None,
+                        to_float(f.get("area_declared")), now_iso(), plot_id))
+        elif action == "bornes":
+            poly = []
+            if f.get("poly"):
+                pts = GEO.parse(f.get("poly"))
+                poly = [tuple(x) for x in pts] if pts else []
+            elif f.get("bornes", "").strip():
+                zone = 29 if f.get("zone") == "29" else 30
+                poly, bad = LAND.parse_points(f.get("bornes"), zone)
+                if bad:
+                    flash(_("%(n)s ligne(s) ignorée(s) : coordonnées illisibles ou hors de Côte d'Ivoire.", n=bad), "error")
+            if f.get("poly") is not None and not f.get("bornes") and len(poly) < 3 and f.get("poly") not in ("", "[]"):
+                flash(_("Placez au moins 3 bornes."), "error")
+                return back
+            save_plot_geometry(db, plot_id, poly)
+        elif action == "check":
+            done = json.loads(pl["checks"] or "{}")
+            cid = f.get("check")
+            if cid not in {c[0] for c in LAND.CHECKS}:
+                abort(400)
+            done[cid] = f.get("done") == "1"
+            db.execute("UPDATE plots SET checks = ?, updated_at = ? WHERE id = ?", (json.dumps(done), now_iso(), plot_id))
+        elif action == "official":
+            kind = f.get("kind")
+            day = f.get("date") or None
+            try:
+                if day:
+                    day = date.fromisoformat(day)
+                    if day > datetime.now(timezone.utc).date():
+                        raise ValueError
+                    day = day.isoformat()
+            except ValueError:
+                flash(_("Date invalide."), "error")
+                return back
+            if kind == "etat_foncier":
+                res = f.get("result") if f.get("result") in LAND.EF_RESULTS else None
+                db.execute("UPDATE plots SET ef_date = ?, ef_owner = ?, ef_result = ?, updated_at = ? WHERE id = ?",
+                           (day, f.get("owner", "").strip()[:120] or None, res, now_iso(), plot_id))
+            elif kind == "adu":
+                res = f.get("result") if f.get("result") in LAND.ADU_RESULTS else None
+                db.execute("UPDATE plots SET adu_code = ?, adu_result = ?, adu_date = ?, updated_at = ? WHERE id = ?",
+                           (f.get("code", "").strip()[:120] or None, res, day, now_iso(), plot_id))
+            elif kind == "position":
+                res = f.get("result") if f.get("result") in LAND.POS_RESULTS else None
+                db.execute("UPDATE plots SET pos_date = ?, pos_result = ?, updated_at = ? WHERE id = ?", (day, res, now_iso(), plot_id))
+            else:
+                abort(400)
+        elif action == "upload":
+            kind = f.get("kind")
+            file = request.files.get("file")
+            if kind not in PLOT_DOC_KINDS or not file or not file.filename or ext_of(file.filename) not in DOC_EXT:
+                flash(_('Choisissez un fichier (PDF, Word, Excel, image, DWG, ZIP).'), "error")
+                return back
+            raw = file.read()
+            os.makedirs(FIN_DIR, exist_ok=True)
+            name = f"{secrets.token_hex(12)}.{ext_of(file.filename)}"
+            with open(os.path.join(FIN_DIR, name), "wb") as fh:
+                fh.write(raw)
+            db.execute("INSERT INTO plot_documents (plot_id, user_id, kind, filename, original_name, sha256, size, created_at) "
+                       "VALUES (?,?,?,?,?,?,?,?)", (plot_id, me["id"], kind, name, file.filename[:150],
+                                                    hashlib.sha256(raw).hexdigest(), len(raw), now_iso()))
+        elif action == "delete_doc":
+            d = db.execute("SELECT * FROM plot_documents WHERE id = ? AND plot_id = ?", (to_int(f.get("doc_id")), plot_id)).fetchone()
+            if d:
+                db.execute("DELETE FROM plot_documents WHERE id = ?", (d["id"],))
+        elif action == "link":
+            pid = to_int(f.get("project_id"))
+            pr = db.execute("SELECT * FROM projects WHERE id = ? AND owner_id = ?", (pid, me["id"])).fetchone()
+            if not pr:
+                abort(400)
+            copy_plot_to_project(db, pl, pr, me)
+            db.commit()
+            flash(_("Le terrain est rattaché au chantier « %(p)s » : bornes, document et pièces sont repris dans sa page Terrain.", p=pr["name"]), "ok")
+            return redirect(url_for("land_page", project_id=pr["id"]))
+        elif action == "archive":
+            db.execute("UPDATE plots SET archived = 1, updated_at = ? WHERE id = ?", (now_iso(), plot_id))
+            db.commit()
+            flash(_("Terrain retiré de votre liste."), "ok")
+            return redirect(url_for("plots_page"))
+        else:
+            abort(400)
+        db.commit()
+        pl = db.execute("SELECT * FROM plots WHERE id = ?", (plot_id,)).fetchone()
+        if action in ("save", "bornes"):
+            ev = plot_assessment(db, pl, lang)
+            if ev["conflicts"]:
+                alert_conflicts(db, f"plot:{plot_id}", pl["user_id"], url_for("plot_page", plot_id=plot_id), ev["conflicts"])
+                db.commit()
+        return back
+    ev = plot_assessment(db, pl, lang)
+    center = (GEO.centroid(ev["poly"]) if len(ev["poly"]) >= 3 else None) or COMMUNES.get(pl["commune"] or "", COMMUNES["Abidjan"])
+    projects = db.execute("SELECT id, name FROM projects WHERE owner_id = ? ORDER BY id DESC", (me["id"],)).fetchall()
+    checks = [{"id": c[0], "label": LAND.label(c[1], lang), "who": LAND.label(c[2], lang), "done": bool(ev["done"].get(c[0])),
+               "doc": LAND.CHECK_DOC.get(c[0])} for c in (LAND.applicable(pl["doc_type"]) if pl["doc_type"] else LAND.CHECKS)]
+    return render_template("plot.html", pl=pl, ev=ev, center=center, checks=checks, projects=projects, COMMUNES=sorted(COMMUNES),
+                           DOCS={k: (LAND.label(v[0], lang), LAND.label(v[1], lang)) for k, v in LAND.DOCS.items()},
+                           RISK={k: LAND.label(v, lang) for k, v in LAND.RISK.items()},
+                           LEVELS={k: LAND.label(v, lang) for k, v in LAND.LEVELS.items()},
+                           LEVEL_HELP={k: LAND.label(v, lang) for k, v in LAND.LEVEL_HELP.items()},
+                           OFFICIAL={k: (LAND.label(v[0], lang), LAND.label(v[1], lang)) for k, v in LAND.OFFICIAL.items()},
+                           EF_RESULTS={k: LAND.label(v, lang) for k, v in LAND.EF_RESULTS.items()},
+                           ADU_RESULTS={k: LAND.label(v, lang) for k, v in LAND.ADU_RESULTS.items()},
+                           POS_RESULTS={k: LAND.label(v, lang) for k, v in LAND.POS_RESULTS.items()},
+                           DOC_LABELS={k: LAND.label(v, lang) for k, v in PLOT_DOC_LABELS.items()}, FRESH_DAYS=LAND.FRESH_DAYS)
+
+
+@app.route("/terrains/<int:plot_id>/pieces/<int:doc_id>")
+@login_required
+def plot_document(plot_id, doc_id):
+    db = get_db()
+    plot_row(db, plot_id, current_user())
+    d = db.execute("SELECT * FROM plot_documents WHERE id = ? AND plot_id = ?", (doc_id, plot_id)).fetchone()
+    if not d:
+        abort(404)
+    return send_from_directory(FIN_DIR, d["filename"], as_attachment=False, download_name=d["original_name"] or d["filename"])
+
+
+def copy_plot_to_project(db, pl, pr, me):
+    """Le terrain vérifié devient celui du chantier : document, bornes, vérifications et pièces sont repris."""
+    poly = plot_poly(pl)
+    vals = (pl["doc_type"], pl["title_ref"], pl["holder_name"], pl["seller_name"], pl["area_declared"],
+            "\n".join(f"{a}, {b}" for a, b in poly) or None, pl["checks"], me["id"], now_iso())
+    if db.execute("SELECT 1 FROM land_files WHERE project_id = ?", (pr["id"],)).fetchone():
+        db.execute("UPDATE land_files SET doc_type = COALESCE(?, doc_type), title_ref = COALESCE(?, title_ref), holder_name = COALESCE(?, holder_name), "
+                   "seller_name = COALESCE(?, seller_name), area_declared = COALESCE(?, area_declared), bornes = COALESCE(?, bornes), "
+                   "checks = COALESCE(?, checks), updated_by = ?, updated_at = ? WHERE project_id = ?", vals + (pr["id"],))
+    else:
+        db.execute("INSERT INTO land_files (doc_type, title_ref, holder_name, seller_name, area_declared, bornes, checks, updated_by, "
+                   "updated_at, project_id) VALUES (?,?,?,?,?,?,?,?,?,?)", vals + (pr["id"],))
+    if len(poly) >= 3 and not pr["parcel"]:
+        db.execute("UPDATE projects SET parcel = ? WHERE id = ?", (json.dumps([[a, b] for a, b in poly]), pr["id"]))
+    for d in db.execute("SELECT * FROM plot_documents WHERE plot_id = ?", (pl["id"],)).fetchall():
+        if d["kind"] in LAND.DOC_KINDS:
+            db.execute("INSERT INTO fin_documents (project_id, user_id, kind, title, filename, original_name, sha256, size, created_at) "
+                       "VALUES (?,?,?,?,?,?,?,?,?)", (pr["id"], me["id"], d["kind"], None, d["filename"], d["original_name"],
+                                                      d["sha256"], d["size"], now_iso()))
+    db.execute("UPDATE plots SET project_id = ?, updated_at = ? WHERE id = ?", (pr["id"], now_iso(), pl["id"]))
+    log(pr["id"], L("Terrain vérifié avant achat rattaché au chantier"))
+
+
+
+# --------------------------------------------------------------------------
+# Vues aériennes et caméras : un télépilote agréé passe à date fixe, une caméra photographie le chantier
+# --------------------------------------------------------------------------
+CAM_DIR = os.path.join(UPLOAD_DIR, "cameras")
+AERIAL_FREQ = {   # clé : (libellé, jours entre deux passages, prix indicatif par passage en FCFA)
+    "ponctuel": (L("Un passage"), None, 60000),
+    "mensuel": (L("Tous les mois"), 30, 45000),
+    "hebdo": (L("Toutes les semaines"), 7, 35000),
+}
+CAMERA_MONTHLY = 15000          # abonnement indicatif d'une caméra (stockage, timelapse, alertes)
+CAMERA_MIN_GAP_MIN = 5          # une caméra qui envoie trop souvent : on ne garde qu'une photo toutes les 5 minutes
+CAMERA_ACTIVITY = 0.06          # part de pixels changés entre deux photos qui signale du mouvement sur le chantier
+CAMERA_WORK_HOURS = (7, 18)     # heure d'Abidjan = UTC
+CAMERA_SILENT_DAYS = 3          # jours ouvrés sans activité visible avant d'alerter
+MISSION_LATE_DAYS = 3
+
+
+def aerial_price(freq):
+    return to_int(get_setting(f"aerial_price_{freq}", None)) or AERIAL_FREQ[freq][2]
+
+
+def camera_price():
+    return to_int(get_setting("camera_price", None)) or CAMERA_MONTHLY
+
+
+def is_pilot(user):
+    return user and user["role"] == "pro" and user["profession"] == "pilote_drone"
+
+
+def verified_pilots(db):
+    return db.execute("SELECT id, name, zone, anac_ref FROM users WHERE role = 'pro' AND profession = 'pilote_drone' AND verified = 1 "
+                      "AND blocked = 0 AND deleted = 0 AND anac_ref IS NOT NULL ORDER BY name").fetchall()
+
+
+def current_plan(db, project_id):
+    return db.execute("SELECT * FROM aerial_plans WHERE project_id = ? AND status IN ('demande', 'actif') ORDER BY id DESC LIMIT 1",
+                      (project_id,)).fetchone()
+
+
+def schedule_mission(db, plan, due):
+    """Crée le prochain passage et prévient le télépilote."""
+    cur = db.execute("INSERT INTO aerial_missions (plan_id, project_id, pilot_id, due_on, created_at) VALUES (?,?,?,?,?)",
+                     (plan["id"], plan["project_id"], plan["pilot_id"], due.isoformat(), now_iso()))
+    if plan["pilot_id"]:
+        notify(plan["project_id"], [plan["pilot_id"]], L("Nouvelle mission drone"),
+               L("Passage prévu le %(d)s. Photos avec position GPS, et orthophoto si possible.", d=due.isoformat()),
+               f"/missions-drone/{cur.lastrowid}", important=True, db=db)
+    return cur.lastrowid
+
+
+def mission_media(db, mission_ids):
+    out = {}
+    if mission_ids:
+        for m in db.execute("SELECT * FROM media3d WHERE mission_id IN (%s) ORDER BY id" % ",".join("?" * len(mission_ids)),
+                            tuple(mission_ids)).fetchall():
+            out.setdefault(m["mission_id"], []).append(m)
+    return out
+
+
+def camera_activity(db, camera_id, days=7):
+    """Pour chaque jour récent : nombre de photos, et y a-t-il eu du mouvement pendant les heures de travail."""
+    today = datetime.now(timezone.utc).date()
+    since = (today - timedelta(days=days - 1)).isoformat()
+    rows = db.execute("SELECT taken, change FROM camera_shots WHERE camera_id = ? AND taken >= ? ORDER BY taken",
+                      (camera_id, since)).fetchall()
+    out = []
+    for i in range(days):
+        d_ = (today - timedelta(days=days - 1 - i)).isoformat()
+        day = [r for r in rows if r["taken"][:10] == d_]
+        work = [r for r in day if CAMERA_WORK_HOURS[0] <= int(r["taken"][11:13]) < CAMERA_WORK_HOURS[1]]
+        moving = sum(1 for r in work if (r["change"] or 0) >= CAMERA_ACTIVITY)
+        out.append({"day": d_, "shots": len(day), "moving": moving,
+                    "state": "none" if not day else ("active" if moving >= 2 else "calm")})
+    return out
+
+
+@app.route("/chantiers/<int:project_id>/drone-camera", methods=["GET", "POST"])
+@login_required
+def aerial_page(project_id):
+    p = load_project(project_id, roles=("owner", "chef", "inspecteur"))
+    db = get_db()
+    me = current_user()
+    owner = g.project_role == "owner"
+    if request.method == "POST":
+        if not owner:
+            abort(403)
+        f = request.form
+        action = f.get("action")
+        back = redirect(url_for("aerial_page", project_id=project_id, _anchor=f.get("anchor") or ""))
+        if action == "request":
+            freq = f.get("frequency")
+            if freq not in AERIAL_FREQ:
+                abort(400)
+            if current_plan(db, project_id):
+                flash(_("Une formule drone est déjà en cours pour ce chantier."), "error")
+                return back
+            db.execute("INSERT INTO aerial_plans (project_id, frequency, price, message, requested_by, created_at) VALUES (?,?,?,?,?,?)",
+                       (project_id, freq, aerial_price(freq), f.get("message", "").strip()[:1000] or None, me["id"], now_iso()))
+            notify(project_id, admins(db, "verify"), L("Vues de drone demandées"),
+                   L("%(n)s demande des vues de drone pour le chantier %(p)s.", n=me["name"], p=p["name"]), "/admin#drone",
+                   important=True, db=db)
+            log(project_id, L("Vues de drone demandées"))
+            flash(_("Demande envoyée : l'équipe ChantierVrai confirme le prix et vous attribue un télépilote agréé par l'ANAC."), "ok")
+        elif action == "stop":
+            plan = current_plan(db, project_id)
+            if plan:
+                db.execute("UPDATE aerial_plans SET status = 'termine', ended_at = ? WHERE id = ?", (now_iso(), plan["id"]))
+                db.execute("UPDATE aerial_missions SET status = 'annulee' WHERE plan_id = ? AND status = 'prevue'", (plan["id"],))
+                if plan["pilot_id"]:
+                    notify(project_id, [plan["pilot_id"]], L("Mission drone arrêtée"),
+                           L("Le propriétaire a arrêté les passages de drone sur ce chantier."), "/missions-drone", db=db)
+                flash(_("Les passages de drone sont arrêtés."), "ok")
+        elif action == "add_camera":
+            name = (f.get("name") or "").strip()[:80] or _("Caméra du chantier")
+            token = secrets.token_urlsafe(24)
+            db.execute("INSERT INTO site_cameras (project_id, name, token_hash, created_by, created_at) VALUES (?,?,?,?,?)",
+                       (project_id, name, hashlib.sha256(token.encode()).hexdigest(), me["id"], now_iso()))
+            session["camera_token"] = token          # affiché une seule fois
+            log(project_id, L("Caméra ajoutée au chantier"))
+        elif action == "remove_camera":
+            db.execute("UPDATE site_cameras SET active = 0 WHERE id = ? AND project_id = ?", (to_int(f.get("camera_id")), project_id))
+            flash(_("Caméra retirée : ses photos sont conservées, elle ne peut plus en envoyer."), "ok")
+        else:
+            abort(400)
+        db.commit()
+        return back
+    plan = current_plan(db, project_id)
+    missions = db.execute("SELECT * FROM aerial_missions WHERE project_id = ? AND status != 'annulee' ORDER BY due_on DESC LIMIT 24",
+                          (project_id,)).fetchall()
+    media = mission_media(db, [m["id"] for m in missions])
+    done = [m for m in missions if m["status"] == "faite" and media.get(m["id"])]
+
+    def cover(m):
+        ms = media.get(m["id"], [])
+        return next((x for x in ms if x["kind"] == "orthophoto"), None) or next((x for x in ms if x["kind"] == "drone"), None)
+    compare = (cover(done[1]), cover(done[0]), done[1], done[0]) if len(done) >= 2 else None
+    pilot = db.execute("SELECT name, anac_ref FROM users WHERE id = ?", (plan["pilot_id"],)).fetchone() if plan and plan["pilot_id"] else None
+    cams = db.execute("SELECT * FROM site_cameras WHERE project_id = ? AND active = 1 ORDER BY id", (project_id,)).fetchall()
+    cam_view = []
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    for c in cams:
+        shots = db.execute("SELECT id, taken, change FROM camera_shots WHERE camera_id = ? AND taken >= ? ORDER BY taken",
+                           (c["id"], since)).fetchall()
+        step = max(1, len(shots) // 120)              # timelapse : 120 images au plus
+        cam_view.append({"cam": c, "last": shots[-1] if shots else None, "frames": [x["id"] for x in shots[::step]],
+                         "frame_times": [x["taken"][:16].replace("T", " ") for x in shots[::step]], "days": camera_activity(db, c["id"])})
+    token = session.pop("camera_token", None) if owner else None
+    return render_template("aerial.html", p=p, owner=owner, plan=plan, pilot=pilot, missions=missions, media=media, compare=compare,
+                           cams=cam_view, token=token, FREQ={k: (v[0], aerial_price(k)) for k, v in AERIAL_FREQ.items()},
+                           camera_price=camera_price(), upload_url=url_for("camera_ingest", _external=True),
+                           cover=cover, parcel=GEO.parse(p["parcel"]) if p["parcel"] else None)
+
+
+@app.route("/cameras/photo/<int:shot_id>")
+@login_required
+def camera_shot_file(shot_id):
+    sh = get_db().execute("SELECT * FROM camera_shots WHERE id = ?", (shot_id,)).fetchone()
+    if sh is None:
+        abort(404)
+    load_project(sh["project_id"], roles=("owner", "chef", "inspecteur", "intervenant"))
+    return send_from_directory(CAM_DIR, sh["filename"])
+
+
+@app.route("/api/v1/cameras/photo", methods=["POST"])
+def camera_ingest():
+    """Une caméra de chantier (4G, solaire) envoie ses photos : en-tête X-Camera-Key ou ?cle=, image en multipart (file) ou brute."""
+    token = request.headers.get("X-Camera-Key") or request.args.get("cle") or ""
+    db = get_db()
+    cam = db.execute("SELECT * FROM site_cameras WHERE token_hash = ? AND active = 1",
+                     (hashlib.sha256(token.encode()).hexdigest(),)).fetchone() if token else None
+    if cam is None:
+        return jsonify(ok=False, error="unknown camera key"), 401
+    up = request.files.get("file") or (next(iter(request.files.values())) if request.files else None)
+    raw = up.read() if up else request.get_data()
+    if not raw or len(raw) > 15 * 1024 * 1024:
+        return jsonify(ok=False, error="image expected"), 400
+    try:
+        img = Image.open(io.BytesIO(raw))
+        img.load()
+        img = img.convert("RGB")
+    except Exception:
+        return jsonify(ok=False, error="unreadable image"), 400
+    now = datetime.now(timezone.utc)
+    prev = db.execute("SELECT * FROM camera_shots WHERE camera_id = ? ORDER BY taken DESC LIMIT 1", (cam["id"],)).fetchone()
+    db.execute("UPDATE site_cameras SET last_seen = ? WHERE id = ?", (now.isoformat(timespec="seconds"), cam["id"]))
+    if prev and (now - datetime.fromisoformat(prev["taken"])).total_seconds() < CAMERA_MIN_GAP_MIN * 60:
+        db.commit()
+        return jsonify(ok=True, kept=False, reason="too soon")
+    change = None
+    if prev:
+        try:
+            change = round(VISION.change_ratio(Image.open(os.path.join(CAM_DIR, prev["filename"])), img), 4)
+        except Exception:
+            change = None
+    os.makedirs(CAM_DIR, exist_ok=True)
+    name = save_image(img, CAM_DIR, 1600, prefix=f"cam{cam['id']}_")
+    db.execute("INSERT INTO camera_shots (camera_id, project_id, filename, taken, change, created_at) VALUES (?,?,?,?,?,?)",
+               (cam["id"], cam["project_id"], name, now.isoformat(timespec="seconds"), change, now_iso()))
+    db.commit()
+    return jsonify(ok=True, kept=True, change=change)
+
+
+@app.route("/missions-drone")
+@login_required
+def pilot_missions():
+    me = current_user()
+    if not is_pilot(me):
+        abort(404)
+    db = get_db()
+    rows = db.execute("SELECT m.*, p.name AS project_name, p.address, p.commune FROM aerial_missions m JOIN projects p ON p.id = m.project_id "
+                      "WHERE m.pilot_id = ? AND m.status != 'annulee' ORDER BY (m.status = 'faite'), m.due_on LIMIT 100", (me["id"],)).fetchall()
+    return render_template("pilot_missions.html", missions=rows, today=datetime.now(timezone.utc).date().isoformat())
+
+
+@app.route("/missions-drone/<int:mission_id>", methods=["GET", "POST"])
+@login_required
+def pilot_mission(mission_id):
+    me = current_user()
+    db = get_db()
+    m = db.execute("SELECT * FROM aerial_missions WHERE id = ?", (mission_id,)).fetchone()
+    if not m or m["pilot_id"] != me["id"] or m["status"] == "annulee":
+        abort(404)
+    p = db.execute("SELECT * FROM projects WHERE id = ?", (m["project_id"],)).fetchone()
+    if request.method == "POST":
+        action = request.form.get("action")
+        if m["status"] == "faite":
+            abort(400)
+        if action == "upload":
+            kind = request.form.get("kind") if request.form.get("kind") in ("drone", "orthophoto", "modele3d") else "drone"
+            added, refused = save_media3d(db, p, me, request.files.getlist("files"), kind, request.form.get("note", ""),
+                                          mission_id=mission_id, need_gps=True)
+            db.commit()
+            for r in refused:
+                flash(r, "error")
+            if added:
+                flash(_('%(added)s fichier(s) ajouté(s).', added=added), "ok")
+        elif action == "finish":
+            n = db.execute("SELECT COUNT(*) FROM media3d WHERE mission_id = ? AND kind = 'drone' AND lat IS NOT NULL",
+                           (mission_id,)).fetchone()[0]
+            if n < 1:
+                flash(_("Ajoutez au moins une photo de drone avec sa position GPS avant de terminer."), "error")
+                return redirect(url_for("pilot_mission", mission_id=mission_id))
+            db.execute("UPDATE aerial_missions SET status = 'faite', done_at = ?, note = ? WHERE id = ?",
+                       (now_iso(), request.form.get("note", "").strip()[:500] or None, mission_id))
+            notify(p["id"], owners_of(p, db), L("Passage du drone"),
+                   L("%(n)s nouvelle(s) vue(s) aérienne(s) de votre chantier, prises sur place.", n=n),
+                   url_for("aerial_page", project_id=p["id"]), important=True, db=db)
+            log(p["id"], L("Passage du drone : %(n)s vue(s)", n=n))
+            plan = db.execute("SELECT * FROM aerial_plans WHERE id = ?", (m["plan_id"],)).fetchone()
+            days = AERIAL_FREQ[plan["frequency"]][1]
+            if plan["status"] == "actif" and days:
+                schedule_mission(db, plan, date.fromisoformat(m["due_on"]) + timedelta(days=days))
+            elif plan["status"] == "actif":
+                db.execute("UPDATE aerial_plans SET status = 'termine', ended_at = ? WHERE id = ?", (now_iso(), plan["id"]))
+            db.commit()
+            flash(_("Mission terminée : le propriétaire est prévenu."), "ok")
+            return redirect(url_for("pilot_missions"))
+        else:
+            abort(400)
+        return redirect(url_for("pilot_mission", mission_id=mission_id))
+    files = db.execute("SELECT * FROM media3d WHERE mission_id = ? ORDER BY id", (mission_id,)).fetchall()
+    chef = db.execute("SELECT u.name, u.phone FROM project_members pm JOIN users u ON u.id = pm.user_id "
+                      "WHERE pm.project_id = ? AND pm.role = 'chef' LIMIT 1", (p["id"],)).fetchone()
+    return render_template("pilot_mission.html", m=m, p=p, files=files, chef=chef,
+                           parcel=GEO.parse(p["parcel"]) if p["parcel"] else None)
+
+
+def aerial_daily(db):
+    """Passages en retard, caméras muettes ou chantier sans activité visible."""
+    today = datetime.now(timezone.utc).date()
+    late = 0
+    for m in db.execute("SELECT m.*, p.name FROM aerial_missions m JOIN projects p ON p.id = m.project_id "
+                        "WHERE m.status = 'prevue' AND m.reminded = 0 AND m.due_on < ?",
+                        ((today - timedelta(days=MISSION_LATE_DAYS)).isoformat(),)).fetchall():
+        notify(m["project_id"], admins(db, "verify") + ([m["pilot_id"]] if m["pilot_id"] else []), L("Passage de drone en retard"),
+               L("Le passage prévu le %(d)s sur le chantier %(p)s n'est pas fait.", d=m["due_on"], p=m["name"]),
+               f"/missions-drone/{m['id']}", important=True, db=db)
+        db.execute("UPDATE aerial_missions SET reminded = 1 WHERE id = ?", (m["id"],))
+        late += 1
+    alerts = 0
+    for c in db.execute("SELECT c.*, p.owner_id, p.name AS pname FROM site_cameras c JOIN projects p ON p.id = c.project_id "
+                        "WHERE c.active = 1").fetchall():
+        if c["last_alert"] and (today - date.fromisoformat(c["last_alert"][:10])).days < 3:
+            continue
+        p = db.execute("SELECT * FROM projects WHERE id = ?", (c["project_id"],)).fetchone()
+        msg = None
+        if c["last_seen"] and (datetime.now(timezone.utc) - datetime.fromisoformat(c["last_seen"])).days >= 2:
+            msg = (L("Caméra muette"), L("La caméra « %(c)s » n'envoie plus de photo depuis 2 jours : batterie, réseau ou vol ?", c=c["name"]))
+        elif c["last_seen"]:
+            days = [d_ for d_ in camera_activity(db, c["id"], 7) if date.fromisoformat(d_["day"]).weekday() < 6 and d_["shots"]]
+            recent = days[-CAMERA_SILENT_DAYS:]
+            if len(recent) == CAMERA_SILENT_DAYS and all(d_["state"] == "calm" for d_ in recent):
+                msg = (L("Aucune activité visible sur le chantier"),
+                       L("La caméra « %(c)s » ne voit aucun mouvement depuis %(n)s jours ouvrés. Demandez des nouvelles au chef de chantier.",
+                         c=c["name"], n=CAMERA_SILENT_DAYS))
+        if msg:
+            notify(c["project_id"], owners_of(p, db), msg[0], msg[1], f"/chantiers/{c['project_id']}/drone-camera", important=True, db=db)
+            db.execute("UPDATE site_cameras SET last_alert = ? WHERE id = ?", (now_iso(), c["id"]))
+            alerts += 1
+    return f"{late} passage(s) de drone en retard, {alerts} alerte(s) caméra"
 
 
 # --------------------------------------------------------------------------
@@ -9971,129 +10720,6 @@ def order_delivery(oid):
 
 
 # --------------------------------------------------------------------------
-# Marche public (SIGOMAP)
-# --------------------------------------------------------------------------
-@app.route("/chantiers/<int:project_id>/marche", methods=["POST"])
-@login_required
-def update_market(project_id):
-    p = load_project(project_id, roles=("owner",))
-    f = request.form
-    url = f.get("sigomap_url", "").strip()
-    if url and not url.startswith(("https://", "http://")):
-        url = ""
-    kind = "public" if f.get("kind") == "public" else "prive"
-    db = get_db()
-    db.execute("UPDATE projects SET kind = ?, is_public = ?, marche_ref = ?, ao_ref = ?, autorite = ?, attributaire = ?, "
-               "montant_marche = ?, sigomap_url = ?, description = ? WHERE id = ?",
-               (kind, 1 if kind == "public" and f.get("is_public") else 0, f.get("marche_ref", "").strip()[:60] or None,
-                f.get("ao_ref", "").strip()[:60] or None, f.get("autorite", "").strip()[:150] or None,
-                f.get("attributaire", "").strip()[:150] or None, to_int(f.get("montant_marche"), None), url or None,
-                f.get("description", "").strip()[:2000] or None, project_id))
-    db.execute("UPDATE documents SET is_public = ? WHERE project_id = ? AND category = 'PV'",
-               (1 if kind == "public" and f.get("is_public") else 0, project_id))
-    log(project_id, L('Informations du marché mises à jour'))
-    db.commit()
-    flash(_('Informations du marché enregistrées.') + (_(' Le chantier est visible sur le portail citoyen.')
-                                                     if kind == "public" and f.get("is_public") else ""), "ok")
-    return redirect(url_for("project", project_id=p["id"], onglet="dossier"))
-
-
-IMPORT_COLUMNS = {
-    "marche_ref": ["reference", "ref", "n marche", "numero marche", "num marche", "marche"],
-    "name": ["objet", "intitule", "libelle", "nom", "projet"],
-    "autorite": ["autorite contractante", "autorite", "ac", "maitre d'ouvrage", "maitre douvrage"],
-    "attributaire": ["attributaire", "titulaire", "entreprise", "prestataire"],
-    "montant_marche": ["montant", "montant ttc", "montant ht", "montant du marche"],
-    "ao_ref": ["appel d'offres", "appel doffres", "ao", "dao", "n ao", "avis"],
-    "address": ["localite", "lieu", "adresse", "localisation", "commune", "region"],
-    "lat": ["latitude", "lat"],
-    "lng": ["longitude", "lng", "lon", "long"],
-    "start_date": ["date de demarrage", "demarrage", "date debut", "debut", "ordre de service", "date os"],
-    "sigomap_url": ["lien", "url", "lien sigomap"],
-}
-
-
-def _map_header(header):
-    clean = [plain(h).strip().replace("°", "").replace(".", "") for h in header]
-    mapping = {}
-    for key, names in IMPORT_COLUMNS.items():
-        for i, h in enumerate(clean):
-            if h in names and i not in mapping.values():
-                mapping[key] = i
-                break
-        if key not in mapping:
-            for i, h in enumerate(clean):
-                if any(h.startswith(n) for n in names) and i not in mapping.values():
-                    mapping[key] = i
-                    break
-    return mapping
-
-
-@app.route("/marches/import", methods=["GET", "POST"])
-@role_required("proprio")
-def import_markets():
-    result = None
-    if request.method == "POST":
-        file = request.files.get("file")
-        if not file or not file.filename:
-            flash(_('Choisissez le fichier CSV exporté.'), "error")
-            return redirect(url_for("import_markets"))
-        raw = file.read().decode("utf-8-sig", errors="replace")
-        dialect = csv.Sniffer().sniff(raw[:4000], delimiters=";,\t") if raw.strip() else csv.excel
-        rows = list(csv.reader(io.StringIO(raw), dialect))
-        if len(rows) < 2:
-            flash(_('Le fichier est vide.'), "error")
-            return redirect(url_for("import_markets"))
-        m = _map_header(rows[0])
-        if "marche_ref" not in m and "name" not in m:
-            flash(_('Colonnes « Référence » ou « Objet » introuvables.'), "error")
-            return redirect(url_for("import_markets"))
-        db = get_db()
-        me = current_user()
-        result = {"created": 0, "updated": 0, "skipped": []}
-        for n, row in enumerate(rows[1:], start=2):
-            get = lambda k: row[m[k]].strip() if k in m and m[k] < len(row) else ""
-            ref, name = get("marche_ref"), get("name") or get("marche_ref")
-            if not name:
-                continue
-            market = {"marche_ref": ref or None, "autorite": get("autorite") or None,
-                      "attributaire": get("attributaire") or None,
-                      "montant_marche": to_int(get("montant_marche"), None), "ao_ref": get("ao_ref") or None,
-                      "sigomap_url": get("sigomap_url") if get("sigomap_url").startswith("http") else None,
-                      "is_public": True}
-            existing = db.execute("SELECT * FROM projects WHERE owner_id = ? AND marche_ref = ?",
-                                  (me["id"], ref)).fetchone() if ref else None
-            if existing:
-                db.execute("UPDATE projects SET autorite = COALESCE(?, autorite), attributaire = COALESCE(?, attributaire), "
-                           "montant_marche = COALESCE(?, montant_marche), ao_ref = COALESCE(?, ao_ref), "
-                           "sigomap_url = COALESCE(?, sigomap_url) WHERE id = ?",
-                           (market["autorite"], market["attributaire"], market["montant_marche"], market["ao_ref"],
-                            market["sigomap_url"], existing["id"]))
-                result["updated"] += 1
-                continue
-            lat, lng = to_float(get("lat")), to_float(get("lng"))
-            if lat is None or lng is None or not (-90 <= lat <= 90 and -180 <= lng <= 180):
-                result["skipped"].append(f"Ligne {n} ({name[:40]}) : coordonnées GPS manquantes")
-                continue
-            total = market["montant_marche"] or 0
-            steps = [(sn, round(total * share), days) for sn, share, days in PUBLIC_STEPS]
-            start = get("start_date")
-            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
-                try:
-                    start = datetime.strptime(start, fmt).date().isoformat()
-                    break
-                except ValueError:
-                    continue
-            else:
-                start = date.today().isoformat()
-            create_project(db, me["id"], name[:150], get("address"), lat, lng, 300, steps, start, kind="public",
-                           market=market)
-            result["created"] += 1
-        db.commit()
-    return render_template("import_markets.html", result=result, columns=IMPORT_COLUMNS)
-
-
-# --------------------------------------------------------------------------
 # Comptes rendus hebdomadaires
 # --------------------------------------------------------------------------
 def build_report(db, p, end=None):
@@ -10377,7 +11003,7 @@ MIGRATION_ORDER = ["users", "projects", "steps", "proofs", "activity", "transact
                    "billing_invoices", "inspection_requests", "payment_records", "quality_reviews", "quality_photos",
                    "quality_points", "quality_messages", "wa_sessions", "wa_messages", "site_notes",
                    "fin_profiles", "fin_sources", "fin_receipts", "fin_costs", "fin_documents", "land_files",
-                   "land_requests", "delivery_counts", "plan_items", "plan_item_photos", "offsite_files"]
+                   "land_requests", "plots", "plot_documents", "plot_alerts", "aerial_plans", "aerial_missions", "site_cameras", "camera_shots", "delivery_counts", "plan_items", "plan_item_photos", "offsite_files"]
 
 
 @app.cli.command("migrer-vers-postgres")
@@ -10577,6 +11203,58 @@ def demo_cli(force):
                    (pid, "acd", "ACD n° 2019-0457", "Aminata Koné", "Aminata Koné", 600,
                     "5.35199, -3.88932\n5.35199, -3.88910\n5.35221, -3.88910\n5.35221, -3.88932",
                     json.dumps({"vendeur": True, "geometre": True, "notaire": True, "voisinage": True}), own, ago(80)))
+        # Drone : formule mensuelle avec un telepilote agree, deux passages faits ; camera de chantier
+        pilot = user("Ibrahim Touré", "pilote@demo.chantiervrai.ci", "pro", "07 55 44 33 22", zone="Abidjan, Grand-Bassam",
+                     bio="DJI Mavic 3 Enterprise, orthophotos WebODM. 6 ans de prises de vue BTP.")
+        db.execute("UPDATE users SET profession = 'pilote_drone', anac_ref = 'ANAC/DSV/AT-2025-0142', verified = 1 WHERE id = ?", (pilot,))
+        cur = db.execute("INSERT INTO aerial_plans (project_id, frequency, status, price, pilot_id, requested_by, created_at, activated_at) "
+                         "VALUES (?,?,?,?,?,?,?,?)", (pid, "mensuel", "actif", 45000, pilot, own, ago(64), ago(62)))
+        plan_id = cur.lastrowid
+        os.makedirs(M3D_DIR, exist_ok=True)
+        for back, stage, st_, note in ((60, 1, "faite", "Fondations ouvertes, ferraillage en place."),
+                                       (30, 2, "faite", "Dalle basse coulée, élévation des murs à démarrer."),
+                                       (-1, 0, "prevue", None)):
+            due = (now - timedelta(days=back)).date().isoformat()
+            mc = db.execute("INSERT INTO aerial_missions (plan_id, project_id, pilot_id, due_on, status, done_at, note, created_at) "
+                            "VALUES (?,?,?,?,?,?,?,?)", (plan_id, pid, pilot, due, st_, ago(back) if st_ == "faite" else None, note, ago(back + 30)))
+            if st_ == "faite":
+                for k, (kind, img) in enumerate((("orthophoto", DEMO.aerial(stage, back)), ("drone", DEMO.site_photo(min(stage, 3), back + 7)),
+                                                 ("drone", DEMO.site_photo(min(stage, 3), back + 9)))):
+                    name = save_image(img, M3D_DIR, 2400)
+                    db.execute("INSERT INTO media3d (project_id, user_id, kind, filename, original_name, lat, lng, distance, taken, note, "
+                               "created_at, mission_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                               (pid, pilot, kind, name, f"DJI_{back:03d}{k}.JPG", 5.3521 + 0.0001 * k, -3.8892, 12 + k, ago(back), "",
+                                ago(back), mc.lastrowid))
+        cam_token = "demo-camera-cle"
+        cc = db.execute("INSERT INTO site_cameras (project_id, name, token_hash, last_seen, created_by, created_at) VALUES (?,?,?,?,?,?)",
+                        (pid, "Poteau côté rue", hashlib.sha256(cam_token.encode()).hexdigest(),
+                         (now - timedelta(minutes=20)).isoformat(timespec="seconds"), own, ago(9)))
+        os.makedirs(CAM_DIR, exist_ok=True)
+        base_day = now.replace(minute=0, second=0, microsecond=0)
+        for back in range(6, -1, -1):
+            for hh in range(7, 19, 2):
+                when = (base_day - timedelta(days=back)).replace(hour=hh)
+                if when > now:
+                    continue
+                sunday = when.weekday() == 6
+                img = DEMO.site_photo(2 if back > 3 else 3, 500 + (0 if sunday else back * 10 + hh)).resize((960, 540))
+                name = save_image(img, CAM_DIR, 960, prefix=f"cam{cc.lastrowid}_")
+                db.execute("INSERT INTO camera_shots (camera_id, project_id, filename, taken, change, created_at) VALUES (?,?,?,?,?,?)",
+                           (cc.lastrowid, pid, name, when.isoformat(timespec="seconds"), 0.01 if sunday else 0.12, when.isoformat()))
+        # Terrains a verifier avant achat : un second lot envisage a Songon
+        for name, commune, doc, ref, holder, seller, area, pts, checks_, ef in (
+                ("Lot 112, îlot 9 — Songon", "Songon", "acd", "ACD n° 2021-1184", "Famille Yapo", "Serge Yapo", 500,
+                 [(5.31905, -4.26012), (5.31905, -4.25991), (5.31925, -4.25991), (5.31925, -4.26012)],
+                 {"vendeur": True, "copie": True}, (ago(140)[:10], "Famille Yapo", "libre")),
+                ("Terrain Assinie (bord de lagune)", "Assinie", "lettre_attribution", "LA 0457/MCLU", "Kouadio Ange", "Kouadio Ange", 800,
+                 [], {}, (None, None, None))):
+            a0, a1, o0, o1 = LAND.bbox(pts) if pts else (None,) * 4
+            db.execute("INSERT INTO plots (user_id, name, commune, doc_type, title_ref, ref_norm, holder_name, seller_name, area_declared, poly, "
+                       "area_m2, min_lat, max_lat, min_lng, max_lng, checks, ef_date, ef_owner, ef_result, created_at, updated_at) "
+                       "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                       (own, name, commune, doc, ref, LAND.norm_ref(ref), holder, seller, area,
+                        json.dumps([list(x) for x in pts]) if pts else None, LAND.area_m2(pts) if pts else None, a0, a1, o0, o1,
+                        json.dumps(checks_), ef[0], ef[1], ef[2], ago(20), ago(2)))
         # Plan et realite : elements a compter
         for label, exp, decl, st_ in ((I18N.store(L("Fenêtres")), 8, 8, "ok"), (I18N.store(L("Portes")), 6, None, "a_faire"),
                                       ("Poteaux du rez-de-chaussée", 12, 10, "ecart")):
@@ -10596,12 +11274,10 @@ def demo_cli(force):
         db.commit()
         run_quality_analysis(demo_rid, False)
         save_report(db, db.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone())
-        # Chantier public pour le portail citoyen
+        # Second chantier : un grand projet en cours
         steps2 = [(n, round(185000000 * share), dd) for n, share, dd in PUBLIC_STEPS]
         pid2 = create_project(db, own, "Groupe scolaire de 6 classes", "Bingerville, quartier Santé", 5.3540, -3.8850, 300,
-                              steps2, (now - timedelta(days=60)).date().isoformat(), kind="public",
-                              market={"marche_ref": "2026-0-1-0123/02-12", "autorite": "Mairie de Bingerville",
-                                      "attributaire": "BTP Lagunes SARL", "montant_marche": 185000000, "is_public": True})
+                              steps2, (now - timedelta(days=60)).date().isoformat())
         st2 = db.execute("SELECT * FROM steps WHERE project_id = ? ORDER BY position", (pid2,)).fetchall()
         db.execute("UPDATE projects SET chef_id = ?, description = ? WHERE id = ?",
                    (chef, "Six salles de classe, un bloc administratif et des latrines.", pid2))
@@ -10611,11 +11287,10 @@ def demo_cli(force):
         for k in range(3):
             img = DEMO.site_photo(k, 200 + k)
             name = save_image(img, UPLOAD_DIR)
-            pub, _n, _ok = VISION.blur_faces(img)
             db.execute("INSERT INTO proofs (project_id, step_id, user_id, filename, sha256, created_at, distance, ok, reasons, "
                        "kind, source, ai_status, capture, is_published, public_file) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                        (pid2, st2[min(k, 1)]["id"], chef, name, secrets.token_hex(32), ago(50 - k * 10),
-                        20, 1, "", "photo", "chef", "off", "app", 1, save_image(pub, UPLOAD_DIR, prefix="pub_")))
+                        20, 1, "", "photo", "chef", "off", "app", 0, None))
         # Fournisseur verifie, son catalogue et une commande livree, comptee et payee
         sup = user("Quincaillerie du Carrefour", "quincaillerie@demo.chantiervrai.ci", "fournisseur", "01 02 03 04 05",
                    zone="Bingerville, Cocody", bio="Ciment, fer, agrégats. Dépôt au carrefour de la mairie de Bingerville.")
@@ -10770,6 +11445,7 @@ def demo_cli(force):
     print("  Inspectrice   awa@demo.chantiervrai.ci")
     print("  Fournisseur   quincaillerie@demo.chantiervrai.ci")
     print("  Architecte    architecte@demo.chantiervrai.ci")
+    print("  Télépilote    pilote@demo.chantiervrai.ci")
 
 
 def daily_tasks():
@@ -10788,8 +11464,8 @@ def daily_tasks():
         out.append(f"{remind_payments(db)} relance(s) de paiement à confirmer.")
         out.append(f"Abonnements : {billing_daily(db)}")
         out.append(f"Litiges : {disputes_daily(db)}")
-        out.append(f"Portail citoyen : {signalements_daily(db)}")
         out.append(f"Financement : {finance_daily(db)} alerte(s).")
+        out.append(f"Drone et caméras : {aerial_daily(db)}")
         set_setting(db, "ops_daily_last", now_iso())
         db.commit()
     finally:
@@ -10982,7 +11658,7 @@ def map_points(projects, db, public=False):
             "pct": s["verified_pct"], "risk": pred["risk"] if pred else "inconnu",
             "delay": pred["delay"] if pred else None, "kind": p["kind"],
             "current": s["current"]["name"] if s["current"] else "Terminé",
-            "url": url_for("portal_project", project_id=p["id"]) if public else url_for("project", project_id=p["id"]),
+            "url": url_for("project", project_id=p["id"]),
             "to_validate": s["to_validate"],
         })
     pts.sort(key=lambda q: q["delay"] if q["delay"] is not None and q["risk"] != "terminé" else -9999, reverse=True)
@@ -10995,145 +11671,6 @@ def map_view():
     db = get_db()
     pts = map_points(user_projects(current_user()), db)
     return render_template("map.html", points=pts, public=False)
-
-
-# --------------------------------------------------------------------------
-# Portail citoyen (sans connexion)
-# --------------------------------------------------------------------------
-def public_project(project_id):
-    p = get_db().execute("SELECT * FROM projects WHERE id = ? AND kind = 'public' AND is_public = 1",
-                         (project_id,)).fetchone()
-    if p is None:
-        abort(404)
-    return p
-
-
-@app.route("/portail")
-def portal():
-    db = get_db()
-    q = request.args.get("q", "").strip()
-    projects = db.execute("SELECT * FROM projects WHERE kind = 'public' AND is_public = 1 ORDER BY id DESC").fetchall()
-    if q:
-        pq = plain(q)
-        projects = [p for p in projects if pq in plain(" ".join(str(p[k] or "") for k in
-                                                                 ("name", "address", "autorite", "attributaire",
-                                                                  "marche_ref")))]
-    pts = map_points(projects, db, public=True)
-    return render_template("portal.html", points=pts, q=q)
-
-
-@app.route("/portail/<int:project_id>")
-def portal_project(project_id):
-    p = public_project(project_id)
-    db = get_db()
-    s = project_stats(project_id)
-    pred = project_prediction(p, s)
-    photos = db.execute("SELECT proofs.*, steps.name AS step_name FROM proofs JOIN steps ON steps.id = proofs.step_id "
-                        "WHERE proofs.project_id = ? AND ok = 1 AND is_published = 1 ORDER BY proofs.id DESC LIMIT 24",
-                        (project_id,)).fetchall()
-    docs = db.execute("SELECT * FROM documents WHERE project_id = ? AND is_public = 1 ORDER BY id DESC",
-                      (project_id,)).fetchall()
-    sigs = db.execute("SELECT * FROM signalements WHERE project_id = ? AND hidden = 0 ORDER BY id DESC LIMIT 20",
-                      (project_id,)).fetchall()
-    insp = db.execute("SELECT i.verdict, i.done_at, st.name AS step_name FROM inspections i LEFT JOIN steps st "
-                      "ON st.id = i.step_id WHERE i.project_id = ? AND i.status = 'realisee' ORDER BY i.id DESC",
-                      (project_id,)).fetchall()
-    return render_template("portal_project.html", p=p, s=s, pred=pred, photos=photos, docs=docs, sigs=sigs, insp=insp,
-                           schedule=PRED.step_schedule(p, s["steps"]))
-
-
-@app.route("/portail/photos/<int:proof_id>")
-def portal_photo(proof_id):
-    pr = get_db().execute("SELECT * FROM proofs WHERE id = ? AND ok = 1 AND is_published = 1 AND public_file IS NOT NULL",
-                          (proof_id,)).fetchone()
-    if pr is None:
-        abort(404)
-    public_project(pr["project_id"])
-    return send_from_directory(UPLOAD_DIR, pr["public_file"])
-
-
-@app.route("/portail/documents/<int:doc_id>")
-def portal_document(doc_id):
-    doc = get_db().execute("SELECT * FROM documents WHERE id = ? AND is_public = 1", (doc_id,)).fetchone()
-    if doc is None:
-        abort(404)
-    public_project(doc["project_id"])
-    return send_document(doc)
-
-
-@app.route("/portail/<int:project_id>/signaler", methods=["POST"])
-def portal_report(project_id):
-    p = public_project(project_id)
-    db = get_db()
-    ip = (request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0]).strip()
-    hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-    if db.execute("SELECT COUNT(*) FROM signalements WHERE ip = ? AND created_at >= ?", (ip, hour_ago)).fetchone()[0] >= 5:
-        flash(_('Trop de signalements envoyés. Réessayez plus tard.'), "error")
-        return redirect(url_for("portal_project", project_id=project_id))
-    text = request.form.get("text", "").strip()
-    if len(text) < 10:
-        flash(_('Décrivez le problème (10 caractères minimum).'), "error")
-        return redirect(url_for("portal_project", project_id=project_id))
-    lat, lng = to_float(request.form.get("lat")), to_float(request.form.get("lng"))
-    dist = round(haversine(lat, lng, p["lat"], p["lng"])) if lat is not None and lng is not None else None
-    name = None
-    file = request.files.get("photo")
-    if file and file.filename and ext_of(file.filename) in IMG_EXT:
-        try:
-            img = Image.open(io.BytesIO(file.read()))
-            img.load()
-            plat, plng, _t = read_exif(img)
-            if plat is not None:
-                lat, lng = plat, plng
-                dist = round(haversine(lat, lng, p["lat"], p["lng"]))
-            name = save_image(img, CIT_DIR, 1400)
-        except Exception:
-            name = None
-    db.execute("INSERT INTO signalements (project_id, name, phone, text, filename, lat, lng, distance, ip, created_at) "
-               "VALUES (?,?,?,?,?,?,?,?,?,?)",
-               (project_id, request.form.get("name", "").strip()[:80] or None,
-                request.form.get("phone", "").strip()[:30] or None, text[:2000], name, lat, lng, dist, ip, now_iso()))
-    log(project_id, L('Signalement citoyen reçu'), db, p["owner_id"])
-    notify(project_id, owners_of(p), L('Signalement citoyen'), text[:300],
-           url_for("project", project_id=project_id, onglet="dossier"), important=True)
-    db.commit()
-    flash(_("Merci. Votre signalement a été transmis au maître d'ouvrage."), "ok")
-    return redirect(url_for("portal_project", project_id=project_id))
-
-
-@app.route("/signalements/<int:sid>/photo")
-def signalement_photo(sid):
-    sg = get_db().execute("SELECT * FROM signalements WHERE id = ?", (sid,)).fetchone()
-    if sg is None or not sg["filename"]:
-        abort(404)
-    if sg["hidden"] and not can("moderation"):
-        abort(404)
-    p = get_db().execute("SELECT * FROM projects WHERE id = ?", (sg["project_id"],)).fetchone()
-    if not (p["kind"] == "public" and p["is_public"]):
-        if not current_user():
-            abort(404)
-        load_project(p["id"])
-    return send_from_directory(CIT_DIR, sg["filename"])
-
-
-@app.route("/signalements/<int:sid>/reponse", methods=["POST"])
-@login_required
-def answer_signalement(sid):
-    sg = get_db().execute("SELECT * FROM signalements WHERE id = ?", (sid,)).fetchone()
-    if sg is None:
-        abort(404)
-    load_project(sg["project_id"], roles=("owner",))
-    db = get_db()
-    status = request.form.get("status") if request.form.get("status") in ("en_cours", "traite") else "traite"
-    response = request.form.get("response", "").strip()[:1000] or None
-    if status == "traite" and not response:
-        flash(_("Écrivez la réponse publiée sur le portail."), "error")
-        return redirect(url_for("project", project_id=sg["project_id"], onglet="dossier", _anchor="signalements"))
-    db.execute("UPDATE signalements SET status = ?, response = COALESCE(?, response), answered_at = ? WHERE id = ?",
-               (status, response, now_iso(), sid))
-    log(sg["project_id"], L('Signalement citoyen traité') if status == "traite" else L("Signalement citoyen pris en charge"))
-    db.commit()
-    return redirect(url_for("project", project_id=sg["project_id"], onglet="dossier", _anchor="signalements"))
 
 
 # --------------------------------------------------------------------------

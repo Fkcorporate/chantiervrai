@@ -181,3 +181,139 @@ def label(d, lang):
 
 def load(row):
     return json.loads(row["checks"] or "{}") if row and row["checks"] else {}
+
+
+# --------------------------------------------------------------------------
+# Carte des terrains : coordonnées des géomètres, chevauchements, références
+# --------------------------------------------------------------------------
+def utm_to_latlng(easting, northing, zone=30, north=True):
+    """Coordonnées UTM (WGS84) -> (lat, lng). Les plans de géomètre en Côte d'Ivoire sont en UTM 30N
+    (29N à l'ouest du méridien 6° O). Formules de Snyder, précision bien meilleure que le mètre."""
+    a, f = 6378137.0, 1 / 298.257223563
+    e2 = f * (2 - f)
+    ep2 = e2 / (1 - e2)
+    k0 = 0.9996
+    x = easting - 500000.0
+    y = northing if north else northing - 10000000.0
+    m = y / k0
+    mu = m / (a * (1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256))
+    e1 = (1 - math.sqrt(1 - e2)) / (1 + math.sqrt(1 - e2))
+    phi1 = (mu + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * math.sin(2 * mu) + (21 * e1 ** 2 / 16 - 55 * e1 ** 4 / 32) * math.sin(4 * mu)
+            + (151 * e1 ** 3 / 96) * math.sin(6 * mu) + (1097 * e1 ** 4 / 512) * math.sin(8 * mu))
+    n1 = a / math.sqrt(1 - e2 * math.sin(phi1) ** 2)
+    t1 = math.tan(phi1) ** 2
+    c1 = ep2 * math.cos(phi1) ** 2
+    r1 = a * (1 - e2) / (1 - e2 * math.sin(phi1) ** 2) ** 1.5
+    d = x / (n1 * k0)
+    lat = phi1 - (n1 * math.tan(phi1) / r1) * (d ** 2 / 2 - (5 + 3 * t1 + 10 * c1 - 4 * c1 ** 2 - 9 * ep2) * d ** 4 / 24
+                                              + (61 + 90 * t1 + 298 * c1 + 45 * t1 ** 2 - 252 * ep2 - 3 * c1 ** 2) * d ** 6 / 720)
+    lng0 = math.radians((zone - 1) * 6 - 180 + 3)
+    lng = lng0 + (d - (1 + 2 * t1 + c1) * d ** 3 / 6 + (5 - 2 * c1 + 28 * t1 - 3 * c1 ** 2 + 8 * ep2 + 24 * t1 ** 2) * d ** 5 / 120) / math.cos(phi1)
+    return math.degrees(lat), math.degrees(lng)
+
+
+def parse_points(text, utm_zone=30):
+    """Bornes saisies à la main : « lat, lng » (degrés) ou « X Y » en mètres UTM (repérés à leur grandeur).
+    Renvoie (points [(lat, lng)], nombre de lignes ignorées)."""
+    pts, bad = [], 0
+    for line in (text or "").replace("|", "\n").splitlines():
+        nums = []
+        for tok in line.replace(";", " ").replace("\t", " ").split():
+            tok = tok.strip().rstrip(",")
+            if tok.count(",") == 1 and tok.count(".") == 0:      # « 5,3521 » écrit à la française
+                tok = tok.replace(",", ".")
+            for part in tok.split(","):
+                try:
+                    nums.append(float(part))
+                except ValueError:
+                    pass
+        if len(nums) < 2:
+            if line.strip():
+                bad += 1
+            continue
+        u, v = nums[-2], nums[-1]                                # un numéro de borne en tête de ligne est ignoré
+        if abs(u) > 1000 and abs(v) > 1000:                      # mètres UTM : X (est) puis Y (nord)
+            lat, lng = utm_to_latlng(u, v, utm_zone)
+        else:
+            lat, lng = u, v
+        if 3.5 <= lat <= 11.5 and -9.5 <= lng <= -1.5:           # Côte d'Ivoire et un peu autour
+            pts.append((round(lat, 7), round(lng, 7)))
+        else:
+            bad += 1
+    return pts, bad
+
+
+def bbox(poly):
+    return (min(p[0] for p in poly), max(p[0] for p in poly), min(p[1] for p in poly), max(p[1] for p in poly))
+
+
+def overlap_m2(a, b, steps=48):
+    """Surface commune approchée de deux polygones (grille de points sur la zone commune des deux cadres).
+    Suffisant pour distinguer un vrai chevauchement (plusieurs m²) du bruit d'un clic sur la carte."""
+    if len(a) < 3 or len(b) < 3:
+        return 0
+    la0, la1, lo0, lo1 = bbox(a)
+    lb0, lb1, mo0, mo1 = bbox(b)
+    s0, s1, w0, w1 = max(la0, lb0), min(la1, lb1), max(lo0, mo0), min(lo1, mo1)
+    if s0 >= s1 or w0 >= w1:
+        return 0
+    hit = 0
+    for i in range(steps):
+        lat = s0 + (i + 0.5) * (s1 - s0) / steps
+        for j in range(steps):
+            lng = w0 + (j + 0.5) * (w1 - w0) / steps
+            if inside(lat, lng, a) and inside(lat, lng, b):
+                hit += 1
+    cell = (s1 - s0) * 110540 * (w1 - w0) * 111320 * math.cos(math.radians((s0 + s1) / 2)) / (steps * steps)
+    return round(hit * cell)
+
+
+def norm_ref(ref):
+    """« ACD n° 2019-0457 » et « acd 2019 0457 » -> « 20190457 » : on compare les chiffres et lettres utiles."""
+    import unicodedata
+    if not ref:
+        return None
+    x = unicodedata.normalize("NFD", ref.upper())
+    import re
+    x = "".join(c for c in x if c.isalnum())
+    x = re.sub(r"^(?:ACD|ACP|TF|TITREFONCIER)?(?:NUMERO|NO|N)?(?=\d)", "", x)
+    return x if len(x) >= 4 else None
+
+
+# Preuves officielles (montants et délais indicatifs, d'après servicepublic.gouv.ci : à faire confirmer)
+OFFICIAL = {
+    "etat_foncier": (t("État foncier et état historique", "Land status and history"),
+                     t("Conservation de la propriété foncière et des hypothèques (direction des impôts). Indique le propriétaire actuel, "
+                       "les hypothèques et les oppositions. Environ 3 000 FCFA, 2 jours.",
+                       "Land registry (tax directorate). Shows the current owner, mortgages and objections. About 3,000 FCFA, 2 days.")),
+    "position": (t("Position foncière", "Land position"),
+                 t("Ministère de la Construction, du Logement et de l'Urbanisme. À partir de la lettre d'attribution et d'un plan de situation. "
+                   "Environ 5 000 FCFA par lot, 10 jours.",
+                   "Ministry of Construction, Housing and Urban Planning. From the allocation letter and a location plan. About 5,000 FCFA per plot, 10 days.")),
+    "adu": (t("Attestation de droit d'usage (ADU) : QR code", "Right-of-use certificate (ADU): QR code"),
+            t("Depuis 2025, l'ADU porte un QR code : scannez-le avec votre téléphone, la page officielle indique si le terrain est conforme "
+              "ou déjà vendu. Notez ici ce qu'elle affiche et joignez une capture.",
+              "Since 2025 the ADU has a QR code: scan it with your phone and the official page shows whether the plot is compliant or already sold. "
+              "Record what it shows here and attach a screenshot.")),
+}
+EF_RESULTS = {"libre": t("Aucune hypothèque ni opposition", "No mortgage or objection"),
+              "hypotheque": t("Hypothèque inscrite", "Mortgage registered"),
+              "opposition": t("Opposition ou litige inscrit", "Objection or dispute registered"),
+              "autre_proprio": t("Le propriétaire n'est pas le vendeur", "The owner is not the seller")}
+ADU_RESULTS = {"conforme": t("Conforme, non vendu", "Compliant, not sold"),
+               "vendu": t("Déjà vendu", "Already sold"),
+               "introuvable": t("Introuvable ou non conforme", "Not found or not compliant")}
+POS_RESULTS = {"conforme": t("Conforme au lotissement approuvé", "Matches the approved subdivision"),
+               "non_conforme": t("Non conforme ou lot attribué à un autre", "Not compliant or plot allocated to someone else")}
+FRESH_DAYS = 90       # au-delà, un état foncier ne dit plus rien de la situation actuelle
+
+LEVELS = {0: t("À compléter", "To complete"), 1: t("Déclaré", "Declared"), 2: t("Pièces fournies", "Documents provided"),
+          3: t("Confirmé par l'administration", "Confirmed by the authorities")}
+LEVEL_HELP = {
+    0: t("Indiquez le document du terrain et placez les bornes sur la carte.", "Enter the land document and place the markers on the map."),
+    1: t("Joignez la copie du document et la pièce d'identité du vendeur.", "Attach a copy of the document and the seller's ID."),
+    2: t("Demandez un état foncier récent (ou scannez le QR code de l'ADU) : c'est la seule preuve qui vient de l'administration.",
+         "Request a recent land status (or scan the ADU QR code): it is the only proof that comes from the authorities."),
+    3: t("Une pièce officielle récente confirme le terrain. Faites quand même passer l'acte devant notaire.",
+         "A recent official document confirms the plot. Still have the sale signed before a notary."),
+}

@@ -374,8 +374,6 @@ GUIDES = [
             sec(t("3. Support et médiation", "3. Support and mediation"), [
                 t("« Litiges » : lisez les échanges et les pièces, puis « Rendre la décision » (sens, montant retenu, motifs) sous 10 jours.",
                   "“Disputes”: read the exchanges and evidence, then “Give the decision” (outcome, amount, reasons) within 10 days."),
-                t("« Modération du portail citoyen » : traitez les signalements avec une réponse publique, ou rejetez-les avec une note.",
-                  "“Citizen portal moderation”: handle reports with a public answer, or reject them with a note."),
                 t("« Comptes » : bloquer un compte. Le lien de mot de passe et le retrait de la double authentification d'un client sont réservés au fondateur.",
                   "“Accounts”: block an account. The password link and removing a customer's two-factor authentication are reserved for the founder."),
             ]),

@@ -201,7 +201,7 @@ def read_invoice(raw, media_type):
 
 
 # --------------------------------------------------------------------------
-# Floutage des visages (photos publiees sur le portail citoyen)
+# Floutage des visages
 # --------------------------------------------------------------------------
 def blur_faces(img):
     """Pixelise les visages detectes. Retourne (image, nombre de visages, detection_disponible).

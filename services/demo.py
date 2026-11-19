@@ -102,3 +102,47 @@ def pano(stage, seed=0):
         x, y = rnd.randint(0, w - 80), rnd.randint(horizon + 320, h - 80)
         d.rectangle([x, y, x + rnd.randint(40, 90), y + rnd.randint(25, 50)], fill=rnd.choice([(196, 186, 160), (150, 150, 150), (110, 90, 70)]))
     return im
+
+
+def aerial(stage, seed=0, size=(1600, 1000)):
+    """Vue du dessus dessinée (orthophoto de démonstration) : terrain, bornes, emprise, dalle puis murs."""
+    rnd = random.Random(seed)
+    w, h = size
+    im = Image.new("RGB", size, (92, 118, 64))
+    d = ImageDraw.Draw(im)
+    for _ in range(900):                                        # végétation autour
+        x, y, r = rnd.randint(0, w), rnd.randint(0, h), rnd.randint(6, 26)
+        g = rnd.randint(70, 120)
+        d.ellipse([x - r, y - r, x + r, y + r], fill=(40 + g // 3, g, 40 + g // 4))
+    d.rectangle([0, h - 150, w, h - 70], fill=(170, 112, 70))  # piste en latérite
+    px0, py0, px1, py1 = 420, 150, 1180, 760                    # parcelle
+    d.rectangle([px0, py0, px1, py1], fill=(184, 110, 64))
+    for _ in range(400):
+        x, y = rnd.randint(px0, px1), rnd.randint(py0, py1)
+        c = rnd.randint(-18, 18)
+        d.point((x, y), fill=(184 + c, 110 + c, 64 + c))
+    for (bx, by) in ((px0, py0), (px1, py0), (px1, py1), (px0, py1)):
+        d.rectangle([bx - 6, by - 6, bx + 6, by + 6], fill=(240, 240, 235))
+    hx0, hy0, hx1, hy1 = 560, 260, 1040, 640                    # emprise de la maison
+    if stage >= 1:
+        d.rectangle([hx0 - 10, hy0 - 10, hx1 + 10, hy1 + 10], outline=(120, 74, 44), width=14)
+    if stage >= 2:
+        d.rectangle([hx0, hy0, hx1, hy1], fill=(168, 168, 162))
+        for x in range(hx0, hx1, 40):
+            d.line([(x, hy0), (x, hy1)], fill=(150, 150, 145), width=1)
+    if stage >= 3:
+        for (a, b, c_, e) in ((hx0, hy0, hx1, hy0 + 22), (hx0, hy1 - 22, hx1, hy1), (hx0, hy0, hx0 + 22, hy1), (hx1 - 22, hy0, hx1, hy1),
+                              (hx0, 450, 820, 472), (800, hy0, 822, 640)):
+            d.rectangle([a, b, c_, e], fill=(214, 210, 198))
+    if stage >= 4:
+        d.rectangle([hx0, hy0, hx1, hy1], fill=(196, 196, 190))
+        d.rectangle([hx0 + 40, hy0 + 40, hx0 + 160, hy0 + 140], fill=(120, 120, 116))
+    for _ in range(4 + stage * 2):                              # tas de sable, parpaings, ouvriers
+        x, y = rnd.randint(px0 + 20, px1 - 60), rnd.randint(py0 + 20, py1 - 60)
+        if hx0 - 20 < x < hx1 + 20 and hy0 - 20 < y < hy1 + 20:
+            continue
+        if rnd.random() < 0.5:
+            d.ellipse([x, y, x + 60, y + 44], fill=(222, 196, 140))
+        else:
+            d.rectangle([x, y, x + 50, y + 36], fill=(150, 150, 150))
+    return im.filter(ImageFilter.GaussianBlur(0.6))
