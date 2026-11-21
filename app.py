@@ -1121,6 +1121,25 @@ CREATE TABLE IF NOT EXISTS site_journal (
     updated_at TEXT,
     UNIQUE(project_id, day)
 );
+CREATE TABLE IF NOT EXISTS project_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    kind TEXT NOT NULL DEFAULT 'text',
+    body TEXT,
+    filename TEXT,
+    duration INTEGER,
+    distance INTEGER,
+    reply_to INTEGER,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_messages_project ON project_messages(project_id, id);
+CREATE TABLE IF NOT EXISTS chat_reads (
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    last_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS delivery_counts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -1278,6 +1297,11 @@ def init_db():
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def now_us():
+    """Horodatage fin (conversation) : deux messages dans la même seconde restent ordonnés et « lus / non lus » exacts."""
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def log(project_id, text, db=None, user_id=None):
@@ -1842,6 +1866,7 @@ def project_functions(p, role=None, advanced=None):
             it(_("Vues satellite et plan"), _("Comparer le terrain dans le temps"), tab("vues"), "sat"),
             it(_("Drone et caméra"), _("Passages de drone programmés, caméra du chantier"), u("aerial_page"), "drone"),
             it(_("Notes du chantier"), _("Messages vocaux et écrits du chef"), u("site_notes_page"), "note"),
+            it(_("Conversation du chantier"), _("Messages, notes vocales et photos avec le chef"), u("chat_page"), "talk"),
             it(_("Journal de chantier"), _("Chaque jour : ouvriers, météo, arrêts"), u("journal_page"), "sheet"),
             it(_("Comptes rendus"), _("Résumé de la semaine à partager"), u("reports"), "doc"),
             advanced and it(_("Avancement par zone"), _("Pièce par pièce, niveau par niveau"), u("zones_page"), "zones"),
@@ -1888,6 +1913,7 @@ def project_functions(p, role=None, advanced=None):
     elif role == "chef":
         grp("travail", _("Mon travail"), [
             it(_("Envoyer une preuve"), _("Photo ou vidéo de l'étape en cours"), tab("accueil", "proof-form"), "cam"),
+            it(_("Conversation"), _("Parler au propriétaire, envoyer une photo ou une note vocale"), u("chat_page"), "talk"),
             it(_("Journal du jour"), _("Ouvriers, météo, travaux faits, arrêts"), u("journal_page"), "note"),
             it(_("Demander de l'argent pour un achat"), _("Ciment, fer, sable : le propriétaire paie, vous photographiez la livraison"), u("purchases_page"), "money"),
             it(_("Travaux supplémentaires"), _("Proposer un montant et un délai avant de les faire"), u("change_orders_page"), "plan"),
@@ -2624,6 +2650,271 @@ def product():
                            store_ios=env("IOS_STORE_URL"))
 
 
+def last_photo(db, project_id):
+    r = db.execute("SELECT MAX(id) FROM proofs WHERE ok = 1 AND project_id = ? AND (kind IS NULL OR kind != 'video' OR thumb IS NOT NULL)",
+                   (project_id,)).fetchone()
+    return r[0] if r else None
+
+
+def when_label(day):
+    """« Aujourd'hui », « Demain », « Dans 3 jours », « En retard de 2 jours », puis la date."""
+    if not day:
+        return _("Date à fixer")
+    try:
+        dd = date.fromisoformat(str(day)[:10])
+    except ValueError:
+        return str(day)
+    n = (dd - datetime.now(timezone.utc).date()).days
+    if n == 0:
+        return _("Aujourd'hui")
+    if n == 1:
+        return _("Demain")
+    if 1 < n < 7:
+        return _("Dans %(n)s jours", n=n)
+    if n < 0:
+        return _("En retard de %(n)s jour(s)", n=-n)
+    return format_d(dd.isoformat())
+
+
+def pro_home(db, user):
+    """Accueil des métiers (inspecteur, fournisseur, télépilote) : la prochaine mission en grand, les chiffres du mois,
+    puis ce qui attend une réponse. Même mise en page pour tous, données propres à chaque métier."""
+    month = datetime.now(timezone.utc).date().replace(day=1).isoformat()
+    hero, kpis, todo, done = None, [], [], []
+
+    def item(title, sub, url, tag="", tagc="", thumb=None, when=None, amount=None, form=None, note=None):
+        return {"title": title, "sub": sub, "url": url, "tag": tag, "tagc": tagc, "thumb": thumb, "when": when, "amount": amount, "form": form, "note": note}
+    if user["role"] == "inspecteur":
+        rows = db.execute(
+            "SELECT i.*, p.name AS project_name, p.address, p.lat, p.lng, st.name AS step_name, u.name AS owner_name "
+            "FROM inspections i JOIN projects p ON p.id = i.project_id LEFT JOIN steps st ON st.id = i.step_id "
+            "JOIN users u ON u.id = i.requested_by WHERE i.inspector_id = ? ORDER BY COALESCE(i.wanted_date, i.created_at)", (user["id"],)).fetchall()
+        nxt = [r for r in rows if r["status"] == "acceptee"]
+        if nxt:
+            r = nxt[0]
+            hero = {"kicker": _("Prochaine inspection"), "title": r["project_name"], "sub": " · ".join(x for x in (r["step_name"], r["address"]) if x),
+                    "when": when_label(r["wanted_date"]), "amount": r["fee"], "thumb": last_photo(db, r["project_id"]),
+                    "cta": (_("Faire l'inspection"), url_for("project", project_id=r["project_id"])),
+                    "alt": (_("Itinéraire"), f"https://www.google.com/maps/dir/?api=1&destination={r['lat']},{r['lng']}") if r["lat"] else None}
+        for r in rows:
+            if r["status"] == "demandee":
+                todo.append(item(r["project_name"], _("%(o)s · étape %(s)s", o=r["owner_name"], s=r["step_name"] or "—"), url_for("project", project_id=r["project_id"]),
+                                 _("Nouvelle demande"), "amber", last_photo(db, r["project_id"]), when_label(r["wanted_date"]), r["fee"],
+                                 url_for("answer_inspection", iid=r["id"]), r["message"]))
+            elif r["status"] == "acceptee" and r is not nxt[0]:
+                todo.append(item(r["project_name"], r["step_name"] or "", url_for("project", project_id=r["project_id"]), _("À faire"), "blue",
+                                 last_photo(db, r["project_id"]), when_label(r["wanted_date"]), r["fee"]))
+            elif r["status"] == "realisee":
+                done.append(item(r["project_name"], VERDICTS.get(r["verdict"], "") and _(VERDICTS[r["verdict"]]), url_for("project", project_id=r["project_id"]),
+                                 _("Réalisée"), "green", None, format_d(r["done_at"]) if r["done_at"] else "", r["fee"]))
+        earned = sum(r["fee"] or 0 for r in rows if r["status"] == "realisee" and (r["done_at"] or "") >= month)
+        kpis = [(_("Gagné ce mois"), fcfa_txt(earned), "FCFA"), (_("Inspections faites"), sum(1 for r in rows if r["status"] == "realisee"), ""),
+                (_("À répondre"), sum(1 for r in rows if r["status"] == "demandee"), "")]
+    elif user["role"] == "fournisseur":
+        rows = project_orders(db, supplier_id=user["id"])
+        live = sorted([o for o in rows if o["status"] in ("envoyee", "acceptee")], key=lambda o: (o["status"] != "envoyee", o["delivery_date"] or "9"))
+        ship = [o for o in live if o["status"] == "acceptee"]
+        if ship:
+            o = ship[0]
+            pr = db.execute("SELECT lat, lng FROM projects WHERE id = ?", (o["project_id"],)).fetchone()
+            hero = {"kicker": _("Prochaine livraison"), "title": o["project_name"], "sub": " · ".join(x for x in (o["ref"], o["address"]) if x),
+                    "when": when_label(o["delivery_date"]), "amount": o["total"], "thumb": None,
+                    "cta": (_("Photo de livraison"), url_for("order", oid=o["id"])),
+                    "alt": (_("Itinéraire"), f"https://www.google.com/maps/dir/?api=1&destination={pr['lat']},{pr['lng']}") if pr and pr["lat"] else None}
+        for o in rows:
+            if o["status"] == "envoyee":
+                todo.append(item(o["project_name"], o["ref"], url_for("order", oid=o["id"]), _("À accepter"), "amber", None,
+                                 when_label(o["delivery_date"]), o["total"]))
+            elif o["status"] == "acceptee" and o is not ship[0]:
+                todo.append(item(o["project_name"], o["ref"], url_for("order", oid=o["id"]), _("À livrer"), "blue", None,
+                                 when_label(o["delivery_date"]), o["total"]))
+            elif o["status"] in ("livree", "a_payer", "litige"):
+                todo.append(item(o["project_name"], o["ref"], url_for("order", oid=o["id"]), _(ORDER_STATUS[o["status"]]), "bad" if o["status"] == "litige" else "amber",
+                                 None, format_d(o["delivered_at"]) if o["delivered_at"] else "", o["total"]))
+            elif o["status"] == "receptionnee":
+                done.append(item(o["project_name"], o["ref"], url_for("order", oid=o["id"]), _("Payée"), "green", None,
+                                 format_d(o["received_at"]) if o["received_at"] else "", o["total"]))
+        earned = sum((o["received_total"] or o["total"] or 0) - (o["commission"] or 0) for o in rows
+                     if o["status"] == "receptionnee" and (o["received_at"] or "") >= month)
+        kpis = [(_("Encaissé ce mois"), fcfa_txt(earned), "FCFA"), (_("Commandes en cours"), len(live), ""),
+                (_("Livrées"), sum(1 for o in rows if o["status"] in ("receptionnee", "livree", "a_payer")), "")]
+    elif is_pilot(user):
+        rows = db.execute("SELECT m.*, p.name AS project_name, p.address, p.commune, p.lat, p.lng FROM aerial_missions m JOIN projects p ON p.id = m.project_id "
+                          "WHERE m.pilot_id = ? AND m.status != 'annulee' ORDER BY m.due_on", (user["id"],)).fetchall()
+        open_ = [m for m in rows if m["status"] != "faite"]
+        if open_:
+            m = open_[0]
+            hero = {"kicker": _("Prochain vol"), "title": m["project_name"], "sub": m["commune"] or m["address"] or "",
+                    "when": when_label(m["due_on"]), "amount": None, "thumb": None,
+                    "cta": (_("Envoyer les photos du vol"), url_for("pilot_mission", mission_id=m["id"])),
+                    "alt": (_("Itinéraire"), f"https://www.google.com/maps/dir/?api=1&destination={m['lat']},{m['lng']}") if m["lat"] else None}
+        for m in open_[1:]:
+            todo.append(item(m["project_name"], m["commune"] or "", url_for("pilot_mission", mission_id=m["id"]), _("Prévue"), "blue",
+                             None, when_label(m["due_on"])))
+        for m in reversed([m for m in rows if m["status"] == "faite"]):
+            done.append(item(m["project_name"], m["commune"] or "", url_for("pilot_mission", mission_id=m["id"]), _("Faite"), "green", None,
+                             format_d(m["done_at"]) if m["done_at"] else format_d(m["due_on"])))
+        kpis = [(_("Vols ce mois"), sum(1 for m in rows if m["status"] == "faite" and (m["done_at"] or "") >= month), ""),
+                (_("À venir"), len(open_), ""), (_("ANAC"), _("Vérifié") if user["verified"] else _("En attente"), "")]
+    return {"hero": hero, "kpis": kpis, "todo": todo, "done": done[:6]}
+
+
+
+def desk_home(db, user, cards, trusts, covers, portfolio):
+    """Tableau de bord sur ordinateur (propriétaire) : chiffres clés, tableau des chantiers, décisions, dernières preuves."""
+    if not cards:
+        return None
+    ids = [p["id"] for p, _s, _r in cards]
+    marks = ",".join("?" * len(ids))
+    names = {p["id"]: p["name"] for p, _s, _r in cards}
+    rows = []
+    for p, s, pred in cards:
+        chef = db.execute("SELECT name FROM users WHERE id = ?", (p["chef_id"],)).fetchone() if p["chef_id"] else None
+        cur = s["current"]
+        idx = next((k + 1 for k, st in enumerate(s["steps"]) if cur and st["id"] == cur["id"]), len(s["steps"]))
+        late = pred and pred["delay"] > 7 and not pred["done"]
+        if s["to_validate"]:
+            status = (_("À valider"), "am")
+        elif late:
+            status = (_("En retard"), "rd")
+        elif pred and pred["done"]:
+            status = (_("Terminé"), "ok")
+        else:
+            status = (_("En cours"), "bl")
+        tr = trusts.get(p["id"]) or {}
+        rows.append({"p": p, "chef": chef["name"] if chef else None, "cover": covers.get(p["id"]),
+                     "step": cur["name"] if cur else (_("Terminé") if s["steps"] else "—"), "idx": idx, "n": len(s["steps"]),
+                     "pct": s["verified_pct"], "trust": tr.get("score"), "paid": s["paid"], "total": s["total"], "status": status})
+    decisions = []
+    for r in db.execute(f"SELECT st.id, st.project_id, st.name, st.amount FROM steps st WHERE st.status = 'declare' AND st.project_id IN ({marks}) "
+                        "ORDER BY st.declared_at", ids):
+        n = db.execute("SELECT COUNT(*) FROM proofs WHERE step_id = ? AND ok = 1", (r["id"],)).fetchone()[0]
+        decisions.append({"kind": "step", "title": _("%(s)s terminée", s=r["name"]), "sub": f"{names[r['project_id']]} · " + _("%(n)s photo(s) vérifiée(s)", n=n),
+                          "amount": r["amount"], "url": url_for("step_page", project_id=r["project_id"], step_id=r["id"]) + "#decision", "cta": _("Vérifier")})
+    for r in db.execute(f"SELECT b.*, u.name AS who FROM purchase_requests b JOIN users u ON u.id = b.user_id "
+                        f"WHERE b.status IN ('demande', 'acceptee') AND b.project_id IN ({marks}) ORDER BY b.id", ids):
+        decisions.append({"kind": "buy", "title": r["title"], "sub": _("Demande d'achat") + f" · {r['who']} · {names[r['project_id']]}",
+                          "amount": r["amount"], "url": url_for("purchases_page", project_id=r["project_id"]) + f"#a{r['id']}", "cta": _("Ouvrir")})
+    for r in db.execute(f"SELECT * FROM change_orders WHERE status = 'proposee' AND project_id IN ({marks}) ORDER BY id", ids):
+        decisions.append({"kind": "change", "title": r["title"], "sub": _("Travaux en plus") + (f" · +{r['extra_days']} " + _("jours") if r["extra_days"] else "") + f" · {names[r['project_id']]}",
+                          "amount": r["amount"], "url": url_for("change_orders_page", project_id=r["project_id"]) + f"#c{r['id']}", "cta": _("Ouvrir")})
+    proofs = db.execute(f"SELECT pr.id, pr.project_id, pr.created_at, st.name AS step FROM proofs pr LEFT JOIN steps st ON st.id = pr.step_id "
+                        f"WHERE pr.ok = 1 AND pr.project_id IN ({marks}) AND (pr.kind IS NULL OR pr.kind != 'video' OR pr.thumb IS NOT NULL) "
+                        "ORDER BY pr.created_at DESC LIMIT 6", ids).fetchall()
+    ok = sum(s["proofs_total"] - s["refused"] for _p, s, _r in cards)
+    tot = sum(s["proofs_total"] for _p, s, _r in cards)
+    months = portfolio["months"] if portfolio else []
+    return {"rows": rows, "decisions": decisions, "proofs": proofs,
+            "kpis": {"paid": portfolio["paid"], "total": portfolio["total"], "month": months[-1]["amount"] if months else 0,
+                     "locked": sum(s["escrow"]["balance"] for _p, s, _r in cards if s["sequestre"]),
+                     "sequestre": any(s["sequestre"] for _p, s, _r in cards),
+                     "remaining": sum(s["total"] - s["paid"] for _p, s, _r in cards),
+                     "decisions": len(decisions), "trust": portfolio.get("trust"), "proofs_ok": ok, "proofs": tot}}
+
+
+def desk_chef(db, p, stats):
+    """Page du chef sur ordinateur : achats, journal de la semaine, conversation, propriétaire, ce qui reste à faire aujourd'hui."""
+    pid = p["id"]
+    today = datetime.now(timezone.utc).date()
+    buys = db.execute("SELECT * FROM purchase_requests WHERE project_id = ? ORDER BY id DESC LIMIT 6", (pid,)).fetchall()
+    days = {r["day"]: r for r in db.execute("SELECT * FROM site_journal WHERE project_id = ? AND day >= ? ORDER BY day DESC",
+                                            (pid, (today - timedelta(days=6)).isoformat()))}
+    week = [{"day": (today - timedelta(days=k)).isoformat(), "row": days.get((today - timedelta(days=k)).isoformat())} for k in range(7)]
+    msgs = db.execute("SELECT m.*, u.name AS who FROM project_messages m JOIN users u ON u.id = m.user_id WHERE m.project_id = ? "
+                      "ORDER BY m.id DESC LIMIT 3", (pid,)).fetchall()[::-1]
+    owner = db.execute("SELECT name, phone FROM users WHERE id = ?", (p["owner_id"],)).fetchone()
+    insp = db.execute("SELECT i.wanted_date, i.status, u.name FROM inspections i JOIN users u ON u.id = i.inspector_id WHERE i.project_id = ? "
+                      "AND i.status IN ('demandee', 'acceptee') ORDER BY i.wanted_date LIMIT 1", (pid,)).fetchone()
+    cur = stats["current"]
+    proof_today = bool(cur and db.execute("SELECT 1 FROM proofs WHERE project_id = ? AND ok = 1 AND created_at >= ?",
+                                          (pid, today.isoformat())).fetchone())
+    deliver = sum(1 for b in buys if b["status"] == "payee" and not b["delivered_at"])
+    todo = [(_("Remplir le journal du jour"), bool(days.get(today.isoformat())), url_for("journal_page", project_id=pid)),
+            (_("Envoyer au moins une photo aujourd'hui"), proof_today, url_for("project", project_id=pid) + "#photo")]
+    if deliver:
+        todo.append((_("Photographier %(n)s livraison(s)", n=deliver), False, url_for("purchases_page", project_id=pid)))
+    paid_steps = sum(st["amount"] for st in stats["steps"] if st["status"] == "paye")
+    return {"buys": buys, "week": week, "msgs": msgs, "owner": owner, "insp": insp, "todo": todo,
+            "paid": paid_steps, "cover": last_photo(db, pid)}
+
+
+def desk_supplier(db, user):
+    """Fournisseur sur ordinateur : chiffres du mois, tableau des commandes, livraisons de la semaine, catalogue."""
+    rows = project_orders(db, supplier_id=user["id"])
+    today = datetime.now(timezone.utc).date()
+    month = today.replace(day=1).isoformat()
+    week_end = (today + timedelta(days=7)).isoformat()
+    live = [o for o in rows if o["status"] in ("envoyee", "acceptee", "livree", "a_payer", "litige")]
+    deliveries = sorted([o for o in rows if o["status"] == "acceptee" and (o["delivery_date"] or "9") <= week_end],
+                        key=lambda o: o["delivery_date"] or "9")
+    earned = sum((o["received_total"] or o["total"] or 0) - (o["commission"] or 0) for o in rows
+                 if o["status"] == "receptionnee" and (o["received_at"] or "") >= month)
+    waiting_pay = sum(o["total"] or 0 for o in rows if o["status"] in ("livree", "a_payer"))
+    cat = db.execute("SELECT COUNT(*) AS n, SUM(CASE WHEN available = 1 THEN 1 ELSE 0 END) AS av FROM products WHERE supplier_id = ?",
+                     (user["id"],)).fetchone()
+    tone = {"envoyee": "am", "acceptee": "bl", "livree": "am", "a_payer": "am", "litige": "rd", "receptionnee": "ok",
+            "refusee": "mu", "annulee": "mu", "proposee": "mu"}
+    return {"orders": rows[:12], "live": live, "deliveries": deliveries, "tone": tone,
+            "kpis": {"earned": earned, "waiting_pay": waiting_pay, "to_accept": sum(1 for o in rows if o["status"] == "envoyee"),
+                     "to_deliver": sum(1 for o in rows if o["status"] == "acceptee"), "live": len(live)},
+            "catalog": {"n": cat["n"] or 0, "available": cat["av"] or 0},
+            "when": {o["id"]: when_label(o["delivery_date"]) for o in rows}}
+
+
+def desk_field(db, user):
+    """Inspecteur et télépilote sur ordinateur : toutes les missions en tableau, chiffres du mois, ce qui attend une réponse."""
+    today = datetime.now(timezone.utc).date()
+    month = today.replace(day=1).isoformat()
+    if user["role"] == "inspecteur":
+        rows = db.execute(
+            "SELECT i.*, p.name AS project_name, p.address, p.lat, p.lng, st.name AS step_name, u.name AS owner_name "
+            "FROM inspections i JOIN projects p ON p.id = i.project_id LEFT JOIN steps st ON st.id = i.step_id "
+            "JOIN users u ON u.id = i.requested_by WHERE i.inspector_id = ? AND i.status != 'annulee' "
+            "ORDER BY CASE i.status WHEN 'demandee' THEN 0 WHEN 'acceptee' THEN 1 ELSE 2 END, COALESCE(i.wanted_date, i.created_at)",
+            (user["id"],)).fetchall()
+        tone = {"demandee": "am", "acceptee": "bl", "realisee": "ok", "refusee": "mu"}
+        label = {"demandee": _("À répondre"), "acceptee": _("À faire"), "realisee": _("Réalisée"), "refusee": _("Refusée")}
+        missions = [{"id": r["id"], "project_id": r["project_id"], "title": r["project_name"], "sub": r["address"] or "",
+                     "what": r["step_name"] or "—", "who": r["owner_name"], "when": when_label(r["wanted_date"]) if r["status"] in ("demandee", "acceptee")
+                     else (format_d(r["done_at"]) if r["done_at"] else "—"), "status": r["status"], "tone": tone.get(r["status"], "mu"),
+                     "label": label.get(r["status"], r["status"]), "amount": r["fee"], "note": r["message"],
+                     "verdict": _(VERDICTS[r["verdict"]]) if r["verdict"] in VERDICTS else None,
+                     "url": url_for("project", project_id=r["project_id"]),
+                     "map": f"https://www.google.com/maps/dir/?api=1&destination={r['lat']},{r['lng']}" if r["lat"] else None} for r in rows]
+        done = [r for r in rows if r["status"] == "realisee"]
+        verdicts = [r["verdict"] for r in done if r["verdict"]]
+        kpis = [(_("Gagné ce mois"), fcfa_txt(sum(r["fee"] or 0 for r in done if (r["done_at"] or "") >= month)), "FCFA",
+                 _("Honoraires des inspections réalisées")),
+                (_("À répondre"), sum(1 for r in rows if r["status"] == "demandee"), "", _("Demandes de propriétaires")),
+                (_("À faire"), sum(1 for r in rows if r["status"] == "acceptee"), "", _("Inspections acceptées")),
+                (_("Inspections faites"), len(done), "", _("%(n)s non conforme(s)", n=verdicts.count("non_conforme")) if verdicts else "")]
+        cols = (_("Étape"), _("Propriétaire"), _("Date"), _("Honoraires"))
+    else:
+        rows = db.execute("SELECT m.*, p.name AS project_name, p.address, p.commune, p.lat, p.lng, a.frequency "
+                          "FROM aerial_missions m JOIN projects p ON p.id = m.project_id LEFT JOIN aerial_plans a ON a.id = m.plan_id "
+                          "WHERE m.pilot_id = ? AND m.status != 'annulee' "
+                          "ORDER BY CASE WHEN m.status = 'faite' THEN 1 ELSE 0 END, CASE WHEN m.status = 'faite' THEN '' ELSE m.due_on END, m.due_on DESC",
+                          (user["id"],)).fetchall()
+        missions = []
+        for r in rows:
+            late = r["status"] != "faite" and (r["due_on"] or "9") < today.isoformat()
+            missions.append({"id": r["id"], "project_id": r["project_id"], "title": r["project_name"], "sub": r["commune"] or r["address"] or "",
+                             "what": AERIAL_FREQ[r["frequency"]][0] if r["frequency"] in AERIAL_FREQ else "—", "who": "",
+                             "when": format_d(r["done_at"]) if r["status"] == "faite" and r["done_at"] else when_label(r["due_on"]),
+                             "status": r["status"], "tone": "ok" if r["status"] == "faite" else ("rd" if late else "bl"),
+                             "label": _("Faite") if r["status"] == "faite" else (_("En retard") if late else _("Prévue")),
+                             "amount": None, "note": r["note"], "verdict": None, "url": url_for("pilot_mission", mission_id=r["id"]),
+                             "map": f"https://www.google.com/maps/dir/?api=1&destination={r['lat']},{r['lng']}" if r["lat"] else None})
+        open_ = [r for r in rows if r["status"] != "faite"]
+        kpis = [(_("Vols ce mois"), sum(1 for r in rows if r["status"] == "faite" and (r["done_at"] or "") >= month), "", _("Passages livrés")),
+                (_("À venir"), len(open_), "", _("%(n)s cette semaine", n=sum(1 for r in open_ if (r["due_on"] or "9") <= (today + timedelta(days=7)).isoformat()))),
+                (_("En retard"), sum(1 for m in missions if m["tone"] == "rd"), "", _("Date de passage dépassée")),
+                (_("ANAC"), _("Vérifié") if user["verified"] else _("En attente"), "", user["anac_ref"] or "")]
+        cols = (_("Formule"), "", _("Date"), "")
+    return {"missions": missions, "kpis": kpis, "cols": cols,
+            "next": next((m for m in missions if m["status"] in ("acceptee", "prevue", "planifiee") or m["tone"] in ("bl", "rd")), None),
+            "asks": [m for m in missions if m["status"] == "demandee"]}
+
 @app.route("/")
 def home():
     user = current_user()
@@ -2680,7 +2971,11 @@ def home():
                             "GROUP BY c.project_id"):
             pending_checks[r["project_id"]] = r["n"]
     greeting, today_label = greeting_today()
-    return render_template("home.html", cards=cards, inspections=inspections, portfolio=portfolio, greeting=greeting, today_label=today_label, orders=orders,
+    pro = pro_home(db, user) if user["role"] in ("inspecteur", "fournisseur") or is_pilot(user) else None
+    desk = desk_home(db, user, cards, trusts, covers, portfolio) if user["role"] == "proprio" else None
+    desk_sup = desk_supplier(db, user) if user["role"] == "fournisseur" else None
+    desk_fld = desk_field(db, user) if user["role"] == "inspecteur" or is_pilot(user) else None
+    return render_template("home.html", pro=pro, desk=desk, desk_sup=desk_sup, desk_fld=desk_fld, cards=cards, inspections=inspections, portfolio=portfolio, greeting=greeting, today_label=today_label, orders=orders,
                            trusts=trusts, controlled=controlled, pending_checks=pending_checks, covers=covers, activity=activity,
                            onboarding=onboarding(db, user, [c[0] for c in cards]))
 
@@ -2775,6 +3070,7 @@ def quick_actions(me):
         out.append({"label": label, "desc": desc, "url": url, "ic": ic, "primary": primary})
     if p is not None and role == "chef":
         a(_("Photo ou vidéo"), _("Ouvre l'appareil photo"), url_for("project", project_id=p["id"]) + "#photo", "cam", True)
+        a(_("Conversation"), _("Écrire ou parler au propriétaire"), url_for("chat_page", project_id=p["id"]), "talk")
         a(_("Journal du jour"), _("Ouvriers, météo, travaux"), url_for("journal_page", project_id=p["id"]), "note")
         a(_("Argent pour un achat"), _("Ciment, fer, sable…"), url_for("purchases_page", project_id=p["id"]) + "#nouvelle", "money")
         a(_("Travaux en plus"), _("Proposer prix et délai"), url_for("change_orders_page", project_id=p["id"]), "plan")
@@ -2783,6 +3079,7 @@ def quick_actions(me):
         decl = get_db().execute("SELECT id FROM steps WHERE project_id = ? AND status = 'declare' ORDER BY position LIMIT 1", (p["id"],)).fetchone()
         if decl:
             a(_("Valider l'étape terminée"), _("Vérifier les preuves puis payer"), url_for("step_page", project_id=p["id"], step_id=decl["id"]) + "#decision", "check", True)
+        a(_("Conversation"), _("Messages, notes vocales, photos"), url_for("chat_page", project_id=p["id"]), "talk", not decl)
         a(_("Demandes d'achat"), _("Accepter, payer, voir la livraison"), url_for("purchases_page", project_id=p["id"]), "money")
         a(_("Passage de drone"), _("Vue d'en haut, une fois ou chaque mois"), url_for("aerial_page", project_id=p["id"]), "drone")
         a(_("Inspection indépendante"), _("Un inspecteur vérifie sur place"), url_for("project", project_id=p["id"], onglet="etapes"), "insp")
@@ -3121,6 +3418,7 @@ def project(project_id):
                 "buy_wait": db.execute("SELECT COUNT(*) FROM purchase_requests WHERE project_id = ? AND status IN ('demande', 'acceptee')",
                                        (project_id,)).fetchone()[0],
                 "co_wait": db.execute("SELECT COUNT(*) FROM change_orders WHERE project_id = ? AND status = 'proposee'", (project_id,)).fetchone()[0]}
+            ctx["desk_chef"] = desk_chef(db, p, stats)
         if tab == "factures":
             ctx.update(invoice_context(project_id))
             ctx["orders"] = project_orders(db, project_id)
@@ -9727,6 +10025,8 @@ def purchases_page(project_id):
         r = db.execute("SELECT * FROM purchase_requests WHERE id = ? AND project_id = ?", (to_int(f.get("id")), project_id)).fetchone() \
             if f.get("id") else None
         back = redirect(url_for("purchases_page", project_id=project_id, _anchor=f"a{r['id']}" if r else ""))
+        if (f.get("next") or "").startswith(f"/chantiers/{project_id}/conversation"):
+            back = redirect(f.get("next"))
         if action == "create" and role == "chef":
             title = (f.get("title") or "").strip()[:120]
             amount = to_int(re.sub(r"\D", "", f.get("amount") or ""), 0)
@@ -9854,6 +10154,8 @@ def change_orders_page(project_id):
                 notify(project_id, chef_ids(p), L("Travaux supplémentaires refusés"), L("« %(t)s » : ne les faites pas.", t=c["title"]),
                        url_for("change_orders_page", project_id=project_id, _anchor=f"c{c['id']}"), important=True, db=db)
         db.commit()
+        if (f.get("next") or "").startswith(f"/chantiers/{project_id}/conversation"):
+            return redirect(f.get("next"))
         return redirect(url_for("change_orders_page", project_id=project_id))
     rows = db.execute("SELECT c.*, u.name AS author, st.status AS step_status FROM change_orders c JOIN users u ON u.id = c.user_id "
                       "LEFT JOIN steps st ON st.id = c.step_id WHERE c.project_id = ? ORDER BY (c.status != 'proposee'), c.id DESC",
@@ -9920,6 +10222,231 @@ def journal_page(project_id):
              "workers": round(sum(r["workers"] or 0 for r in month) / max(1, sum(1 for r in month if r["workers"]))) if month else 0}
     return render_template("journal.html", p=p, rows=rows, todays=todays, role=role, stats=stats, SKY=SKY,
                            today=today.isoformat(), min_day=(today - timedelta(days=7)).isoformat())
+
+
+
+# --------------------------------------------------------------------------
+# Conversation du chantier : messages, notes vocales, photos vérifiées, et cartes d'action (achats, travaux, étapes)
+# --------------------------------------------------------------------------
+CHAT_DIR = os.path.join(UPLOAD_DIR, "conversation")
+CHAT_AUDIO_EXT = {"webm", "ogg", "oga", "m4a", "mp4", "mp3", "aac", "wav", "opus"}
+
+
+def chat_members(db, p):
+    ids = {p["owner_id"]}
+    if p["chef_id"]:
+        ids.add(p["chef_id"])
+    ids |= {r[0] for r in db.execute("SELECT user_id FROM project_members WHERE project_id = ? AND role IN ('coproprio', 'intervenant', 'finance')",
+                                      (p["id"],)).fetchall()}
+    return ids
+
+
+def chat_timeline(db, p, me, since=None, limit=120):
+    """Messages et événements du chantier, du plus ancien au plus récent. since : horodatage ISO exclu."""
+    pid = p["id"]
+    cond = " AND {col} > ?" if since else ""
+    arg = (since,) if since else ()
+    items = []
+    for m in db.execute("SELECT m.*, u.name AS author, u.role AS urole FROM project_messages m JOIN users u ON u.id = m.user_id "
+                        "WHERE m.project_id = ?" + cond.format(col="m.created_at") + " ORDER BY m.id DESC LIMIT ?", (pid,) + arg + (limit,)).fetchall():
+        items.append({"t": m["created_at"], "type": m["kind"], "id": m["id"], "mine": m["user_id"] == me["id"], "author": m["author"],
+                      "body": m["body"], "file": bool(m["filename"]), "duration": m["duration"], "distance": m["distance"]})
+    for n in db.execute("SELECT n.*, u.name AS author FROM site_notes n JOIN users u ON u.id = n.user_id WHERE n.project_id = ?"
+                        + cond.format(col="n.created_at") + " ORDER BY n.id DESC LIMIT 40", (pid,) + arg).fetchall():
+        items.append({"t": n["created_at"], "type": "note", "id": n["id"], "mine": n["user_id"] == me["id"], "author": n["author"],
+                      "body": n["summary"] or n["transcript"], "file": bool(n["filename"]), "urgent": n["urgent"], "kind": n["kind"]})
+    for r in db.execute("SELECT r.*, u.name AS author FROM purchase_requests r JOIN users u ON u.id = r.user_id WHERE r.project_id = ?"
+                        + cond.format(col="r.created_at") + " ORDER BY r.id DESC LIMIT 30", (pid,) + arg).fetchall():
+        items.append({"t": r["created_at"], "type": "buy", "id": r["id"], "mine": r["user_id"] == me["id"], "author": r["author"],
+                      "title": r["title"], "amount": r["amount"], "status": r["status"], "details": r["details"]})
+    for c in db.execute("SELECT c.*, u.name AS author FROM change_orders c JOIN users u ON u.id = c.user_id WHERE c.project_id = ?"
+                        + cond.format(col="c.created_at") + " ORDER BY c.id DESC LIMIT 20", (pid,) + arg).fetchall():
+        items.append({"t": c["created_at"], "type": "change", "id": c["id"], "mine": c["user_id"] == me["id"], "author": c["author"],
+                      "title": c["title"], "amount": c["amount"], "status": c["status"], "days": c["extra_days"]})
+    for st in db.execute("SELECT * FROM steps WHERE project_id = ? AND status = 'declare' AND declared_at IS NOT NULL"
+                         + cond.format(col="declared_at"), (pid,) + arg).fetchall():
+        items.append({"t": st["declared_at"], "type": "step", "id": st["id"], "mine": me["id"] == p["chef_id"], "author": None,
+                      "title": st["name"], "amount": st["amount"]})
+    items.sort(key=lambda x: x["t"] or "")
+    return items[-limit:]
+
+
+def chat_access(project_id):
+    p = load_project(project_id, roles=("owner", "chef", "inspecteur", "intervenant"))
+    return p, g.project_role in ("owner", "chef", "intervenant")
+
+
+def chat_send(db, p, me):
+    """Enregistre un message (texte, photo ou note vocale) envoyé par la page ou l'application. Renvoie (id, erreur)."""
+    project_id = p["id"]
+    f = request.form
+    kind, body, fname, duration, dist = "text", (f.get("body") or "").strip()[:2000], None, None, None
+    up = request.files.get("file")
+    if up and up.filename:
+        ext = ext_of(up.filename) or (up.mimetype or "").split("/")[-1].split(";")[0]
+        if ext in IMG_EXT:
+            fname, img = save_upload(up, CHAT_DIR, images_only=True)
+            if not fname:
+                return None, _("Image illisible.")
+            kind = "photo"
+            lat, lng, _t = read_exif(img)
+            if lat is not None:
+                dist, _lim, _par = site_distance(p, lat, lng)
+        elif ext in CHAT_AUDIO_EXT or (up.mimetype or "").startswith("audio/"):
+            raw = up.read()
+            if not raw or len(raw) > 12 * 1024 * 1024:
+                return None, _("Note vocale trop longue.")
+            os.makedirs(CHAT_DIR, exist_ok=True)
+            fname = f"{secrets.token_hex(12)}.{ext if ext in CHAT_AUDIO_EXT else 'webm'}"
+            with open(os.path.join(CHAT_DIR, fname), "wb") as fh:
+                fh.write(raw)
+            kind, duration = "voice", max(1, min(to_int(f.get("duration"), 0), 600))
+        else:
+            return None, _("Format non pris en charge.")
+    if kind == "text" and not body:
+        return None, _("Message vide.")
+    cur = db.execute("INSERT INTO project_messages (project_id, user_id, kind, body, filename, duration, distance, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                     (project_id, me["id"], kind, body or None, fname, duration, dist, now_us()))
+    # Une seule alerte non lue par personne et par conversation : pas de pluie de notifications
+    preview = body[:120] if kind == "text" else (_("🎙 Note vocale") if kind == "voice" else _("📷 Photo"))
+    link = url_for("chat_page", project_id=project_id)
+    for uid in chat_members(db, p) - {me["id"]}:
+        if db.execute("SELECT 1 FROM notifications WHERE user_id = ? AND channel = 'app' AND link = ? AND is_read = 0", (uid, link)).fetchone():
+            continue
+        notify(project_id, [uid], L("Nouveau message de %(n)s", n=me["name"]), preview, link, db=db)
+    mark_chat_read(db, project_id, me["id"])
+    db.commit()
+    return cur.lastrowid, None
+
+
+@app.route("/chantiers/<int:project_id>/conversation", methods=["GET", "POST"])
+@login_required
+def chat_page(project_id):
+    p, can_write = chat_access(project_id)
+    db = get_db()
+    me = current_user()
+    if request.method == "POST":
+        if not can_write:
+            abort(403)
+        mid, err = chat_send(db, p, me)
+        if err:
+            return jsonify(ok=False, error=err), 400
+        if request.headers.get("X-Requested-With") == "fetch":
+            return jsonify(ok=True, id=mid)
+        return redirect(url_for("chat_page", project_id=project_id, _anchor="fin"))
+    items = chat_timeline(db, p, me)
+    last_read = db.execute("SELECT last_at FROM chat_reads WHERE project_id = ? AND user_id = ?", (project_id, me["id"])).fetchone()
+    mark_chat_read(db, project_id, me["id"])
+    db.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND link = ?", (me["id"], url_for("chat_page", project_id=project_id)))
+    db.commit()
+    chef = db.execute("SELECT id, name FROM users WHERE id = ?", (p["chef_id"],)).fetchone() if p["chef_id"] else None
+    today = datetime.now(timezone.utc).date().isoformat()
+    on_site = bool(chef) and bool(db.execute("SELECT 1 FROM proofs WHERE project_id = ? AND user_id = ? AND created_at >= ? UNION "
+                                             "SELECT 1 FROM site_journal WHERE project_id = ? AND day = ? AND COALESCE(stopped, 0) = 0",
+                                             (project_id, chef["id"], today, project_id, today)).fetchone())
+    # Ordinateur : liste des conversations à gauche, à droite ce qui attend une décision et les photos échangées
+    threads = []
+    for q in user_projects(me):
+        m = db.execute("SELECT m.*, u.name AS who FROM project_messages m JOIN users u ON u.id = m.user_id WHERE m.project_id = ? "
+                       "ORDER BY m.id DESC LIMIT 1", (q["id"],)).fetchone()
+        rd = db.execute("SELECT last_at FROM chat_reads WHERE project_id = ? AND user_id = ?", (q["id"], me["id"])).fetchone()
+        unread = 0 if q["id"] == project_id else db.execute(
+            "SELECT COUNT(*) FROM project_messages WHERE project_id = ? AND user_id != ? AND created_at > ?",
+            (q["id"], me["id"], rd["last_at"] if rd else "")).fetchone()[0]
+        last = None
+        if m:
+            last = (m["body"] or {"photo": _("📷 Photo"), "voice": _("🎙 Note vocale")}.get(m["kind"], ""))
+            last = f"{m['who'].split(' ')[0]} : {last}" if m["user_id"] != me["id"] else _("Vous : %(m)s", m=last)
+        threads.append({"id": q["id"], "name": q["name"], "last": last, "t": m["created_at"] if m else "", "unread": unread,
+                        "cover": last_photo(db, q["id"])})
+    threads.sort(key=lambda x: x["t"], reverse=True)
+    pending = [it for it in items if (it["type"] == "buy" and it["status"] in ("demande", "acceptee"))
+               or (it["type"] == "change" and it["status"] == "proposee") or it["type"] == "step"]
+    pics = [it for it in items if it["type"] == "photo"][-6:][::-1]
+    chef_phone = db.execute("SELECT phone FROM users WHERE id = ?", (chef["id"],)).fetchone()["phone"] if chef else None
+    return render_template("chat.html", p=p, items=items, role=g.project_role, can_write=can_write, chef=chef, on_site=on_site,
+                           last_read=last_read["last_at"] if last_read else None, last_t=items[-1]["t"] if items else "",
+                           threads=threads, pending=pending, pics=pics, chef_phone=chef_phone)
+
+
+def chat_unread(project_id):
+    """Messages non lus dans la conversation (badge sur l'accueil du chantier)."""
+    me = current_user()
+    if not me:
+        return 0
+    db = get_db()
+    r = db.execute("SELECT last_at FROM chat_reads WHERE project_id = ? AND user_id = ?", (project_id, me["id"])).fetchone()
+    return db.execute("SELECT COUNT(*) FROM project_messages WHERE project_id = ? AND user_id != ? AND created_at > ?",
+                      (project_id, me["id"], r["last_at"] if r else "")).fetchone()[0]
+
+
+app.jinja_env.globals["chat_unread"] = chat_unread
+
+
+def day_label(iso_day):
+    """Séparateur de jour façon messagerie : Aujourd'hui, Hier, jour de la semaine, puis la date."""
+    try:
+        dd = date.fromisoformat(iso_day[:10])
+    except (TypeError, ValueError):
+        return ""
+    delta = (datetime.now(timezone.utc).date() - dd).days
+    if delta == 0:
+        return _("Aujourd'hui")
+    if delta == 1:
+        return _("Hier")
+    if 1 < delta < 7:
+        return [_("Lundi"), _("Mardi"), _("Mercredi"), _("Jeudi"), _("Vendredi"), _("Samedi"), _("Dimanche")][dd.weekday()]
+    return format_d(iso_day)
+
+
+app.jinja_env.globals["day_label"] = day_label
+app.jinja_env.globals["when_label"] = lambda day: when_label(day)
+app.jinja_env.globals["BUY_STATUS"] = BUY_STATUS
+app.jinja_env.globals["SKY"] = SKY
+
+
+def my_projects_brief():
+    """Chantiers de l'utilisateur pour la palette de commandes (⌘K) de la version ordinateur."""
+    me = current_user()
+    if not me:
+        return []
+    return [{"id": p["id"], "name": p["name"], "address": p["address"]} for p in user_projects(me)][:30]
+
+
+app.jinja_env.globals["my_projects_brief"] = my_projects_brief
+
+
+def mark_chat_read(db, project_id, user_id):
+    if db.execute("SELECT 1 FROM chat_reads WHERE project_id = ? AND user_id = ?", (project_id, user_id)).fetchone():
+        db.execute("UPDATE chat_reads SET last_at = ? WHERE project_id = ? AND user_id = ?", (now_us(), project_id, user_id))
+    else:
+        db.execute("INSERT INTO chat_reads (project_id, user_id, last_at) VALUES (?,?,?)", (project_id, user_id, now_us()))
+
+
+@app.route("/chantiers/<int:project_id>/conversation/nouveaux")
+@login_required
+def chat_poll(project_id):
+    """Messages arrivés depuis « apres » (horodatage), déjà mis en forme : la page les ajoute sans se recharger."""
+    p, can_write = chat_access(project_id)
+    db = get_db()
+    me = current_user()
+    since = request.args.get("apres") or ""
+    items = [it for it in chat_timeline(db, p, me, since=since or None) if not (it["mine"] and it["type"] in ("text", "voice", "photo") and request.args.get("skip_mine"))]
+    if items:
+        mark_chat_read(db, project_id, me["id"])
+        db.commit()
+    html = render_template("_chat_items.html", p=p, items=items, role=g.project_role, last_read=None)
+    return jsonify(html=html, last=items[-1]["t"] if items else since, n=len(items))
+
+
+@app.route("/chantiers/<int:project_id>/conversation/fichier/<int:mid>")
+@login_required
+def chat_file(project_id, mid):
+    chat_access(project_id)
+    m = get_db().execute("SELECT * FROM project_messages WHERE id = ? AND project_id = ?", (mid, project_id)).fetchone()
+    if not m or not m["filename"]:
+        abort(404)
+    return send_from_directory(CHAT_DIR, m["filename"])
 
 
 # --------------------------------------------------------------------------
@@ -10836,6 +11363,7 @@ ORDER_STATUS = {
     "refusee": "Refusée par le fournisseur", "livree": "Livrée, réception à confirmer", "receptionnee": "Reçue et payée",
     "a_payer": "Reçue, à payer au fournisseur", "litige": "Problème signalé", "annulee": "Annulée",
 }
+app.jinja_env.globals["ORDER_STATUS"] = ORDER_STATUS
 ORDER_OPEN = ("proposee", "envoyee", "acceptee", "livree", "litige")
 
 
@@ -11513,7 +12041,7 @@ MIGRATION_ORDER = ["users", "projects", "steps", "proofs", "activity", "transact
                    "billing_invoices", "inspection_requests", "payment_records", "quality_reviews", "quality_photos",
                    "quality_points", "quality_messages", "wa_sessions", "wa_messages", "site_notes",
                    "fin_profiles", "fin_sources", "fin_receipts", "fin_costs", "fin_documents", "land_files",
-                   "land_requests", "plots", "plot_documents", "plot_alerts", "aerial_plans", "aerial_missions", "site_cameras", "camera_shots", "purchase_requests", "change_orders", "site_journal", "delivery_counts", "plan_items", "plan_item_photos", "offsite_files"]
+                   "land_requests", "plots", "plot_documents", "plot_alerts", "aerial_plans", "aerial_missions", "site_cameras", "camera_shots", "purchase_requests", "change_orders", "site_journal", "project_messages", "chat_reads", "delivery_counts", "plan_items", "plan_item_photos", "offsite_files"]
 
 
 @app.cli.command("migrer-vers-postgres")
@@ -11775,6 +12303,19 @@ def demo_cli(force):
         db.execute("INSERT INTO change_orders (project_id, user_id, title, reason, amount, extra_days, created_at) VALUES (?,?,?,?,?,?,?)",
                    (pid, chef, "Mur de clôture côté rue (25 m)", "Le terrain voisin est ouvert : les matériaux disparaissent la nuit. "
                     "Un mur de 2 m sur la façade protège le chantier et servira à la maison.", 1850000, 10, ago(2)))
+        # Conversation du chantier : quelques echanges proprietaire / chef
+        os.makedirs(CHAT_DIR, exist_ok=True)
+        chat_img = save_image(DEMO.site_photo(3, 91), CHAT_DIR, 1600)
+        for back_h, who, kind, body, fname, dist in (
+                (50, own, "text", "Bonjour Koffi, le fer est bien arrivé pour la dalle ?", None, None),
+                (49, chef, "text", "Oui madame, livré hier. On a commencé le ferraillage ce matin.", None, None),
+                (26, chef, "photo", "Les premières rangées du salon", chat_img, 9),
+                (25, own, "text", "Très bien ! Pensez à bien arroser les murs avec cette chaleur.", None, None),
+                (3, chef, "text", "Il manque du fer pour les poteaux du RDC, je vous ai fait la demande avec le devis.", None, None)):
+            db.execute("INSERT INTO project_messages (project_id, user_id, kind, body, filename, distance, created_at) VALUES (?,?,?,?,?,?,?)",
+                       (pid, who, kind, body, fname, dist, (now - timedelta(hours=back_h)).isoformat(timespec="seconds")))
+        db.execute("INSERT INTO chat_reads (project_id, user_id, last_at) VALUES (?,?,?)",
+                   (pid, own, (now - timedelta(hours=10)).isoformat(timespec="seconds")))
         # Terrains a verifier avant achat : un second lot envisage a Songon
         for name, commune, doc, ref, holder, seller, area, pts, checks_, ef in (
                 ("Lot 112, îlot 9 — Songon", "Songon", "acd", "ACD n° 2021-1184", "Famille Yapo", "Serge Yapo", 500,
@@ -11846,6 +12387,21 @@ def demo_cli(force):
             pr_ = db.execute("SELECT * FROM products WHERE id = ?", (prods[name],)).fetchone()
             db.execute("INSERT INTO order_lines (order_id, product_id, material, name, unit, qty, unit_price, qty_received) "
                        "VALUES (?,?,?,?,?,?,?,?)", (oid, pr_["id"], pr_["material"], name, pr_["unit"], q, pr_["price"], qr))
+        # Travail en cours pour les métiers : une livraison demain, une commande à accepter, deux inspections
+        soon = lambda n: (now + timedelta(days=n)).date().isoformat()
+        for ref, status, lines, due, back in (("CMD-DEMO-0002", "acceptee", [("Ciment CPJ 42,5 (sac de 50 kg)", 80)], soon(1), 2),
+                                              ("CMD-DEMO-0003", "envoyee", [("Parpaing creux de 15", 1200), ("Sable lagunaire", 2)], soon(4), 0)):
+            tot = sum(db.execute("SELECT price FROM products WHERE id = ?", (prods[n],)).fetchone()[0] * q for n, q in lines)
+            o2 = db.execute("INSERT INTO orders (ref, project_id, step_id, supplier_id, created_by, status, pay_mode, total, created_at, updated_at, delivery_date) "
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?)", (ref, pid, st[3]["id"], sup, chef, status, "suivi", tot, ago(back), ago(back), due)).lastrowid
+            for n, q in lines:
+                pr_ = db.execute("SELECT * FROM products WHERE id = ?", (prods[n],)).fetchone()
+                db.execute("INSERT INTO order_lines (order_id, product_id, material, name, unit, qty, unit_price) VALUES (?,?,?,?,?,?,?)",
+                           (o2, pr_["id"], pr_["material"], n, pr_["unit"], q, pr_["price"]))
+        for step_i, status, due, fee, msg in ((2, "acceptee", soon(1), 45000, "Contrôle du ferraillage et du coulage de la dalle basse."),
+                                              (3, "demandee", soon(5), 50000, "Vérifier l'aplomb des murs du RDC et les chaînages.")):
+            db.execute("INSERT INTO inspections (project_id, step_id, inspector_id, requested_by, wanted_date, message, fee, status, created_at) "
+                       "VALUES (?,?,?,?,?,?,?,?,?)", (pid, st[step_i]["id"], insp, own, due, msg, fee, status, ago(1)))
         if demo_escrow:
             db.execute("INSERT INTO transactions (project_id, user_id, kind, amount, provider, ref, provider_ref, status, "
                        "created_at, updated_at, order_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
@@ -12443,9 +12999,13 @@ def api_project(project_id):
                                      for c in t["criteria"]]}
     if role in ("chef", "inspecteur"):
         out["capture_token"] = new_capture_token(db, project_id)
+        # Viseur : on glisse pour dire ce que montre la photo (zones du chantier, sinon sujets types)
+        out["zones"] = [{"id": z["id"], "name": z["name"], "depth": d} for z, d in project_zones(db, project_id)]
+        out["photo_tags"] = [_("Vue d'ensemble"), _("Détail"), _("Ferraillage"), _("Maçonnerie"), _("Matériaux"), _("Problème")]
         out["inspections"] = [{"id": i["id"], "status": i["status"], "step_id": i["step_id"]}
                               for i in db.execute("SELECT * FROM inspections WHERE project_id = ? AND inspector_id = ?",
                                                   (project_id, current_user()["id"]))] if role == "inspecteur" else []
+    out["chat_unread"] = chat_unread(project_id)
     # Le même catalogue que le panneau « Toutes les fonctions » du site, pour l'application
     out["functions"] = [{"key": grp_["key"], "title": grp_["title"],
                          "items": [{"label": i["label"], "desc": i["desc"], "path": i["url"], "icon": i["ic"]} for i in grp_["items"]]}
@@ -12642,6 +13202,101 @@ def api_pay_order(kind, ref_id):
 def api_payment_answer(rid):
     json_as_form()
     return api_flash_result(payment_answer(rid=rid))
+
+
+# --- Application : conversation du chantier, décisions depuis le fil, accueil des métiers ---
+def chat_item_json(p, it):
+    out = {k: it.get(k) for k in ("t", "type", "id", "mine", "author", "body", "duration", "distance", "urgent", "kind",
+                                  "title", "amount", "status", "details", "days")}
+    out["day"] = day_label(it["t"])
+    out["time"] = (it["t"] or "")[11:16]
+    out["file_url"] = None
+    if it["type"] in ("photo", "voice") and it.get("file"):
+        out["file_url"] = url_for("chat_file", project_id=p["id"], mid=it["id"])
+    elif it["type"] == "note" and it.get("file"):
+        out["file_url"] = url_for("site_note_audio", nid=it["id"])
+    if it["type"] == "buy":
+        out["status_label"] = {"demande": _("À décider"), "acceptee": _("À payer"), "refusee": _("Refusée"),
+                               "payee": _("Payée"), "livree": _("Livrée")}.get(it["status"], it["status"])
+    elif it["type"] == "change":
+        out["status_label"] = {"proposee": _("En attente"), "acceptee": _("Acceptée"), "refusee": _("Refusée")}.get(it["status"], it["status"])
+    return out
+
+
+@app.route("/api/v1/chantiers/<int:project_id>/conversation", methods=["GET", "POST"])
+@api_auth
+def api_chat(project_id):
+    p, can_write = chat_access(project_id)
+    db = get_db()
+    me = current_user()
+    if request.method == "POST":
+        if not can_write:
+            return api_error(L("Action non autorisée."), 403)
+        mid, err = chat_send(db, p, me)
+        if err:
+            return api_error(err)
+        return jsonify(ok=True, id=mid), 201
+    since = request.args.get("apres") or None
+    last_read = db.execute("SELECT last_at FROM chat_reads WHERE project_id = ? AND user_id = ?", (project_id, me["id"])).fetchone()
+    items = chat_timeline(db, p, me, since=since)
+    if items or not since:
+        mark_chat_read(db, project_id, me["id"])
+        db.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND link = ?", (me["id"], url_for("chat_page", project_id=project_id)))
+        db.commit()
+    chef = db.execute("SELECT name FROM users WHERE id = ?", (p["chef_id"],)).fetchone() if p["chef_id"] else None
+    return jsonify(ok=True, items=[chat_item_json(p, it) for it in items], last=items[-1]["t"] if items else (since or ""),
+                   last_read=last_read["last_at"] if last_read else None, role=g.project_role, can_write=can_write,
+                   chef=chef["name"] if chef else None, project={"id": p["id"], "name": p["name"]})
+
+
+@app.route("/api/v1/chantiers/<int:project_id>/achats", methods=["POST"])
+@api_auth
+def api_purchases(project_id):
+    """Décision sur une demande d'achat (payer, refuser…) : mêmes règles que la page Achats."""
+    json_as_form()
+    return api_flash_result(purchases_page(project_id))
+
+
+@app.route("/api/v1/chantiers/<int:project_id>/avenants", methods=["POST"])
+@api_auth
+def api_change_orders(project_id):
+    json_as_form()
+    return api_flash_result(change_orders_page(project_id))
+
+
+@app.route("/api/v1/accueil")
+@api_auth
+def api_home():
+    """Accueil des métiers (inspecteur, fournisseur, télépilote) : même contenu que la page d'accueil du site."""
+    me = current_user()
+    db = get_db()
+    greeting, today_label = greeting_today()
+    pro = pro_home(db, me) if me["role"] in ("inspecteur", "fournisseur") or is_pilot(me) else None
+    if pro:
+        def thumb(x):
+            return url_for("proof_thumb", proof_id=x) if x else None
+        if pro["hero"]:
+            h = dict(pro["hero"])
+            h["thumb_url"] = thumb(h.pop("thumb"))
+            h["cta"] = {"label": h["cta"][0], "path": h["cta"][1]}
+            h["alt"] = {"label": h["alt"][0], "url": h["alt"][1]} if h["alt"] else None
+            pro["hero"] = h
+        for lst in ("todo", "done"):
+            for it in pro[lst]:
+                it["thumb_url"] = thumb(it.pop("thumb"))
+                it["path"] = it.pop("url")
+                it["answer_inspection"] = to_int(it.pop("form").rstrip("/").split("/")[-2]) if it.get("form") else None
+        pro["kpis"] = [{"label": l, "value": str(v), "unit": u} for l, v, u in pro["kpis"]]
+    return jsonify(ok=True, greeting=greeting, today=today_label, name=me["name"], role=me["role"], pilot=bool(is_pilot(me)), pro=pro)
+
+
+@app.route("/api/v1/inspections/<int:iid>/<decision>", methods=["POST"])
+@api_auth
+def api_answer_inspection(iid, decision):
+    if decision not in ("accepter", "refuser") or current_user()["role"] != "inspecteur":
+        return api_error(L("Action non autorisée."), 403)
+    request.form = type(request.form)({"decision": decision})
+    return api_flash_result(answer_inspection(iid))
 
 
 @app.route("/api/v1/version")

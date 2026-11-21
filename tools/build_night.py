@@ -51,6 +51,9 @@ for m in re.finditer(r"([^{}@]+)\{([^{}]*)\}", css):
         continue
     if re.search(r"\bbody\.(night|top-dark)\b", sel):
         continue
+    # Surfaces déjà sombres quel que soit le thème (viseur, cartes « hero ») : on n'y touche pas
+    if re.search(r"\.camera\b|\.ph-hero|\.ph-kicker|\.ph-cta|\.ph-th\b|\.ch-play|\.ch-badge", sel):
+        continue
     decl = dict((k.strip(), v.strip()) for k, _, v in (d.partition(":") for d in body.split(";")) if k.strip())
     bgv = decl.get("background-color") or decl.get("background")
     new = []

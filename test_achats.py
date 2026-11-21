@@ -78,7 +78,7 @@ assert register(A.app.test_client(), "q3@x.ci", "fournisseur", supplier_terms=""
 assert one("SELECT supplier_terms_at FROM users WHERE email='quinca@x.ci'")[0]
 assert one("SELECT COUNT(*) FROM users WHERE email='q3@x.ci'")[0] == 0
 assert "Quincaillerie du Carrefour" in one("SELECT bio FROM users WHERE email='quinca@x.ci'")[0]
-assert "Mes commandes" in html(sup.get("/")) and "en attente de vérification" in html(sup.get("/"))
+assert "Commandes en cours" in html(sup.get("/")) and "en attente de vérification" in html(sup.get("/"))
 assert own.get("/fournisseur/catalogue").status_code == 403
 for name, mat, unit, price in [("Ciment CPJ 42,5 (sac 50 kg)", "", "sac", "5500"), ("Fer à béton HA 10", "", "barre", "4200"),
                                ("Sable lagunaire", "", "voyage", "90000")]:
@@ -281,7 +281,7 @@ print("API mobile ok (acceptation, photo de livraison, réception)")
 # --- 10. Anglais ---
 sup.get("/?lang=en")
 h = html(sup.get("/"))
-assert "My orders" in h, h[:2000]
+assert "Open orders" in h, h[:2000]
 assert "Received and paid" in html(sup.get(f"/commandes/{oid}"))
 print("anglais ok")
 print("\nTOUS LES TESTS DE L'ACHAT DIRECT PASSENT")
