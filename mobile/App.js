@@ -16,6 +16,7 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OrderScreen from './src/screens/OrderScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
+import ConversationScreen from './src/screens/ConversationScreen';
 import { C } from './src/theme';
 import { TabBar } from './src/components/ui';
 import { t } from './src/core/i18n';
@@ -24,7 +25,8 @@ import { t } from './src/core/i18n';
 const TAB_ROOTS = ['projects', 'payments', 'notifications', 'settings'];
 
 const SCREENS = { login: LoginScreen, projects: ProjectsScreen, project: ProjectScreen, capture: CaptureScreen,
-  notifications: NotificationsScreen, settings: SettingsScreen, order: OrderScreen, payments: PaymentsScreen };
+  notifications: NotificationsScreen, settings: SettingsScreen, order: OrderScreen, payments: PaymentsScreen,
+  conversation: ConversationScreen };
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -68,6 +70,7 @@ export default function App() {
     const tap = Notifications.addNotificationResponseReceivedListener((r) => {
       const d = r.notification.request.content.data || {};
       if (typeof d.link === 'string' && d.link.startsWith('/paiements')) go('payments');
+      else if (typeof d.link === 'string' && /\/conversation$/.test(d.link) && d.project_id) go('conversation', { id: d.project_id });
       else if (d.project_id) go('project', { id: d.project_id });
     });
     return () => { unsub(); hw.remove(); net(); app.remove(); tap.remove(); };
@@ -108,7 +111,7 @@ export default function App() {
   ];
   return (
     <SafeAreaProvider>
-      <StatusBar style={top.name === 'capture' ? 'light' : 'dark'} />
+      <StatusBar style={top.name === 'capture' || C.dark ? 'light' : 'dark'} />
       <View style={{ flex: 1, backgroundColor: C.bg }}>
         <Screen key={`${top.name}-${stack.length}-${JSON.stringify(top.params)}`} params={top.params} go={go}
           back={stack.length > 1 ? back : undefined} reset={reset} pushToken={pushToken} isTab={showTabs} />

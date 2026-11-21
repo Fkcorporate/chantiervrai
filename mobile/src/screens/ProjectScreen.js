@@ -89,6 +89,22 @@ export default function ProjectScreen({ go, back, params }) {
       <Banner text={error} tone="error" />
       <Banner text={info} />
       {pending ? <Banner text={t('%(n)s preuve(s) en attente de réseau', { n: pending })} /> : null}
+      {['owner', 'chef', 'intervenant'].includes(p.role) ? (
+        <Pressable onPress={() => go('conversation', { id: p.id })} accessibilityRole="button"
+          accessibilityLabel={p.chat_unread ? `${t('Conversation du chantier')} (${p.chat_unread})` : t('Conversation du chantier')}
+          style={({ pressed }) => [st.chat, pressed && { transform: [{ scale: 0.985 }] }]}>
+          <View style={st.chatIco}>
+            <Ionicons name="chatbubble-ellipses" size={20} color="#0B2219" />
+            {p.chat_unread ? <View style={st.chatBadge}><T style={st.chatBadgeText}>{p.chat_unread > 9 ? '9+' : p.chat_unread}</T></View> : null}
+          </View>
+          <View style={{ flex: 1 }}>
+            <T bold>{p.role === 'chef' ? t('Conversation') : t('Conversation du chantier')}</T>
+            <T muted style={{ fontSize: 13 }}>{p.chat_unread ? (p.chat_unread === 1 ? t('1 nouveau message') : t('%(n)s nouveaux messages', { n: p.chat_unread }))
+              : p.role === 'chef' ? t('Parler au propriétaire') : t('Écrire, envoyer une note vocale ou une photo')}</T>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={C.muted} />
+        </Pressable>
+      ) : null}
 
       {p.role === 'chef' && cur ? (
         cur.status === 'en_cours' ? (
@@ -359,4 +375,9 @@ const st = StyleSheet.create({
   decideChecks: { gap: 8, marginBottom: 6 },
   decideCheck: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   decideCheckText: { color: '#DCE8E1', fontSize: 14, flex: 1 },
+  chat: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 22, backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
+  chatIco: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#D6B57D', alignItems: 'center', justifyContent: 'center' },
+  chatBadge: { position: 'absolute', top: -4, right: -4, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, backgroundColor: '#D9622B',
+    alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.card },
+  chatBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 });

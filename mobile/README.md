@@ -13,7 +13,15 @@ Application native construite avec Expo (React Native) : un seul code pour Andro
   - déclaration de fin d'étape.
 - **Propriétaire** : progression, argent bloqué et versé, alertes, galerie des preuves avec les motifs de refus, validation (avec paiement depuis le séquestre) ou refus d'une étape.
 - **Inspecteur** : photos d'inspection contrôlées sur le terrain.
-- **Notifications sur le téléphone** (étape à valider, preuve refusée, paiement…). Toucher une notification ouvre le chantier.
+- **Conversation du chantier** (comme WhatsApp, mais rattachée au chantier) : messages, photos avec la distance au chantier,
+  notes vocales (appui long sur le micro), et les décisions dans le fil : payer une demande d'achat, accepter des travaux en plus,
+  aller valider une étape terminée. Les nouveaux messages arrivent toutes les 5 secondes quand l'application est ouverte.
+- **Viseur façon Snapchat** : l'étape en cours est affichée, et on glisse à gauche ou à droite pour dire ce que montre la photo
+  (zone du chantier, ou « Ferraillage », « Matériaux », « Problème »…). Flash et vibration au déclenchement.
+- **Accueil des métiers** (inspecteur, fournisseur, télépilote) : la prochaine mission en grand avec l'itinéraire, les chiffres
+  du mois, la liste « À faire » (l'inspecteur accepte ou refuse une demande sans quitter l'accueil) et « Terminé ».
+- **Thèmes** Ivoire, Blanc et Nuit (Réglages → Apparence), appliqués au lancement suivant.
+- **Notifications sur le téléphone** (étape à valider, preuve refusée, paiement, nouveau message…). Toucher une notification ouvre le chantier ou la conversation.
 - Les fonctions plus rares (satellite, documents, matériaux, litiges, administration) s'ouvrent sur le site web.
 
 ## Prérequis
@@ -29,7 +37,7 @@ Application native construite avec Expo (React Native) : un seul code pour Andro
 ```bash
 cd mobile
 npm install
-npx expo install --fix       # aligne les versions des modules sur la version d'Expo
+npx expo install --fix       # aligne les versions des modules sur la version d'Expo (dont expo-audio et expo-image-picker)
 npm install -g eas-cli
 eas login
 eas init                     # crée le projet Expo et renseigne extra.eas.projectId (notifications)

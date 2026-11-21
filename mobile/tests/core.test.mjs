@@ -11,11 +11,13 @@ import { createApi, proofFields, NetworkError } from '../src/core/apiClient.js';
 import { createQueue, MAX_AGE_MS } from '../src/core/queue.js';
 import { t, setLang, KEYS } from '../src/core/i18n.js';
 import { fcfa } from '../src/core/format.js';
+import { duration, mergeItems, rows, route, nextIndex } from '../src/core/chat.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 test('chaque texte affiché par l\'application a sa traduction anglaise', () => {
-  const files = ['App.js', ...readdirSync(join(ROOT, 'src/screens')).map((f) => `src/screens/${f}`)];
+  const files = ['App.js', ...readdirSync(join(ROOT, 'src/screens')).map((f) => `src/screens/${f}`),
+    ...readdirSync(join(ROOT, 'src/components')).map((f) => `src/components/${f}`)];
   const used = new Set();
   for (const f of files) {
     const src = readFileSync(join(ROOT, f), 'utf8');
@@ -170,6 +172,84 @@ test('parcours complet contre le serveur : chef (français) et propriétaire (an
     assert.equal(after.steps[0].status, 'paye');          // l'historique du propriétaire reste intact
     await own.logout();
     await assert.rejects(own.projects(), (e) => e.status === 401);
+  } finally {
+    server.kill();
+    rmSync(inst, { recursive: true, force: true });
+  }
+});
+
+test('conversation : fil sans doublon, jours, non lus, chemins du site', () => {
+  assert.equal(duration(75), '1:15');
+  assert.equal(duration(0), '0:00');
+  const a = { type: 'text', id: 1, t: '2026-11-19T10:00:00+00:00', day: 'Hier', mine: true };
+  const b = { type: 'buy', id: 4, t: '2026-11-19T11:00:00+00:00', day: 'Hier', mine: false, status: 'demande' };
+  const c = { type: 'text', id: 2, t: '2026-11-20T08:00:00+00:00', day: "Aujourd'hui", mine: false };
+  let list = mergeItems([], [c, a]);
+  assert.deepEqual(list.map((x) => x.id), [1, 2]);
+  list = mergeItems(list, [b, { ...b, status: 'payee' }]);
+  assert.equal(list.length, 3);
+  assert.equal(list.find((x) => x.type === 'buy').status, 'payee');        // le statut le plus récent gagne
+  const r = rows(list, '2026-11-19T10:30:00+00:00');
+  assert.deepEqual(r.map((x) => x.row), ['day', 'item', 'unread', 'item', 'day', 'item']);
+  assert.equal(rows(list, null).filter((x) => x.row === 'unread').length, 0);
+  assert.deepEqual(route('/chantiers/3'), { screen: 'project', params: { id: 3 } });
+  assert.deepEqual(route('/chantiers/3/conversation'), { screen: 'conversation', params: { id: 3 } });
+  assert.deepEqual(route('/commandes/9'), { screen: 'order', params: { orderId: 9 } });
+  assert.deepEqual(route('/missions-drone/2'), { web: '/missions-drone/2' });
+  assert.equal(nextIndex(0, 5, -80), 1);
+  assert.equal(nextIndex(0, 5, 80), 0);
+  assert.equal(nextIndex(4, 5, -80), 4);
+  assert.equal(nextIndex(2, 5, 20), 2);
+});
+
+test('conversation et accueil des métiers contre le serveur (données de démonstration)', { timeout: 180000 }, async () => {
+  const inst = mkdtempSync(join(tmpdir(), 'cv-mobile-demo-'));
+  const env = { ...process.env, CV_INSTANCE: inst, CV_SYNC: '1', EXPO_PUSH: '0', SECRET_KEY: 'test', PORT: '5067' };
+  execFileSync('python3', ['-m', 'flask', '--app', 'app', 'demo'], { env, cwd: join(ROOT, '..'), stdio: 'ignore' });
+  const server = spawn('python3', [join(ROOT, '..', 'app.py')], { env, stdio: 'ignore' });
+  try {
+    const base = 'http://127.0.0.1:5067';
+    for (let i = 0; i < 50; i++) {
+      try { await fetch(`${base}/api/v1/version`); break; } catch (e) { await new Promise((r) => setTimeout(r, 200)); }
+    }
+    const as = async (who) => {
+      let tok = null;
+      const c = createApi({ baseUrl: base, getToken: async () => tok, lang: 'fr' });
+      tok = (await c.login(`${who}@demo.chantiervrai.ci`, 'Demo-Chantier-2026')).token;
+      return c;
+    };
+    const own = await as('aminata');
+    const chef = await as('koffi');
+    const j = await own.chat(1);
+    assert.equal(j.can_write, true);
+    assert.ok(j.items.some((x) => x.type === 'photo' && x.file_url && x.distance != null));
+    const f = new FormData();
+    f.append('body', 'Depuis le téléphone');
+    await chef.sendChat(1, f);
+    const n = await own.chat(1, j.last);
+    assert.equal(n.items.length, 1);
+    assert.equal(n.items[0].body, 'Depuis le téléphone');
+    let list = mergeItems(j.items, n.items);
+    const buy = list.find((x) => x.type === 'buy' && x.status === 'demande');
+    await assert.rejects(chef.purchaseAction(1, { action: 'paid', id: buy.id }), (e) => e.status >= 400);
+    await own.purchaseAction(1, { action: 'paid', id: buy.id });
+    list = mergeItems(list, (await own.chat(1)).items);
+    assert.equal(list.find((x) => x.type === 'buy' && x.id === buy.id).status, 'payee');
+    const detail = (await chef.project(1)).project;
+    assert.ok(Array.isArray(detail.zones) && detail.photo_tags.length === 6);
+
+    const awa = await as('awa');
+    const h = await awa.home();
+    assert.equal(h.pro.hero.kicker, 'Prochaine inspection');
+    assert.deepEqual(route(h.pro.hero.cta.path), { screen: 'project', params: { id: 1 } });
+    const ask = h.pro.todo.find((x) => x.answer_inspection);
+    await awa.answerInspection(ask.answer_inspection, 'accepter');
+    assert.equal((await awa.home()).pro.todo.filter((x) => x.answer_inspection).length, 0);
+    const sup = await as('quincaillerie');
+    const hs = await sup.home();
+    assert.equal(hs.pro.hero.kicker, 'Prochaine livraison');
+    assert.equal(route(hs.pro.hero.cta.path).screen, 'order');
+    assert.equal((await own.home()).pro, null);
   } finally {
     server.kill();
     rmSync(inst, { recursive: true, force: true });

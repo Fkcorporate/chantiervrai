@@ -78,12 +78,21 @@ export function createApi({ baseUrl, getToken, onUnauthorized, fetchImpl, lang }
     registerDevice: (pushToken, platform) =>
       request('POST', '/api/v1/appareils', { json: { push_token: pushToken, platform } }),
     version: () => request('GET', '/api/v1/version', { auth: false }),
+    // Conversation du chantier (messages, photos, notes vocales, cartes de décision)
+    chat: (projectId, since) =>
+      request('GET', `/api/v1/chantiers/${projectId}/conversation${since ? `?apres=${encodeURIComponent(since)}` : ''}`),
+    sendChat: (projectId, form) => request('POST', `/api/v1/chantiers/${projectId}/conversation`, { form }),
+    purchaseAction: (projectId, fields) => request('POST', `/api/v1/chantiers/${projectId}/achats`, { json: fields }),
+    changeOrderAction: (projectId, fields) => request('POST', `/api/v1/chantiers/${projectId}/avenants`, { json: fields }),
+    // Accueil des métiers (inspecteur, fournisseur, télépilote)
+    home: () => request('GET', '/api/v1/accueil'),
+    answerInspection: (iid, decision) => request('POST', `/api/v1/inspections/${iid}/${decision}`),
   };
 }
 
 // Champs du formulaire d'une preuve (les memes que la version web, capture = « native »)
 export function proofFields({ captureToken, capturedAt, clientNow, coords, note, platform, attestation, nonce,
-  offline, inspectionId }) {
+  offline, inspectionId, zoneId }) {
   const f = {
     capture: 'native',
     capture_token: captureToken,
@@ -105,5 +114,6 @@ export function proofFields({ captureToken, capturedAt, clientNow, coords, note,
     f.attestation_nonce = nonce;
   }
   if (inspectionId) f.inspection_id = String(inspectionId);
+  if (zoneId) f.zone_id = String(zoneId);           // zone choisie en glissant sur le viseur
   return f;
 }

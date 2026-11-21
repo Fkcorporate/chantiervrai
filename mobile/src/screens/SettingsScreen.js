@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Switch } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Screen, Card, T, Row, Button, Field, Banner } from '../components/ui';
 import { api, current, chooseLang, deleteAccount, setServer, signOut, updateUser } from '../services/session';
 import { t, getLang } from '../core/i18n';
-import { C } from '../theme';
+import { C, THEME_NAMES, themeName } from '../theme';
 
 export default function SettingsScreen({ back, reset, pushToken }) {
   const st = current();
@@ -18,6 +19,7 @@ export default function SettingsScreen({ back, reset, pushToken }) {
   const [delMsg, setDelMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [, force] = useState(0);
+  const [theme, setTheme] = useState(themeName);
 
   async function save() {
     setMsg('');
@@ -49,6 +51,16 @@ export default function SettingsScreen({ back, reset, pushToken }) {
           <Button small kind={getLang() === 'fr' ? 'primary' : 'ghost'} title="Français" onPress={async () => { await chooseLang('fr'); force((x) => x + 1); }} />
           <Button small kind={getLang() === 'en' ? 'primary' : 'ghost'} title="English" onPress={async () => { await chooseLang('en'); force((x) => x + 1); }} />
         </Row>
+      </Card>
+      <Card>
+        <T bold>{t('Apparence')}</T>
+        <Row>
+          {THEME_NAMES.map((n) => (
+            <Button key={n} small kind={theme === n ? 'primary' : 'ghost'} title={{ ivoire: t('Ivoire'), blanc: t('Blanc'), nuit: t('Nuit') }[n]}
+              onPress={async () => { await AsyncStorage.setItem('cv_theme', n); setTheme(n); }} />
+          ))}
+        </Row>
+        {theme !== themeName ? <T muted>{t('Le nouveau thème s\'applique au prochain lancement de l\'application.')}</T> : null}
       </Card>
       {user ? (
         <Card>

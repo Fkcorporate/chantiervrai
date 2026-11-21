@@ -2,7 +2,7 @@
   "ios": {
     "CFBundleDisplayName": "ChantierVrai",
     "NSCameraUsageDescription": "ChantierVrai uses the camera to photograph the progress of the construction site.",
-    "NSMicrophoneUsageDescription": "ChantierVrai uses the microphone for site videos.",
+    "NSMicrophoneUsageDescription": "ChantierVrai uses the microphone for site videos and voice notes.",
     "NSLocationWhenInUseUsageDescription": "ChantierVrai checks that each photo is taken on the construction site."
   }
 }

@@ -1,7 +1,7 @@
 // Prise de vue dans l'application : pas d'acces a la galerie. L'heure de prise, la position
 // et le jeton de capture du serveur sont joints a la photo.
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from '../theme';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
@@ -9,6 +9,7 @@ import { Screen, Card, T, Button, Field, Banner } from '../components/ui';
 import { api, sendProof, platform, buildForm } from '../services/session';
 import { getPosition, attest } from '../services/device';
 import { t } from '../core/i18n';
+import { nextIndex } from '../core/chat';
 
 export default function CaptureScreen({ back, go, params }) {
   const { project, mode, inspectionId, order } = params;   // order : photo de livraison du fournisseur
@@ -23,6 +24,34 @@ export default function CaptureScreen({ back, go, params }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [nonce, setNonce] = useState(null);
+  // Façon Snapchat : on glisse sur le viseur pour dire ce que montre la photo.
+  // Zones du chantier si elles existent (rangées avec la preuve), sinon sujets types (mis en tête de la description).
+  const zones = (project && project.zones) || [];
+  const subjects = zones.length
+    ? [{ label: t('Tout le chantier'), zone: null }, ...zones.map((z) => ({ label: z.name, zone: z.id }))]
+    : ((project && project.photo_tags) || []).map((x, i) => ({ label: x, tag: i ? x : '' }));
+  const [subject, setSubject] = useState(0);
+  const flash = useRef(new Animated.Value(0)).current;
+  const toast = useRef(new Animated.Value(0)).current;
+  const strip = useRef(null);
+  const subjectRef = useRef(0);
+  subjectRef.current = subject;
+  const subjectsLen = useRef(0);
+  subjectsLen.current = subjects.length;
+  function pick(i, announce) {
+    if (i === subjectRef.current) return;
+    setSubject(i);
+    Vibration.vibrate(8);
+    if (announce) {
+      toast.setValue(1);
+      Animated.timing(toast, { toValue: 0, duration: 900, delay: 300, useNativeDriver: true }).start();
+    }
+  }
+  const pan = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (e, g) => Math.abs(g.dx) > 20 && Math.abs(g.dx) > Math.abs(g.dy),
+    onPanResponderRelease: (e, g) => pick(nextIndex(subjectRef.current, subjectsLen.current, g.dx), true),
+  })).current;
+  const chosen = subjects[subject] || {};
 
   async function locate() {
     const c = await getPosition();
@@ -47,6 +76,10 @@ export default function CaptureScreen({ back, go, params }) {
 
   async function takePicture() {
     const capturedAt = Date.now();
+    flash.setValue(0.85);
+    Animated.timing(flash, { toValue: 0, duration: 350, useNativeDriver: true }).start();
+    Vibration.vibrate(12);
+    if (chosen.tag && !note) setNote(`${chosen.tag} : `);
     const r = await cam.current.takePictureAsync({ quality: 0.85, exif: true, skipProcessing: false });
     setShot({ uri: r.uri, kind: 'photo', capturedAt });
     locate();
@@ -86,7 +119,7 @@ export default function CaptureScreen({ back, go, params }) {
       const r = await sendProof({
         projectId: project.id, kind: shot.kind, uri: shot.uri,
         meta: { captureToken: project.capture_token, capturedAt: shot.capturedAt, coords, note, platform,
-          attestation, nonce: attestation ? fresh : null, inspectionId },
+          attestation, nonce: attestation ? fresh : null, inspectionId, zoneId: chosen.zone || null },
       });
       if (r.queued) {
         go('project', { id: project.id, message: t('Pas de réseau : preuve gardée sur le téléphone. Elle partira toute seule au retour du réseau.') }, true);
@@ -120,6 +153,25 @@ export default function CaptureScreen({ back, go, params }) {
     <Screen dark title={project ? project.name : t('Prendre une photo')} onBack={back} scroll={false}>
       <View style={s.camBox}>
         <CameraView ref={cam} style={s.cam} facing="back" mode={mode === 'video' ? 'video' : 'picture'} />
+        <View style={StyleSheet.absoluteFill} {...(subjects.length ? pan.panHandlers : {})} />
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: flash }]} />
+        {project && project.current && !order ? (
+          <View style={s.step}><Text style={s.stepText} numberOfLines={1}>{t('Étape en cours')} · <Text style={{ fontWeight: '800' }}>{project.current.name}</Text></Text></View>
+        ) : null}
+        {subjects.length ? (
+          <Animated.View pointerEvents="none" style={[s.toast, { opacity: toast }]}><Text style={s.toastText}>{chosen.label}</Text></Animated.View>
+        ) : null}
+        {subjects.length && !order ? (
+          <ScrollView ref={strip} horizontal showsHorizontalScrollIndicator={false} style={s.modes} contentContainerStyle={s.modesIn}
+            accessibilityLabel={t('Ce que montre la photo')}>
+            {subjects.map((x, i) => (
+              <Pressable key={x.label} onPress={() => pick(i, false)} accessibilityRole="radio" accessibilityState={{ checked: i === subject }}
+                style={[s.mode, i === subject && s.modeOn]}>
+                <Text style={[s.modeText, i === subject && s.modeTextOn]}>{x.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
         <View style={[s.gps, coords ? s.gpsOk : null]} accessibilityLiveRegion="polite">
           <Ionicons name={coords ? 'location' : 'location-outline'} size={15} color={coords ? '#fff' : C.text} />
           <T style={[s.gpsText, coords ? { color: '#fff' } : null]} numberOfLines={2}>{gpsMsg}</T>
@@ -156,4 +208,16 @@ const s = StyleSheet.create({
   shutterStop: { width: 30, height: 30, borderRadius: 6 },
   cam: { flex: 1 },
   preview: { width: '100%', aspectRatio: 0.75, borderRadius: 16, backgroundColor: '#D9D4CA' },
+  step: { position: 'absolute', top: 58, alignSelf: 'center', maxWidth: '86%', backgroundColor: 'rgba(201,164,106,0.94)', borderRadius: 999,
+    paddingHorizontal: 14, paddingVertical: 7 },
+  stepText: { color: '#0B2219', fontSize: 12.5, fontWeight: '600' },
+  toast: { position: 'absolute', top: '42%', alignSelf: 'center', backgroundColor: 'rgba(5,14,10,0.62)', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+  toastText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  modes: { position: 'absolute', left: 0, right: 0, bottom: 14, flexGrow: 0 },
+  modesIn: { paddingHorizontal: 16, gap: 6, alignItems: 'center' },
+  mode: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999 },
+  modeOn: { backgroundColor: '#fff' },
+  modeText: { color: 'rgba(255,255,255,0.8)', fontSize: 12.5, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 },
+  modeTextOn: { color: '#0B2219', textShadowRadius: 0 },
 });

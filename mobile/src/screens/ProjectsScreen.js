@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 import { Screen, Card, T, Pill, Row, Button, Field, Banner, Band, PhotoCard, DecisionCard, NightGreeting } from '../components/ui';
+import ProHome from '../components/ProHome';
+import { route } from '../core/chat';
 import { api, current, queue, setCounts } from '../services/session';
 import { t, getLang } from '../core/i18n';
 import { C } from '../theme';
@@ -29,11 +31,15 @@ export default function ProjectsScreen({ go }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [code, setCode] = useState('');
+  const [home, setHome] = useState(null);          // accueil des métiers (inspecteur, fournisseur, télépilote)
+  const [answering, setAnswering] = useState(null);
   const user = current().user || {};
+  const metier = ['inspecteur', 'fournisseur', 'pro'].includes(user.role);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
+      if (metier) api.home().then((h) => setHome(h.pro ? h : null)).catch(() => {});
       if (user.role === 'fournisseur') {
         const [o, n] = await Promise.all([api.orders(), api.notifications()]);
         setOrders(o.orders); setCounts({ unread: n.unread || 0 });
@@ -57,14 +63,32 @@ export default function ProjectsScreen({ go }) {
     try { await api.joinProject(code.trim().toUpperCase()); setCode(''); load(); } catch (e) { setError(e.message); }
   }
 
+  // Un chemin du site ouvre l'écran de l'application correspondant, sinon la page web
+  function open(path) {
+    const r = route(path);
+    if (!r) return;
+    if (r.screen === 'order') {
+      const o = orders.find((x) => x.id === r.params.orderId);
+      if (o) { go('order', { order: o, role: 'fournisseur' }); return; }
+    } else if (r.screen) { go(r.screen, r.params); return; }
+    Linking.openURL(api.url(`${r.web || path}${(r.web || path).includes('?') ? '&' : '?'}lang=${getLang()}`));
+  }
+  async function answer(iid, decision) {
+    setAnswering(iid); setError('');
+    try { await api.answerInspection(iid, decision); await load(); } catch (e) { setError(e.message); } finally { setAnswering(null); }
+  }
+  const image = (url) => ({ uri: api.url(url), headers: { Authorization: `Bearer ${current().token}` } });
+
   // Accueil du propriétaire : édition nuit (fond sombre, chiffres fins, doré pour décider)
   const night = user.role === 'proprio' && projects.length > 0;
   return (
     <Screen large dark={night}
-      title={night ? '' : user.role === 'fournisseur' ? t('Mes commandes') : user.role === 'proprio' ? `${hello()}, ${(user.name || '').split(' ')[0]}` : 'ChantierVrai'}
+      title={night || home ? '' : user.role === 'fournisseur' ? t('Mes commandes') : user.role === 'proprio' ? `${hello()}, ${(user.name || '').split(' ')[0]}` : 'ChantierVrai'}
       refreshing={loading} onRefresh={load}>
       {night ? <NightGreeting name={user.name} hello={`${hello()} · ${todayLabel()}`} onPress={() => go('settings')} /> : null}
       <Banner text={error} tone="error" />
+      {home ? <ProHome data={home} image={image} open={open} onAnswer={answer} busy={answering}
+        glyph={home.pilot ? 'airplane-outline' : user.role === 'fournisseur' ? 'cube-outline' : 'shield-checkmark-outline'} /> : null}
       {pending ? <Banner text={t('%(n)s preuve(s) en attente de réseau', { n: pending })} /> : null}
       {toConfirm ? (
         <Card tone="alert" onPress={() => go('payments')}>
@@ -96,7 +120,7 @@ export default function ProjectsScreen({ go }) {
             chip={p.cover_url ? `${t('Photo')} ${p.cover_ago} · ${t('vérifiée')}` : t('Pas encore de photo')} />
         );
       })}
-      {orders.map((o) => (
+      {home ? null : orders.map((o) => (
         <Card key={o.id} onPress={() => go('order', { order: o, role: 'fournisseur' })}
           tone={['envoyee', 'acceptee'].includes(o.status) ? 'alert' : undefined}>
           <Row><T bold style={{ flex: 1 }}>{o.project_name}</T><Pill text={o.status_label} tone={['envoyee', 'acceptee'].includes(o.status) ? 'warn' : undefined} /></Row>
@@ -104,7 +128,7 @@ export default function ProjectsScreen({ go }) {
           <T bold>{fcfa(o.total)}</T>
         </Card>
       ))}
-      {['proprio', 'pro'].includes(user.role) ? (
+      {['proprio', 'pro'].includes(user.role) && !home ? (
         <Card onPress={() => Linking.openURL(api.url(`/terrains?lang=${getLang()}`))}
           style={{ backgroundColor: '#0B2219', borderColor: 'rgba(201,164,106,.35)' }}>
           <T bold white>{t('Vous achetez un terrain ?')}</T>
@@ -112,8 +136,8 @@ export default function ProjectsScreen({ go }) {
           <T bold style={{ color: '#C9A46A' }}>{t('Vérifier un terrain')} →</T>
         </Card>
       ) : null}
-      {user.role === 'fournisseur' && !orders.length && !loading ? <Card><T muted>{t('Aucune commande pour l\'instant.')}</T></Card> : null}
-      {user.role !== 'fournisseur' && !projects.length && !loading ? <Card><T muted>{t('Aucun chantier pour l\'instant.')}</T></Card> : null}
+      {user.role === 'fournisseur' && !orders.length && !loading && !home ? <Card><T muted>{t('Aucune commande pour l\'instant.')}</T></Card> : null}
+      {user.role !== 'fournisseur' && !projects.length && !loading && !home ? <Card><T muted>{t('Aucun chantier pour l\'instant.')}</T></Card> : null}
       {user.role === 'chef' ? (
         <Card>
           <T bold>{t('Rejoindre un chantier')}</T>
