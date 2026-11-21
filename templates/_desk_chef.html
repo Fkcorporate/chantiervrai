@@ -1,0 +1,65 @@
+{# Ordinateur : page du chef de chantier. Le téléphone garde son écran « appareil photo d'abord ». #}
+{% set dc = desk_chef %}{% set c = s.current %}{% set okc = ok_by_step.get(c.id, 0) if c else 0 %}{% set cs = checks_by_step.get(c.id) if c else None %}
+<div class="dk-only dk dk-chef">
+<div class="dk-phead">
+<span class="dk-th"{% if dc.cover %} style="background-image:url('{{ url_for('proof_thumb', proof_id=dc.cover) }}')"{% endif %}>{% if not dc.cover %}{{ p.name[:1] }}{% endif %}</span>
+<div style="flex:1;min-width:0"><h1>{{ p.name }}</h1><p class="dk-sub"><span>{{ _("Chantier de") }} {{ people[p.owner_id].name }}</span><span>· {{ p.address }}</span></p></div>
+{% if c %}<span class="dk-chip {{ 'am' if c.status == 'declare' else 'bl' }}">{{ _("Étape %(i)s sur %(n)s", i=(s.steps|map(attribute='id')|list).index(c.id) + 1, n=s.steps|length) }} · {{ STATUS[c.status] }}</span>{% endif %}
+<a class="dk-btn" href="{{ url_for('journal_page', project_id=p.id) }}">{{ _("Journal du jour") }}</a>
+<a class="dk-btn p" href="{{ url_for('purchases_page', project_id=p.id) }}#nouvelle">+ {{ _("Demander de l'argent") }}</a>
+</div>
+<div class="dk-kpis">
+<div class="dk-kpi"><span>{{ _("Étape en cours") }}</span><b style="font-size:20px">{{ c.name if c else _("Terminé") }}</b><p>{% if c and schedule.get(c.id) %}{{ _("Fin prévue le") }} {{ d(schedule[c.id]) }}{% else %}&nbsp;{% endif %}</p></div>
+<div class="dk-kpi"><span>{{ _("Paiement à la validation") }}</span><b>{{ fcfa(c.amount) if c else '—' }}<small>FCFA</small></b><p>{% if s.sequestre and c %}{{ _('fonds déjà bloqués') if s.escrow.balance >= c.amount else _('fonds pas encore déposés') }}{% elif c %}{{ _("payé par le propriétaire") }}{% endif %}</p></div>
+<div class="dk-kpi"><span>{{ _("Preuves vérifiées") }}</span><b>{{ okc }}</b><p>{% if cs %}<span class="{{ 'dk-warn' if cs.missing else 'dk-up' }}">{{ _("%(ok)s contrôle(s) sur %(t)s réussi(s)", ok=cs.ok, t=cs.total) }}</span>{% else %}{{ _("pour cette étape") }}{% endif %}</p></div>
+<div class="dk-kpi"><span>{{ _("Déjà payé") }}</span><b>{{ fcfa(dc.paid) }}<small>FCFA</small></b><p>{{ _("sur %(t)s", t=fcfa(s.total)) }}</p></div>
+</div>
+<div class="dk-grid">
+<div class="dk-col">
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Demandes d'achat") }}</h2><a href="{{ url_for('purchases_page', project_id=p.id) }}">{{ _("Tout voir") }} →</a></div>
+{% if dc.buys %}<table class="dk-table"><thead><tr><th>{{ _("Achat") }}</th><th>{{ _("Statut") }}</th><th>{{ _("Date") }}</th><th class="dk-num">{{ _("Montant") }}</th></tr></thead><tbody>
+{% for b in dc.buys %}<tr data-href="{{ url_for('purchases_page', project_id=p.id) }}#a{{ b.id }}"><td><b>{{ b.title }}</b>{% if b.supplier %}<br><span class="dk-muted">{{ b.supplier }}</span>{% endif %}</td>
+<td><span class="dk-chip {{ {'demande': 'am', 'acceptee': 'bl', 'refusee': 'rd', 'payee': 'bl', 'livree': 'ok'}[b.status] }}">{{ BUY_STATUS[b.status]|tr }}</span>{% if b.status == 'payee' and not b.delivered_at %} <span class="dk-warn">· {{ _("photo de livraison à faire") }}</span>{% endif %}</td>
+<td>{{ d(b.created_at) }}</td><td class="dk-num"><b>{{ fcfa(b.amount) }}</b></td></tr>{% endfor %}
+</tbody></table>{% else %}<p class="dk-empty">{{ _("Aucune demande. Il manque du ciment ou du fer ? Demandez l'argent avec le devis : le propriétaire paie en un clic.") }}</p>{% endif %}
+</section>
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Journal de la semaine") }}</h2><a href="{{ url_for('journal_page', project_id=p.id) }}">{{ _("Remplir aujourd'hui") }} →</a></div>
+<table class="dk-table"><thead><tr><th>{{ _("Jour") }}</th><th>{{ _("Ouvriers") }}</th><th>{{ _("Météo") }}</th><th>{{ _("Travaux faits") }}</th></tr></thead><tbody>
+{% for w in dc.week %}{% set r = w.row %}<tr data-href="{{ url_for('journal_page', project_id=p.id) }}"><td><b>{{ day_label(w.day) }}</b></td>
+{% if r %}<td>{{ r.workers or 0 }}</td><td>{{ SKY.get(r.weather, '')|tr if r.weather else '—' }}</td>
+<td style="white-space:normal">{% if r.stopped %}<span class="dk-chip rd">{{ _("Arrêt") }}</span> {{ r.stop_reason or '' }}{% else %}{{ (r.done or '—')|truncate(80) }}{% endif %}</td>
+{% else %}<td colspan="3"><span class="dk-muted">{{ _("Pas rempli") }}</span></td>{% endif %}</tr>{% endfor %}
+</tbody></table>
+</section>
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Étapes") }}</h2><a href="{{ url_for('project', project_id=p.id, onglet='preuves') }}">{{ _("Mes preuves") }} →</a></div>
+<table class="dk-table"><thead><tr><th>{{ _("Étape") }}</th><th>{{ _("Statut") }}</th><th>{{ _("Fin prévue") }}</th><th>{{ _("Preuves") }}</th><th class="dk-num">{{ _("Montant") }}</th></tr></thead><tbody>
+{% for st in s.steps %}<tr data-href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><td><b>{{ loop.index }}. {{ st.name }}</b></td>
+<td><span class="dk-chip {{ {'paye': 'ok', 'versement': 'ok', 'declare': 'am', 'en_cours': 'bl'}.get(st.status, 'mu') }}">{{ STATUS[st.status] }}</span></td>
+<td>{% if st.status == 'paye' and st.paid_at %}{{ d(st.paid_at) }}{% elif schedule.get(st.id) %}{{ d(schedule[st.id]) }}{% else %}—{% endif %}</td>
+<td>{{ ok_by_step.get(st.id, 0) }}</td><td class="dk-num"><b>{{ fcfa(st.amount) }}</b></td></tr>{% endfor %}
+</tbody></table>
+</section>
+</div>
+<aside class="dk-col">
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Aujourd'hui") }}</h3></div>
+<ul class="dk-list">{% for label, done, url in dc.todo %}<li><span class="dk-ico" style="background:var({{ '--dk-okbg' if done else '--dk-mubg' }});color:var({{ '--dk-ok' if done else '--dk-mut' }})">{{ '✓' if done else '○' }}</span><a class="dk-tx" href="{{ url }}"><b style="{{ 'text-decoration:line-through;color:var(--dk-mut)' if done }}">{{ label }}</b></a></li>{% endfor %}
+{% if c and c.status == 'en_cours' %}<li><span class="dk-ico" style="background:var(--dk-goldbg);color:var(--dk-goldtx)">→</span><span class="dk-tx"><b>{{ _("Étape finie ?") }}</b><small>{{ _("Déclarez-la terminée plus bas : le propriétaire est prévenu pour payer.") }}</small></span></li>{% endif %}
+</ul>
+</section>
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Conversation") }}</h3><a href="{{ url_for('chat_page', project_id=p.id) }}">{{ _("Ouvrir") }} →</a></div>
+{% if dc.msgs %}<ul class="dk-list">{% for m in dc.msgs %}<li><span class="dk-av">{{ m.who[:1] }}</span><span class="dk-tx"><b>{{ m.who }}</b><small>{{ m.body or (_("📷 Photo") if m.kind == 'photo' else _("🎙 Note vocale")) }}</small></span></li>{% endfor %}</ul>
+{% else %}<p class="dk-empty">{{ _("Pas encore de message") }}</p>{% endif %}
+</section>
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Propriétaire") }}</h3></div>
+<div class="dk-person"><span class="dk-av">{{ dc.owner.name[:1] }}</span><span><b>{{ dc.owner.name }}</b><small>{{ _("Maître d'ouvrage") }}</small></span>{% if dc.owner.phone %}<a class="dk-btn sm" href="tel:{{ dc.owner.phone }}">{{ _("Appeler") }}</a>{% endif %}</div>
+{% if dc.insp %}<div class="dk-person"><span class="dk-av" style="background:var(--dk-okbg);color:var(--dk-ok)">{{ dc.insp.name[:1] }}</span><span><b>{{ dc.insp.name }}</b><small>{{ _("Inspection") }} · {{ when_label(dc.insp.wanted_date) }}</small></span></div>{% endif %}
+</section>
+</aside>
+</div>
+</div>

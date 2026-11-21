@@ -33,6 +33,7 @@
 {% else %}
 {% if pending_pay %}<a class="card alert" href="{{ url_for('payments_received') }}" style="text-decoration:none;color:inherit"><b>{{ pending_pay|length }} {{ pl(pending_pay|length, "paiement(s) à confirmer") }}</b><span class="muted">{{ _("Le propriétaire déclare vous avoir payé. Vérifiez votre compte, puis confirmez la réception.") }}</span></a>{% endif %}
 {% if not me.phone and (s.sequestre or s.suivi) %}<div class="card alert"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b><span class="muted">{{ _("Sans lui, le paiement automatique ne peut pas vous être versé.") if s.sequestre else _("Il apparaît sur le bon à payer pour que le propriétaire vous paie au bon numéro.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>{% endif %}
+{% if desk_chef %}{% include "_desk_chef.html" %}{% endif %}
 {% set c = s.current %}
 {% if not c %}
 <h1>{{ p.name }}</h1>
@@ -59,6 +60,7 @@
 </section>
 {% if chef_quick %}
 <nav class="chef-quick" aria-label="{{ _("Actions du jour") }}">
+{% set cu = chat_unread(p.id) %}<a href="{{ url_for('chat_page', project_id=p.id) }}"><span class="ic">💬</span><b>{{ _("Conversation") }}</b><small>{{ _("Parler au propriétaire") }}</small>{% if cu %}<span class="badge">{{ _("%(n)s non lu(s)", n=cu) }}</span>{% endif %}</a>
 <a href="{{ url_for('journal_page', project_id=p.id) }}"><span class="ic">📋</span><b>{{ _("Journal du jour") }}</b><small>{{ _("Ouvriers, météo, travaux") }}</small>{% if not chef_quick.journal_today %}<span class="badge">{{ _("À remplir") }}</span>{% endif %}</a>
 <a href="{{ url_for('purchases_page', project_id=p.id) }}#nouvelle"><span class="ic">₣</span><b>{{ _("Argent pour un achat") }}</b><small>{{ _("Ciment, fer, sable…") }}</small>{% if chef_quick.buy_todo %}<span class="badge">{{ _("%(n)s livraison(s) à photographier", n=chef_quick.buy_todo) }}</span>{% elif chef_quick.buy_wait %}<span class="badge">{{ _("%(n)s en attente", n=chef_quick.buy_wait) }}</span>{% endif %}</a>
 <a href="{{ url_for('change_orders_page', project_id=p.id) }}"><span class="ic">＋</span><b>{{ _("Travaux en plus") }}</b><small>{{ _("Proposer prix et délai") }}</small>{% if chef_quick.co_wait %}<span class="badge">{{ _("%(n)s en attente", n=chef_quick.co_wait) }}</span>{% endif %}</a>
@@ -68,7 +70,7 @@
 {% if c.status == 'en_cours' %}
 {{ capture_form(url_for('upload_proof', project_id=p.id), _('Envoyer une preuve'),
    _("Activez la localisation et la caméra. Une photo ancienne, prise hors du terrain ou déjà envoyée sera refusée."),
-   capture_token, p.require_app_capture, zones=zones) }}
+   capture_token, p.require_app_capture, zones=zones, step=c.name) }}
 {% endif %}
 
 <div class="card">

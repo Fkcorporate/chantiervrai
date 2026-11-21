@@ -1,0 +1,74 @@
+{# Ordinateur : fiche chantier du propriétaire (onglet Accueil). Le téléphone garde son fil (.fp). #}
+{% set cur = s.current %}{% set decl = s.steps|selectattr('status', 'equalto', 'declare')|list %}
+<div class="dk-only dk dk-proj">
+<div class="dk-phead">
+<span class="dk-th"{% if cover %} style="background-image:url('{{ url_for('proof_thumb', proof_id=cover.id) }}')"{% endif %}>{% if not cover %}{{ p.name[:1] }}{% endif %}</span>
+<div style="flex:1;min-width:0"><h1>{{ p.name }}</h1>
+<p class="dk-sub"><span>{{ p.address }}</span>{% if p.chef_id and people.get(p.chef_id) %}<span>· {{ _("Chef :") }} {{ people[p.chef_id].name }}</span>{% endif %}<span>· {{ _("Contrat de %(a)s FCFA", a=fcfa(s.total)) }}</span>{% if pred and pred.predicted_end %}<span>· {{ _("Fin prévue") }} {{ d(pred.predicted_end) }}</span>{% endif %}</p></div>
+{% if trust and trust.score is not none %}<span class="dk-chip {{ 'ok' if trust.score >= 70 else ('am' if trust.score >= 50 else 'rd') }}">{{ _("Confiance %(n)s/100", n=trust.score) }}</span>{% endif %}
+{% if decl %}<span class="dk-chip am">{{ _("%(n)s décision(s)", n=decl|length) }}</span>{% endif %}
+</div>
+<div class="dk-grid">
+<div class="dk-col">
+<section class="dk-card"><div class="dk-flow">
+{% for st in s.steps %}{% set state = 'ok' if st.status in ('paye', 'versement') else ('cur' if st.status in ('en_cours', 'declare') else '') %}
+<a class="{{ state }}" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"><span class="n"><span>{{ '✓' if state == 'ok' else loop.index }}</span>{% if not loop.last %}<i></i>{% endif %}</span><b>{{ st.name }}</b><small>{{ {'paye': _("Payée"), 'versement': _("Validée"), 'declare': _("À valider"), 'en_cours': _("En cours")}.get(st.status, _("À venir")) }} · {{ compact(st.amount) }}</small></a>
+{% endfor %}
+</div></section>
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Étapes et paiements") }}</h2><a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}">{{ _("Détail des étapes") }} →</a></div>
+<table class="dk-table">
+<thead><tr><th>{{ _("Étape") }}</th><th>{{ _("Statut") }}</th><th>{{ _("Fin prévue") }}</th><th>{{ _("Preuves") }}</th><th>{{ _("Contrôles") }}</th><th class="dk-num">{{ _("Montant") }}</th></tr></thead>
+<tbody>
+{% for st in s.steps %}{% set cs = checks_by_step.get(st.id) %}
+<tr data-href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">
+<td><b>{{ loop.index }}. {{ st.name }}</b></td>
+<td><span class="dk-chip {{ {'paye': 'ok', 'versement': 'ok', 'declare': 'am', 'en_cours': 'bl'}.get(st.status, 'mu') }}">{{ STATUS[st.status] }}</span></td>
+<td>{% if st.status == 'paye' and st.paid_at %}{{ d(st.paid_at) }}{% elif schedule.get(st.id) %}{{ d(schedule[st.id]) }}{% else %}<span class="dk-muted">—</span>{% endif %}</td>
+<td>{{ ok_by_step.get(st.id, 0) }}</td>
+<td>{% if cs %}<span class="{{ 'dk-warn' if cs.missing else '' }}">{{ cs.ok }} / {{ cs.total }}</span>{% else %}<span class="dk-muted">—</span>{% endif %}</td>
+<td class="dk-num"><b>{{ fcfa(st.amount) }}</b></td>
+</tr>{% endfor %}
+</tbody></table>
+</section>
+{% if feed and feed.days %}
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Dernières preuves") }}</h2><a href="{{ url_for('project', project_id=p.id, onglet='preuves') }}">{{ _("Toutes les preuves") }} →</a></div>
+{% set pics = [] %}{% for _l, its in feed.days %}{% for it in its %}{% if it.type == 'proof' and not it.video and pics|length < 6 %}{% set _ = pics.append(it) %}{% endif %}{% endfor %}{% endfor %}
+<div class="dk-photos">{% for it in pics %}<a href="{{ url_for('project', project_id=p.id, onglet='preuves') }}" style="background-image:url('{{ url_for('proof_thumb', proof_id=it.id) }}')"><span>✓ {{ ago(it.at) }}</span></a>{% endfor %}</div>
+</section>
+{% endif %}
+</div>
+<aside class="dk-col">
+{% if decl %}{% set dst = decl[0] %}{% set dok = ok_by_step.get(dst.id, 0) %}{% set dcs = checks_by_step.get(dst.id) %}{% set dimg = feed.last_by_step.get(dst.id) if feed else None %}
+<section class="dk-card dk-decide">
+<div class="dk-img"{% if dimg %} style="background-image:url('{{ url_for('proof_thumb', proof_id=dimg) }}')"{% endif %}><span class="dk-chip gd">{{ _("Votre décision") }}</span>{% if dok %}<span class="dk-px">{{ _("%(n)s photo(s)", n=dok) }}</span>{% endif %}</div>
+<div class="dk-body">
+<div class="dk-tt"><b>{{ _("%(name)s terminée", name=dst.name) }}</b><strong>{{ fcfa(dst.amount) }} <small class="dk-muted">FCFA</small></strong></div>
+<div class="dk-checks">
+<span class="{{ 'y' if dok else 'w' }}">{{ '✓' if dok else '!' }} {{ _("%(n)s photo(s) vérifiée(s) sur le terrain", n=dok) if dok else _("Aucune photo vérifiée pour cette étape") }}</span>
+{% if dcs %}<span class="{{ 'w' if dcs.missing else 'y' }}">{{ '!' if dcs.missing else '✓' }} {{ _("%(ok)s contrôle(s) sur %(t)s réussi(s)", ok=dcs.ok, t=dcs.total) }}</span>{% endif %}
+<span class="y">✓ {{ _("Montant conforme au contrat") }}</span>
+</div>
+<div class="dk-2"><a class="dk-btn g lg" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">{{ _("Vérifier et valider") }}</a><a class="dk-btn lg" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">{{ _("Refuser") }}</a></div>
+</div></section>
+{% endif %}
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Argent") }}</h3><a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}">{{ _("Détail") }} →</a></div>
+<div class="dk-kv">
+<div><span>{{ _("Versé") }}</span><b>{{ fcfa(s.paid) }}</b></div>
+<span class="dk-bar"><i style="width:{{ (s.paid * 100 / s.total)|round|int if s.total else 0 }}%"></i></span>
+{% if s.sequestre %}<div><span>{{ _("Au séquestre") }}</span><b>{{ fcfa(s.escrow.balance) }}</b></div>{% if s.to_deposit %}<div><span>{{ _("Reste à déposer") }}</span><b>{{ fcfa(s.to_deposit) }}</b></div>{% endif %}{% endif %}
+<div><span>{{ _("Reste au contrat") }}</span><b>{{ fcfa(s.total - s.paid) }}</b></div>
+{% if feed and feed.next %}<div><span>{{ _("Prochain paiement") }}</span><b>{{ fcfa(feed.next.amount) }}</b></div>{% endif %}
+</div></section>
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Équipe") }}</h3><a href="{{ url_for('chat_page', project_id=p.id) }}">{{ _("Conversation") }} →</a></div>
+{% if p.chef_id and people.get(p.chef_id) %}{% set ch = people[p.chef_id] %}
+<div class="dk-person"><span class="dk-av">{{ ch.name[:1] }}</span><span><b>{{ ch.name }}</b><small>{{ _("Chef de chantier") }}{% if feed and feed.insp_next %} · {{ _("inspection prévue") }}{% endif %}</small></span>{% if ch.phone %}<a class="dk-btn sm" href="tel:{{ ch.phone }}">{{ _("Appeler") }}</a>{% endif %}</div>
+{% else %}<p class="dk-empty">{{ _("Aucun chef de chantier pour l'instant") }}</p>{% endif %}
+{% for i in inspections[:2] %}<div class="dk-person"><span class="dk-av" style="background:var(--dk-okbg);color:var(--dk-ok)">{{ i.inspector_name[:1] }}</span><span><b>{{ i.inspector_name }}</b><small>{{ _("Inspecteur") }} · {{ i.step_name or '' }}</small></span></div>{% endfor %}
+</section>
+</aside>
+</div>
+</div>

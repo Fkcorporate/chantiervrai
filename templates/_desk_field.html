@@ -1,0 +1,61 @@
+{# Ordinateur : inspecteur et télépilote. Le téléphone garde son accueil « prochaine mission ». #}
+{% set df = desk_fld %}{% set insp = me.role == 'inspecteur' %}
+<div class="dk-only dk">
+<div class="dk-head">
+<div><h1>{{ greeting }}, {{ me.name.split(' ')[0] }}</h1><p class="dk-sub">{{ today_label }} · {{ _("Inspecteur indépendant") if insp else _("Télépilote") }}</p></div>
+<div class="dk-acts">{% if insp %}<a class="dk-btn" href="{{ url_for('payments_received') }}">{{ _("Paiements") }}</a>{% else %}<a class="dk-btn" href="{{ url_for('pilot_missions') }}">{{ _("Toutes les missions") }}</a>{% endif %}<a class="dk-btn" href="{{ url_for('account') }}">{{ _("Zone et tarif") if insp else _("Mon compte") }}</a></div>
+</div>
+<div class="dk-kpis">{% for label, value, unit, note in df.kpis %}<div class="dk-kpi"><span>{{ label }}</span><b>{{ value }}{% if unit %}<small>{{ unit }}</small>{% endif %}</b><p>{{ note or '' }}&nbsp;</p></div>{% endfor %}</div>
+<div class="dk-grid">
+<div class="dk-col">
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Missions") }}</h2><span class="dk-muted">{{ _("%(n)s au total", n=df.missions|length) }}</span></div>
+{% if df.missions %}<table class="dk-table">
+<thead><tr><th>{{ _("Chantier") }}</th><th>{{ df.cols[0] }}</th>{% if insp %}<th class="dk-hide-md">{{ df.cols[1] }}</th>{% endif %}<th>{{ df.cols[2] }}</th><th>{{ _("Statut") }}</th>{% if insp %}<th class="dk-num">{{ df.cols[3] }}</th>{% endif %}</tr></thead>
+<tbody>{% for m in df.missions %}<tr data-href="{{ m.url }}">
+<td style="white-space:normal"><a href="{{ m.url }}"><b>{{ m.title }}</b></a><br><span class="dk-muted">{{ m.sub }}</span></td>
+<td style="white-space:normal">{{ m.what }}{% if m.verdict %}<br><span class="dk-muted">{{ m.verdict }}</span>{% endif %}</td>
+{% if insp %}<td class="dk-hide-md">{{ m.who }}</td>{% endif %}
+<td>{{ m.when }}</td>
+<td><span class="dk-chip {{ m.tone }}">{{ m.label }}</span></td>
+{% if insp %}<td class="dk-num"><b>{{ fcfa(m.amount) if m.amount else '—' }}</b></td>{% endif %}
+</tr>{% endfor %}</tbody></table>
+{% else %}<p class="dk-empty">{% if insp %}{{ _("Aucune demande pour l'instant. Complétez votre zone et votre tarif dans") }} <a href="{{ url_for('account') }}">{{ _("votre compte") }}</a> {{ _(": les propriétaires vous trouvent ainsi.") }}{% else %}{{ _("Aucune mission pour l'instant. Les vols vous sont confiés quand un propriétaire choisit une formule drone.") }}{% endif %}</p>{% endif %}
+</section>
+</div>
+<aside class="dk-col">
+{% if df.next %}{% set n = df.next %}
+<section class="dk-card dk-decide">
+<div class="dk-body">
+<span class="dk-chip gd" style="align-self:flex-start">{{ _("Prochaine inspection") if insp else _("Prochain vol") }}</span>
+<div class="dk-tt"><b>{{ n.title }}</b>{% if n.amount %}<strong>{{ fcfa(n.amount) }} <small class="dk-muted">FCFA</small></strong>{% endif %}</div>
+<span class="dk-muted">{{ n.what }} · {{ n.sub }}</span>
+<span class="dk-chip {{ n.tone }}" style="align-self:flex-start">{{ n.when }}</span>
+{% if n.note %}<p class="dk-muted" style="margin:0;font-style:italic">« {{ n.note }} »</p>{% endif %}
+<div class="dk-2"><a class="dk-btn g lg" href="{{ n.url }}">{{ _("Faire l'inspection") if insp else _("Envoyer les photos du vol") }}</a>{% if n.map %}<a class="dk-btn lg" href="{{ n.map }}" target="_blank" rel="noopener">{{ _("Itinéraire") }}</a>{% endif %}</div>
+</div></section>
+{% endif %}
+{% if insp %}
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Demandes à accepter") }}</h3>{% if df.asks %}<span class="dk-chip am">{{ df.asks|length }}</span>{% endif %}</div>
+{% if df.asks %}<ul class="dk-list">{% for m in df.asks %}<li style="flex-direction:column;gap:8px">
+<div style="display:flex;gap:10px;width:100%"><span class="dk-tx"><b>{{ m.title }}</b><small>{{ m.who }} · {{ m.what }} · {{ m.when }}</small></span><b>{{ fcfa(m.amount) if m.amount else '' }}</b></div>
+{% if m.note %}<small style="font-style:italic">« {{ m.note }} »</small>{% endif %}
+<form method="post" action="{{ url_for('answer_inspection', iid=m.id) }}" class="dk-2" style="grid-template-columns:1fr 1fr;width:100%">{{ csrf() }}<button class="dk-btn p" name="decision" value="accepter">{{ _("Accepter") }}</button><button class="dk-btn" name="decision" value="refuser">{{ _("Refuser") }}</button></form>
+</li>{% endfor %}</ul>
+{% else %}<p class="dk-empty">{{ _("Aucune demande en attente.") }}</p>{% endif %}
+</section>
+{% set ctrl = cards|selectattr('0.id', 'in', controlled)|list %}
+{% if ctrl %}<section class="dk-card"><div class="dk-ch"><h3>{{ _("Contrôleur habilité") }}</h3></div><ul class="dk-list">
+{% for p, s, pred in ctrl %}<li><span class="dk-ico" style="background:var(--dk-okbg);color:var(--dk-ok)">✓</span><a class="dk-tx" href="{{ url_for('project', project_id=p.id) }}"><b>{{ p.name }}</b><small>{{ p.address }}</small></a>{% if pending_checks.get(p.id) %}<span class="dk-chip am">{{ pending_checks[p.id] }}</span>{% endif %}</li>{% endfor %}
+</ul></section>{% endif %}
+{% else %}
+<section class="dk-card"><div class="dk-ch"><h3>{{ _("Avant chaque vol") }}</h3></div><ul class="dk-list">
+<li><span class="dk-ico" style="background:var(--dk-okbg);color:var(--dk-ok)">1</span><span class="dk-tx"><b>{{ _("Vérifier la zone de vol") }}</b><small>{{ _("Aéroport, zones interdites, autorisation du propriétaire du terrain") }}</small></span></li>
+<li><span class="dk-ico" style="background:var(--dk-okbg);color:var(--dk-ok)">2</span><span class="dk-tx"><b>{{ _("Photos géolocalisées") }}</b><small>{{ _("Le GPS du drone doit être activé : les photos sont vérifiées à l'envoi") }}</small></span></li>
+<li><span class="dk-ico" style="background:var(--dk-okbg);color:var(--dk-ok)">3</span><span class="dk-tx"><b>{{ _("Vue d'ensemble + 4 côtés") }}</b><small>{{ _("Même hauteur et mêmes angles à chaque passage, pour comparer") }}</small></span></li>
+</ul></section>
+{% endif %}
+</aside>
+</div>
+</div>

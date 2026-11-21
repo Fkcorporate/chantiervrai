@@ -1,0 +1,37 @@
+{# Accueil des métiers : mission du moment en grand (photo du chantier), chiffres du mois, file « À faire » #}
+<section class="ph">
+<div class="ph-top"><span class="ph-date">{{ greeting }} · {{ today_label }}</span><h1>{{ me.name.split(' ')[0] }}</h1></div>
+{% if pro.hero %}{% set h = pro.hero %}
+<article class="ph-hero{% if not h.thumb %} ph-noimg{% endif %}"{% if h.thumb %} style="--ph-img:url('{{ url_for('proof_thumb', proof_id=h.thumb) }}')"{% endif %}>
+{% if not h.thumb %}<span class="ph-glyph" aria-hidden="true">{{ icon('drone' if me.role == 'pro' else ('steps' if me.role == 'fournisseur' else 'shield')) }}</span>{% endif %}
+<span class="ph-kicker">{{ h.kicker }}</span>
+<h2>{{ h.title }}</h2>
+{% if h.sub %}<p>{{ h.sub }}</p>{% endif %}
+<div class="ph-meta"><span class="ph-when"><i aria-hidden="true"></i>{{ h.when }}</span>{% if h.amount %}<span class="ph-amt">{{ fcfa(h.amount) }} <small>FCFA</small></span>{% endif %}</div>
+<div class="ph-acts"><a class="ph-cta" href="{{ h.cta[1] }}">{{ h.cta[0] }}</a>{% if h.alt %}<a class="ph-alt" href="{{ h.alt[1] }}" target="_blank" rel="noopener">{{ icon('map') }} {{ h.alt[0] }}</a>{% endif %}</div>
+</article>
+{% else %}
+<article class="ph-hero ph-calm"><span class="ph-kicker">{{ _("Rien d'urgent") }}</span><h2>{{ _("Aucune livraison prévue") if me.role == 'fournisseur' else _("Aucune mission prévue") }}</h2><p>{{ _("Les nouvelles demandes apparaîtront ici, avec une alerte sur votre téléphone.") }}</p></article>
+{% endif %}
+{% if pro.kpis %}<div class="ph-kpis">{% for label, value, unit in pro.kpis %}<div><b>{{ value }}{% if unit %} <small>{{ unit }}</small>{% endif %}</b><span>{{ label }}</span></div>{% endfor %}</div>{% endif %}
+{% if pro.todo %}
+<h2 class="ph-h">{{ _("À faire") }} <span>{{ pro.todo|length }}</span></h2>
+<ul class="ph-list">
+{% for it in pro.todo %}<li class="ph-item">
+<a href="{{ it.url }}">
+<span class="ph-th"{% if it.thumb %} style="background-image:url('{{ url_for('proof_thumb', proof_id=it.thumb) }}')"{% endif %}>{% if not it.thumb %}{{ it.title[:1] }}{% endif %}</span>
+<span class="ph-tx">{% if it.tag %}<span class="ph-tag {{ it.tagc }}">{{ it.tag }}</span>{% endif %}<b>{{ it.title }}</b><small>{{ it.sub }}</small></span>
+<span class="ph-rt">{% if it.amount %}<b>{{ fcfa(it.amount) }}</b>{% endif %}{% if it.when %}<small class="ph-w">{{ it.when }}</small>{% endif %}</span>
+</a>
+{% if it.note %}<p class="ph-note">« {{ it.note }} »</p>{% endif %}
+{% if it.form %}<form method="post" action="{{ it.form }}" class="ph-ans">{{ csrf() }}<button class="btn small" name="decision" value="accepter">{{ _("Accepter") }}</button><button class="btn ghost small" name="decision" value="refuser">{{ _("Refuser") }}</button></form>{% endif %}
+</li>{% endfor %}
+</ul>
+{% endif %}
+{% if pro.done %}
+<h2 class="ph-h">{{ _("Terminé") }}</h2>
+<ul class="ph-list ph-done">
+{% for it in pro.done %}<li class="ph-item"><a href="{{ it.url }}"><span class="ph-tick" aria-hidden="true">✓</span><span class="ph-tx"><b>{{ it.title }}</b><small>{{ it.sub }}{% if it.sub and it.when %} · {% endif %}{{ it.when }}</small></span>{% if it.amount %}<span class="ph-rt"><b>{{ fcfa(it.amount) }}</b></span>{% endif %}</a></li>{% endfor %}
+</ul>
+{% endif %}
+</section>

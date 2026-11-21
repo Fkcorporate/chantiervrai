@@ -3,29 +3,12 @@
 {% from "_macros.html" import risk_pill, csrf, icon with context %}
 {% block content %}
 {% if me.role == 'inspecteur' %}
-<h1>{{ _("Mes inspections") }}</h1>
-{% for i in inspections %}
-<div class="card">
-<div class="row"><b>{{ i.project_name }}</b><span class="pill{% if i.status == 'demandee' %} warn{% endif %}">{{ INSP_STATUS[i.status] }}</span></div>
-<span class="muted">{{ i.address or _('Adresse non précisée') }}{% if i.step_name %} {{ _("· Étape :") }} {{ i.step_name }}{% endif %}</span>
-<span class="muted">{{ _("Demandé par") }} {{ i.owner_name }}{% if i.wanted_date %} {{ _("· souhaitée le") }} {{ d(i.wanted_date) }}{% endif %}{% if i.fee %} · {{ fcfa(i.fee) }} FCFA{% endif %}</span>
-{% if i.message %}<div>{{ i.message }}</div>{% endif %}
-{% if i.status == 'demandee' %}
-<form method="post" action="{{ url_for('answer_inspection', iid=i.id) }}" class="grid2">
-{{ csrf() }}
-<button class="btn" name="decision" value="accepter">{{ _("Accepter") }}</button>
-<button class="btn ghost" name="decision" value="refuser">{{ _("Refuser") }}</button>
-</form>
-{% elif i.status in ('acceptee', 'realisee') %}
-<a class="btn ghost" href="{{ url_for('project', project_id=i.project_id) }}">{{ _('Faire l\'inspection') if i.status == 'acceptee' else _('Voir le chantier') }}</a>
-{% endif %}
-</div>
-{% else %}
-<div class="card muted">{{ _("Aucune demande pour l'instant. Complétez votre zone et votre tarif dans") }} <a href="{{ url_for('account') }}">{{ _("votre compte") }}</a> {{ _(": les propriétaires vous trouvent ainsi.") }}</div>
-{% endfor %}
+{% if desk_fld %}{% include "_desk_field.html" %}<div class="mb-only">{% endif %}
+{% include "_pro_home.html" %}
+{% if not pro.hero and not pro.todo and not pro.done %}<div class="card muted">{{ _("Aucune demande pour l'instant. Complétez votre zone et votre tarif dans") }} <a href="{{ url_for('account') }}">{{ _("votre compte") }}</a> {{ _(": les propriétaires vous trouvent ainsi.") }}</div>{% endif %}
 {% set ctrl_cards = cards|selectattr('0.id', 'in', controlled)|list %}
 {% if ctrl_cards %}
-<h2>{{ _("Chantiers où vous êtes contrôleur habilité") }}</h2>
+<h2 class="ph-h2">{{ _("Chantiers où vous êtes contrôleur habilité") }}</h2>
 <div class="cards">
 {% for p, s, pred in ctrl_cards %}
 <a class="card" href="{{ url_for('project', project_id=p.id) }}" style="text-decoration:none;color:inherit">
@@ -35,26 +18,21 @@
 {% endfor %}
 </div>
 {% endif %}
+{% if desk_fld %}</div>{% endif %}
 
 {% elif me.role == 'fournisseur' %}
-<h1>{{ _("Mes commandes") }}</h1>
+{% if desk_sup %}{% include "_desk_supplier.html" %}<div class="mb-only">{% endif %}
 {% if not me.supplier_terms_at %}<a class="card alert" href="{{ url_for('supplier_terms') }}" style="text-decoration:none;color:inherit"><b>{{ _("Acceptez les conditions fournisseur") }}</b><span class="muted">{{ _("Votre catalogue n'est proposé aux chantiers qu'après acceptation de la commission ChantierVrai.") }}</span></a>{% endif %}
 {% if not me.verified %}<div class="card alert"><b>{{ _("Entreprise en attente de vérification") }}</b><span class="muted">{{ _("Préparez votre catalogue : il sera proposé aux chantiers dès que l'équipe aura vérifié votre entreprise.") }}</span></div>{% endif %}
-<div class="cards">
-{% for o in orders %}
-<a class="card" href="{{ url_for('order', oid=o.id) }}" style="text-decoration:none;color:inherit">
-<div class="row"><b>{{ o.ref }}</b><span class="pill{% if o.status in ('envoyee', 'acceptee') %} warn{% endif %}">{{ ORDER_STATUS[o.status] }}</span></div>
-<span class="muted">{{ o.project_name }} · {{ o.address or '' }}</span>
-<div class="row"><span class="muted">{% if o.delivery_date %}{{ _("Livraison le") }} {{ d(o.delivery_date) }}{% else %}{{ d(o.created_at) }}{% endif %}</span><b>{{ fcfa(o.total) }} FCFA</b></div>
-</a>
-{% else %}
-<div class="card muted">{{ _("Aucune commande pour l'instant. Les chantiers vous trouvent par votre catalogue :") }} <a href="{{ url_for('supplier_catalog') }}">{{ _("ajoutez vos produits et vos prix") }}</a>.</div>
-{% endfor %}
-</div>
-<a class="btn ghost" href="{{ url_for('supplier_catalog') }}">{{ _("Mon catalogue") }}</a>
+{% include "_pro_home.html" %}
+{% if not pro.hero and not pro.todo and not pro.done %}<div class="card muted">{{ _("Aucune commande pour l'instant. Les chantiers vous trouvent par votre catalogue :") }} <a href="{{ url_for('supplier_catalog') }}">{{ _("ajoutez vos produits et vos prix") }}</a>.</div>{% endif %}
+<a class="ph-link" href="{{ url_for('supplier_catalog') }}">{{ icon('steps') }}<span><b>{{ _("Mon catalogue") }}</b><small>{{ _("Produits, prix et délais vus par les chantiers") }}</small></span><span aria-hidden="true">›</span></a>
 {% if not me.phone %}<div class="card alert"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b><span class="muted">{{ _("Il sert à recevoir les paiements automatiques.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>{% endif %}
+{% if desk_sup %}</div>{% endif %}
 
 {% else %}
+{% if desk %}{% include "_desk_home.html" %}<div class="mb-only">{% elif desk_fld %}{% include "_desk_field.html" %}<div class="mb-only">{% endif %}
+{% if pro %}{% include "_pro_home.html" %}{% endif %}
 {% if me.role == 'proprio' %}
 <div class="greet greet-n">
 <a class="greet-av" href="{{ url_for('account') }}" aria-label="{{ _("Mon compte") }}">{{ (me.name or '?')[:1]|upper }}{{ ((me.name or '').split(' ')[1] if (me.name or '').split(' ')|length > 1 else '')[:1]|upper }}</a>
@@ -119,7 +97,7 @@
 {% endfor %}{% endfor %}
 </div>
 {% endif %}
-<h1 class="section-title" id="chantiers">{{ _("Vos chantiers") if me.role == 'proprio' else _("Mes chantiers") }}</h1>
+{% if not (pro and not cards) %}<h1 class="section-title" id="chantiers">{{ _("Vos chantiers") if me.role == 'proprio' else _("Mes chantiers") }}</h1>
 {% if onboarding %}
 <section class="card onboard" aria-labelledby="onboard-title">
 <div class="row"><b id="onboard-title">{{ _("Bien démarrer") }}</b><span class="muted">{{ onboarding.done }} / {{ onboarding.total }}</span></div>
@@ -157,9 +135,9 @@
 {% if me.role != 'proprio' %}<div class="card muted">{{ _("Aucun chantier pour l'instant.") }}</div>{% endif %}
 {% endfor %}
 {% if me.role == 'proprio' %}<a class="pcard pcard-new" href="{{ url_for('new_project') }}"><span class="pn-plus" aria-hidden="true">+</span><b>{{ _("Créer un chantier") }}</b><span class="muted">{{ _("Étapes, montants, terrain : 3 minutes") }}</span></a>{% endif %}
-</div>
+</div>{% endif %}
 
-{% if me.role in ('proprio', 'pro') %}
+{% if me.role in ('proprio', 'pro') and not pro %}
 <a class="card land-cta" href="{{ url_for('plots_page') }}">
 <span class="land-cta-ic" aria-hidden="true">{{ icon('land') }}</span>
 <span><b>{{ _("Vous achetez un terrain ?") }}</b><span class="muted">{{ _("Placez-le sur la carte satellite : alerte si quelqu'un d'autre a déclaré le même ACD ou les mêmes bornes, et pièces officielles à demander.") }}</span></span>
@@ -191,5 +169,6 @@
 </form>
 {% if not me.phone %}<div class="card alert"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b><span class="muted">{{ _("Il sert à recevoir les paiements automatiques.") }} <a href="{{ url_for('account') }}">{{ _("Mon compte") }}</a></span></div>{% endif %}
 {% endif %}
+{% if desk or desk_fld %}</div>{% endif %}
 {% endif %}
 {% endblock %}

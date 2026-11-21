@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Conversation") }} · {{ p.name }}{% endblock %}
+{% block bodyclass %}chat-page{% endblock %}
+{% block content %}
+<aside class="dk-threads" aria-label="{{ _("Conversations") }}"><h2>{{ _("Conversations") }}</h2>
+{% for th in threads %}<a class="dk-thread{{ ' on' if th.id == p.id }}" href="{{ url_for('chat_page', project_id=th.id) }}"{% if th.id == p.id %} aria-current="page"{% endif %}>
+<span class="dk-th"{% if th.cover %} style="background-image:url('{{ url_for('proof_thumb', proof_id=th.cover) }}')"{% endif %}>{% if not th.cover %}{{ th.name[:1] }}{% endif %}</span>
+<span><b>{{ th.name }}<small>{{ day_label(th.t) if th.t else '' }}</small></b><small>{{ th.last or _("Pas encore de message") }}</small></span>{% if th.unread %}<em>{{ th.unread }}</em>{% endif %}</a>{% endfor %}
+</aside>
+<div class="chat-hd">
+<span class="ch-av{{ ' on' if on_site }}" aria-hidden="true">{{ ((chef.name if chef else p.name) or '?')[:1] }}</span>
+<div><b>{{ p.name }}</b><small>{% if chef and on_site %}<span class="ch-online"></span>{{ _("%(n)s est sur le chantier aujourd'hui", n=chef.name.split(' ')[0]) }}{% elif chef %}{{ _("Avec %(n)s, chef de chantier", n=chef.name) }}{% else %}{{ _("Aucun chef de chantier pour l'instant") }}{% endif %}</small></div>
+</div>
+<div class="ch-thread" id="thread" aria-live="polite" data-last="{{ last_t }}" data-poll="{{ url_for('chat_poll', project_id=p.id) }}">
+{% if items %}{% include "_chat_items.html" %}{% else %}
+<div class="ch-empty"><b>{{ _("Démarrez la conversation") }}</b><span class="muted">{{ _("Messages, notes vocales et photos restent ici, avec le chantier : plus rien ne se perd dans WhatsApp.") }}</span></div>
+{% endif %}
+<span id="fin"></span>
+</div>
+{% if can_write %}
+<form class="ch-compose" id="compose" method="post" enctype="multipart/form-data" action="{{ url_for('chat_page', project_id=p.id) }}">{{ csrf() }}
+<label class="ch-cam" aria-label="{{ _("Envoyer une photo") }}"><input type="file" name="file" accept="image/*" capture="environment" id="ch-file" hidden>📷</label>
+<textarea name="body" id="ch-text" rows="1" maxlength="2000" placeholder="{{ _("Message…") }}" aria-label="{{ _("Message") }}"></textarea>
+<button type="button" class="ch-mic" id="ch-mic" aria-label="{{ _("Maintenir pour enregistrer une note vocale") }}">🎙</button>
+<button type="submit" class="ch-send" id="ch-send" aria-label="{{ _("Envoyer") }}" hidden>➤</button>
+<div class="ch-rec" id="ch-rec" hidden><span class="ch-rec-dot"></span><span id="ch-rec-t">0:00</span><span class="muted">{{ _("Relâchez pour envoyer · glissez à gauche pour annuler") }}</span></div>
+</form>
+{% endif %}
+<aside class="dk-info" aria-label="{{ _("À propos de ce chantier") }}">
+{% if chef %}<div class="dk-who"><span class="dk-av">{{ chef.name[:1] }}</span><span><b>{{ chef.name }}</b><small class="{{ 'on' if on_site }}">{{ ("● " ~ _("Sur le chantier aujourd'hui")) if on_site else _("Chef de chantier") }}</small></span></div>
+{% if chef_phone %}<div class="dk-2" style="grid-template-columns:1fr 1fr"><a class="dk-btn" href="tel:{{ chef_phone }}">{{ _("Appeler") }}</a><a class="dk-btn" href="https://wa.me/{{ chef_phone|replace('+', '')|replace(' ', '') }}" target="_blank" rel="noopener">WhatsApp</a></div>{% endif %}{% endif %}
+<div><h3>{{ _("En attente de décision") }}</h3>
+{% if pending %}<div class="dk-pend">{% for it in pending %}<a href="{{ url_for('step_page', project_id=p.id, step_id=it.id) ~ '#decision' if it.type == 'step' else (url_for('purchases_page', project_id=p.id) ~ '#a' ~ it.id if it.type == 'buy' else url_for('change_orders_page', project_id=p.id) ~ '#c' ~ it.id) }}"><span>{{ it.title }}</span><b>{{ compact(it.amount) }}</b></a>{% endfor %}</div>
+{% else %}<p class="dk-muted">{{ _("Rien en attente.") }}</p>{% endif %}</div>
+{% if pics %}<div><h3>{{ _("Photos échangées") }}</h3><div class="dk-pics">{% for it in pics %}<a href="{{ url_for('chat_file', project_id=p.id, mid=it.id) }}" target="_blank" style="background-image:url('{{ url_for('chat_file', project_id=p.id, mid=it.id) }}')" aria-label="{{ _("Photo") }}"></a>{% endfor %}</div></div>{% endif %}
+<a class="dk-btn" href="{{ url_for('project', project_id=p.id) }}">{{ _("Ouvrir la fiche du chantier") }} →</a>
+</aside>
+<script>
+(function () {
+  var thread = document.getElementById('thread'), form = document.getElementById('compose');
+  function bottom(smooth) { var b = smooth ? 'smooth' : 'auto'; window.scrollTo({top: document.body.scrollHeight, behavior: b}); thread.scrollTo({top: thread.scrollHeight, behavior: b}); }
+  bottom(false);
+  /* Lecture des notes vocales */
+  var playing = null;
+  thread.addEventListener('click', function (e) {
+    var b = e.target.closest('.ch-play'); if (!b) return;
+    var box = b.closest('.ch-voice');
+    if (!box._a) { box._a = new Audio(box.dataset.src); box._a.onended = function () { b.textContent = '▶︎'; box.classList.remove('on'); }; }
+    if (playing && playing !== box._a) { playing.pause(); document.querySelectorAll('.ch-voice.on').forEach(function (x) { x.classList.remove('on'); x.querySelector('.ch-play').textContent = '▶︎'; }); }
+    if (box._a.paused) { box._a.play(); b.textContent = '❚❚'; box.classList.add('on'); playing = box._a; } else { box._a.pause(); b.textContent = '▶︎'; box.classList.remove('on'); }
+  });
+  /* Nouveaux messages sans recharger */
+  function poll() {
+    fetch(thread.dataset.poll + '?apres=' + encodeURIComponent(thread.dataset.last || ''), {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.n) return;
+        var t = document.createElement('div'); t.innerHTML = j.html;
+        t.querySelectorAll('.ch-day').forEach(function (dd) { if (thread.querySelector('.ch-day[data-day="' + dd.dataset.day + '"]')) dd.remove(); });
+        var empty = thread.querySelector('.ch-empty'); if (empty) empty.remove();
+        var fin = document.getElementById('fin');
+        Array.prototype.slice.call(t.children).forEach(function (c) { c.classList.add('ch-new'); thread.insertBefore(c, fin); });
+        thread.dataset.last = j.last; bottom(true);
+        if (navigator.vibrate) navigator.vibrate(10);
+      }).catch(function () {});
+  }
+  setInterval(function () { if (!document.hidden) poll(); }, 5000);
+  if (!form) return;
+  var text = document.getElementById('ch-text'), send = document.getElementById('ch-send'), mic = document.getElementById('ch-mic'), file = document.getElementById('ch-file');
+  function post(fd) {
+    fd.append('csrf', form.querySelector('[name=csrf]').value);
+    return fetch(form.action, {method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With': 'fetch'}}).then(function (r) { return r.json(); })
+      .then(function (j) { if (!j.ok) alertBox(j.error); poll(); });
+  }
+  function alertBox(m) { var d = document.createElement('div'); d.className = 'ch-err'; d.textContent = m; form.appendChild(d); setTimeout(function () { d.remove(); }, 3500); }
+  text.addEventListener('input', function () {
+    text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 120) + 'px';
+    var has = text.value.trim().length > 0; send.hidden = !has; mic.hidden = has;
+  });
+  text.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width: 1000px)').matches) { e.preventDefault(); form.requestSubmit(); } });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault(); var v = text.value.trim(); if (!v) return;
+    var fd = new FormData(); fd.append('body', v); text.value = ''; text.dispatchEvent(new Event('input'));
+    var bub = document.createElement('div'); bub.className = 'ch-msg me ch-new ch-pending'; bub.innerHTML = '<p></p><span class="ch-time">…</span>'; bub.querySelector('p').textContent = v;
+    thread.insertBefore(bub, document.getElementById('fin')); bottom(true);
+    post(fd).then(function () { bub.remove(); });
+  });
+  file.addEventListener('change', function () { if (!file.files[0]) return; var fd = new FormData(); fd.append('file', file.files[0]); file.value = ''; post(fd); });
+  /* Note vocale : maintenir le micro, relâcher pour envoyer, glisser à gauche pour annuler */
+  var rec = null, chunks = [], t0 = 0, timer = null, x0 = 0, cancel = false, box = document.getElementById('ch-rec');
+  function start(e) {
+    if (!navigator.mediaDevices || !window.MediaRecorder) { alertBox('{{ _("Ce navigateur ne permet pas d'enregistrer : envoyez la note par WhatsApp.")|e }}'); return; }
+    e.preventDefault(); cancel = false; x0 = (e.touches ? e.touches[0] : e).clientX;
+    navigator.mediaDevices.getUserMedia({audio: true}).then(function (st) {
+      chunks = []; rec = new MediaRecorder(st); rec.ondataavailable = function (ev) { if (ev.data.size) chunks.push(ev.data); };
+      rec.onstop = function () {
+        st.getTracks().forEach(function (tk) { tk.stop(); });
+        var secs = Math.round((Date.now() - t0) / 1000);
+        if (cancel || secs < 1) return;
+        var blob = new Blob(chunks, {type: rec.mimeType || 'audio/webm'}), fd = new FormData();
+        fd.append('file', blob, 'note.' + ((rec.mimeType || '').indexOf('mp4') > -1 ? 'm4a' : 'webm')); fd.append('duration', secs); post(fd);
+      };
+      rec.start(); t0 = Date.now(); box.hidden = false; mic.classList.add('on'); if (navigator.vibrate) navigator.vibrate(15);
+      timer = setInterval(function () { var s = Math.round((Date.now() - t0) / 1000); document.getElementById('ch-rec-t').textContent = Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2); }, 250);
+    }).catch(function () { alertBox('{{ _("Micro refusé : autorisez-le dans le navigateur.")|e }}'); });
+  }
+  function stop() { if (rec && rec.state === 'recording') rec.stop(); clearInterval(timer); box.hidden = true; mic.classList.remove('on'); }
+  function move(e) { if (rec && rec.state === 'recording' && (x0 - (e.touches ? e.touches[0] : e).clientX) > 80) { cancel = true; stop(); } }
+  mic.addEventListener('pointerdown', start); mic.addEventListener('pointerup', stop); mic.addEventListener('pointerleave', function () { if (rec && rec.state === 'recording') stop(); });
+  mic.addEventListener('touchmove', move, {passive: true});
+})();
+</script>
+{% endblock %}

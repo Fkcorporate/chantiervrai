@@ -1,0 +1,57 @@
+{% from "_macros.html" import csrf with context %}
+{% set BUYC = {'demande': 'amber', 'acceptee': 'blue', 'refusee': 'bad', 'payee': 'blue', 'livree': 'green'} %}
+{% set ns = namespace(day='', unread_shown=false) %}
+{% for it in items %}
+{% set dday = (it.t or '')[:10] %}
+{% if dday != ns.day %}{% set ns.day = dday %}<div class="ch-day" data-day="{{ dday }}"><span>{{ day_label(dday) }}</span></div>{% endif %}
+{% if last_read and it.t > last_read and not it.mine and not ns.unread_shown %}<div class="ch-unread"><span>{{ _("Nouveaux messages") }}</span></div>{% set ns.unread_shown = true %}{% endif %}
+{% if it.type in ('text', 'voice', 'photo', 'note') %}
+<div class="ch-msg {{ 'me' if it.mine else 'them' }}{% if it.type == 'photo' %} photo{% endif %}" data-t="{{ it.t }}">
+{% if not it.mine %}<span class="ch-author">{{ it.author }}</span>{% endif %}
+{% if it.type == 'photo' %}
+<a href="{{ url_for('chat_file', project_id=p.id, mid=it.id) }}" target="_blank" class="ch-photo" style="background-image:url('{{ url_for('chat_file', project_id=p.id, mid=it.id) }}')">{% if it.distance is not none %}<span class="ch-badge">📍 {{ _("à %(n)s m du chantier", n=it.distance) }}</span>{% endif %}</a>
+{% if it.body %}<p>{{ it.body }}</p>{% endif %}
+{% elif it.type == 'voice' or (it.type == 'note' and it.kind in ('audio', 'voice') and it.file) %}
+<div class="ch-voice" data-src="{{ url_for('chat_file', project_id=p.id, mid=it.id) if it.type == 'voice' else url_for('site_note_audio', nid=it.id) }}">
+<button type="button" class="ch-play" aria-label="{{ _("Écouter") }}">▶︎</button><span class="ch-wave" aria-hidden="true">{% for h in [6,12,9,16,11,7,14,18,10,6,13,9,15,8,12,7,10,14,6,9] %}<i style="height:{{ h }}px"></i>{% endfor %}</span><span class="ch-dur">{{ '%d:%02d' % ((it.duration or 0) // 60, (it.duration or 0) % 60) if it.duration else '🎙' }}</span>
+</div>
+{% if it.type == 'note' and it.body %}<p class="ch-transcript">{{ it.body }}</p>{% endif %}
+{% else %}
+<p>{% if it.type == 'note' and it.urgent %}<b class="ch-urgent">⚠ {{ _("Urgent") }}</b> {% endif %}{{ it.body }}</p>
+{% endif %}
+<span class="ch-time">{{ (it.t or '')[11:16] }}</span>
+</div>
+{% elif it.type == 'buy' %}
+<div class="ch-card {{ 'me' if it.mine else 'them' }}" data-t="{{ it.t }}">
+<span class="ch-kicker">{{ _("Demande d'achat") }} · {{ it.author }}</span>
+<b>{{ it.title }}</b>
+<span class="ch-amt">{{ fcfa(it.amount) }} <small>FCFA</small></span>
+<span class="tag {{ BUYC[it.status] }}">{{ {'demande': _("À décider"), 'acceptee': _("À payer"), 'refusee': _("Refusée"), 'payee': _("Payée"), 'livree': _("Livrée")}[it.status] }}</span>
+{% if role == 'owner' and it.status in ('demande', 'acceptee') %}
+<div class="ch-acts">
+<form method="post" action="{{ url_for('purchases_page', project_id=p.id) }}">{{ csrf() }}<input type="hidden" name="action" value="paid"><input type="hidden" name="id" value="{{ it.id }}"><input type="hidden" name="next" value="{{ url_for('chat_page', project_id=p.id) }}#fin"><button class="btn small">{{ _("Payer") }}</button></form>
+<a class="btn ghost small" href="{{ url_for('purchases_page', project_id=p.id) }}#a{{ it.id }}">{{ _("Détail") }}</a>
+</div>
+{% else %}<a class="ch-link" href="{{ url_for('purchases_page', project_id=p.id) }}#a{{ it.id }}">{{ _("Voir la demande") }} ›</a>{% endif %}
+</div>
+{% elif it.type == 'change' %}
+<div class="ch-card {{ 'me' if it.mine else 'them' }}" data-t="{{ it.t }}">
+<span class="ch-kicker">{{ _("Travaux supplémentaires") }} · {{ it.author }}</span>
+<b>{{ it.title }}</b>
+<span class="ch-amt">+{{ fcfa(it.amount) }} <small>FCFA{% if it.days %} · +{{ it.days }} {{ _("jours") }}{% endif %}</small></span>
+{% if role == 'owner' and it.status == 'proposee' %}
+<div class="ch-acts">
+<form method="post" action="{{ url_for('change_orders_page', project_id=p.id) }}">{{ csrf() }}<input type="hidden" name="action" value="accept"><input type="hidden" name="id" value="{{ it.id }}"><input type="hidden" name="next" value="{{ url_for('chat_page', project_id=p.id) }}#fin"><button class="btn small">{{ _("Accepter") }}</button></form>
+<a class="btn ghost small" href="{{ url_for('change_orders_page', project_id=p.id) }}#c{{ it.id }}">{{ _("Détail") }}</a>
+</div>
+{% else %}<span class="tag {{ {'proposee': 'amber', 'acceptee': 'green', 'refusee': 'bad'}[it.status] }}">{{ {'proposee': _("En attente"), 'acceptee': _("Acceptée"), 'refusee': _("Refusée")}[it.status] }}</span>{% endif %}
+</div>
+{% elif it.type == 'step' %}
+<div class="ch-card ch-step" data-t="{{ it.t }}">
+<span class="ch-kicker">{{ _("Étape déclarée terminée") }}</span>
+<b>{{ it.title }}</b>
+<span class="ch-amt">{{ fcfa(it.amount) }} <small>FCFA</small></span>
+{% if role == 'owner' %}<a class="btn small" href="{{ url_for('step_page', project_id=p.id, step_id=it.id) }}#decision">{{ _("Vérifier et valider") }}</a>{% endif %}
+</div>
+{% endif %}
+{% endfor %}

@@ -1,0 +1,59 @@
+{# Ordinateur : tableau de bord du propriétaire. Le téléphone garde son fil (.mb-only). #}
+{% set k = desk.kpis %}
+<div class="dk-only dk">
+<div class="dk-head">
+<div><h1>{{ greeting }}, {{ me.name.split(' ')[0] }}</h1>
+<p class="dk-sub">{{ today_label }} · {{ _("%(n)s chantier(s) suivi(s)", n=desk.rows|length) }}{% if desk.proofs %} · {{ _("dernière preuve") }} {{ ago(desk.proofs[0].created_at) }}{% endif %}</p></div>
+<div class="dk-acts"><a class="dk-btn" href="{{ url_for('payments_received') }}">{{ _("Paiements") }}</a><a class="dk-btn" href="{{ url_for('plots_page') }}">{{ _("Terrains") }}</a></div>
+</div>
+<div class="dk-kpis">
+<div class="dk-kpi"><span>{{ _("Versé au total") }}</span><b>{{ fcfa(k.paid) }}<small>FCFA</small></b><p>{% if k.month %}<span class="dk-up">+{{ fcfa(k.month) }}</span> {{ _("ce mois") }} · {% endif %}{{ _("sur %(t)s", t=fcfa(k.total)) }}</p></div>
+{% if k.sequestre %}<div class="dk-kpi"><span>{{ _("Bloqué au séquestre") }}</span><b>{{ fcfa(k.locked) }}<small>FCFA</small></b><p>{{ _("Libéré seulement quand vous validez") }}</p></div>
+{% else %}<div class="dk-kpi"><span>{{ _("Reste à payer") }}</span><b>{{ fcfa(k.remaining) }}<small>FCFA</small></b><p>{{ _("Étape par étape, après vérification") }}</p></div>{% endif %}
+<div class="dk-kpi"><span>{{ _("Décisions en attente") }}</span><b>{{ k.decisions }}</b><p>{% if k.decisions %}<span class="dk-warn">{{ _("À traiter") }}</span> · {{ _("colonne de droite") }}{% else %}{{ _("Rien à décider") }}{% endif %}</p></div>
+<div class="dk-kpi"><span>{{ _("Confiance moyenne") }}</span><b>{{ k.trust if k.trust is not none else '—' }}<small>/100</small></b><p>{{ _("%(a)s preuve(s) vérifiée(s) sur %(b)s", a=k.proofs_ok, b=k.proofs) }}</p></div>
+</div>
+<div class="dk-grid">
+<div class="dk-col">
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Chantiers") }}</h2><a href="{{ url_for('new_project') }}">+ {{ _("Nouveau chantier") }}</a></div>
+<table class="dk-table">
+<thead><tr><th>{{ _("Chantier") }}</th><th>{{ _("Étape en cours") }}</th><th>{{ _("Avancement vérifié") }}</th><th class="dk-hide-md">{{ _("Confiance") }}</th><th class="dk-num">{{ _("Versé / budget") }}</th><th>{{ _("Statut") }}</th></tr></thead>
+<tbody>
+{% for r in desk.rows %}<tr data-href="{{ url_for('project', project_id=r.p.id) }}">
+<td><a class="dk-pj" href="{{ url_for('project', project_id=r.p.id) }}"><span class="dk-th"{% if r.cover %} style="background-image:url('{{ url_for('proof_thumb', proof_id=r.cover) }}')"{% endif %}>{% if not r.cover %}{{ r.p.name[:1] }}{% endif %}</span><span><b>{{ r.p.name }}</b><span class="dk-muted">{% if r.chef %}{{ _("Chef :") }} {{ r.chef }}{% else %}{{ r.p.address }}{% endif %}</span></span></a></td>
+<td>{{ r.step }} <span class="dk-muted">· {{ r.idx }}/{{ r.n }}</span></td>
+<td><span class="dk-bar"><i style="width:{{ r.pct }}%"></i></span>{{ r.pct }} %</td>
+<td class="dk-hide-md">{% if r.trust is not none %}<span class="dk-chip {{ 'ok' if r.trust >= 70 else ('am' if r.trust >= 50 else 'rd') }}">{{ r.trust }}</span>{% else %}<span class="dk-muted">—</span>{% endif %}</td>
+<td class="dk-num"><b>{{ fcfa(r.paid) }}</b><br><span class="dk-muted">/ {{ fcfa(r.total) }}</span></td>
+<td><span class="dk-chip {{ r.status[1] }}">{{ r.status[0] }}</span></td>
+</tr>{% endfor %}
+</tbody></table>
+</section>
+{% if desk.proofs %}
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Dernières preuves") }}</h2><a href="{{ url_for('project', project_id=desk.proofs[0].project_id, onglet='preuves') }}">{{ _("Tout voir") }} →</a></div>
+<div class="dk-photos">{% for pr in desk.proofs %}<a href="{{ url_for('project', project_id=pr.project_id, onglet='preuves') }}" style="background-image:url('{{ url_for('proof_thumb', proof_id=pr.id) }}')" title="{{ pr.step or '' }}"><span>✓ {{ ago(pr.created_at) }}</span></a>{% endfor %}</div>
+</section>
+{% endif %}
+</div>
+<aside class="dk-col">
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("À décider") }}</h3>{% if desk.decisions %}<span class="dk-chip am">{{ desk.decisions|length }}</span>{% endif %}</div>
+{% if desk.decisions %}<ul class="dk-list">
+{% for x in desk.decisions %}<li>
+<span class="dk-ico" style="background:var({{ {'step': '--dk-goldbg', 'buy': '--dk-blbg', 'change': '--dk-ambg'}[x.kind] }});color:var({{ {'step': '--dk-goldtx', 'buy': '--dk-bl', 'change': '--dk-am'}[x.kind] }})">{{ {'step': '✓', 'buy': '₣', 'change': '+'}[x.kind] }}</span>
+<span class="dk-tx"><b>{{ x.title }}</b><small>{{ x.sub }}</small></span>
+<span class="dk-r"><b>{{ fcfa(x.amount) }}</b><a class="dk-btn sm{{ ' g' if x.kind == 'step' else '' }}" href="{{ x.url }}">{{ x.cta }}</a></span>
+</li>{% endfor %}
+</ul>{% else %}<p class="dk-empty">{{ _("Rien à décider pour l'instant. Vous serez prévenu dès qu'une étape est déclarée terminée.") }}</p>{% endif %}
+</section>
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Activité") }}</h3><a href="{{ url_for('notifications') }}">{{ _("Tout") }} →</a></div>
+{% if activity %}<ul class="dk-list">
+{% for a in activity %}<li><span class="dk-ico" style="background:var(--dk-mubg);color:var(--dk-mut)" aria-hidden="true">{{ icon('bell') }}</span><a class="dk-tx" href="{{ a.link or url_for('notifications') }}"><b>{{ a.title|tr }}</b><small>{{ (a.body|tr)|truncate(70) }} · {{ ago(a.created_at) }}</small></a></li>{% endfor %}
+</ul>{% else %}<p class="dk-empty">{{ _("Aucune activité récente.") }}</p>{% endif %}
+</section>
+</aside>
+</div>
+</div>

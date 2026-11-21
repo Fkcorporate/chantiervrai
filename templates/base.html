@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="{{ asset('style.css') }}">
 <link rel="stylesheet" href="{{ asset('themes-night.css') }}">
 <link rel="stylesheet" href="{{ asset('themes.css') }}">
+<link rel="stylesheet" href="{{ asset('desktop.css') }}" media="(min-width: 1100px)">
 {% block head %}{% endblock %}
 </head>
 {% from "_macros.html" import icon as _ico %}
@@ -23,6 +24,7 @@
 {% macro theme_picker() %}<div class="theme-pick" role="group" aria-label="{{ _("Apparence") }}">{% for k, lab in (('ivoire', _("Ivoire")), ('blanc', _("Blanc")), ('nuit', _("Nuit"))) %}<button type="button" data-theme="{{ k }}" aria-pressed="{{ 'true' if THEME == k else 'false' }}"><i class="sw-{{ k }}"></i>{{ lab }}</button>{% endfor %}</div>{% endmacro %}
 {% set QA = quick_actions(me) if me else [] %}
 <body class="theme-{{ THEME }} {% if me %}has-app{% endif %}{% if ptabs %} has-ptabs{% endif %} {% block bodyclass %}{% endblock %}">
+<script>/* Ordinateur : l'accueil « nuit » et le fil plein écran sont des vues téléphone */if (window.matchMedia && matchMedia('(min-width: 1100px)').matches) document.body.classList.remove('night', 'top-dark', 'feed-home');</script>
 <div class="wrap{% block wrapclass %}{% endblock %}">
 {% if me %}
 {# ---- Téléphone : barre du haut (retour, titre, alertes) ---- #}
@@ -69,6 +71,36 @@
 </nav>
 {% endif %}
 </header>
+{% if me %}
+{# ---- Ordinateur : fil d'Ariane, recherche (⌘K), raccourcis du chantier, alertes ---- #}
+{% set dk_title = (self.title()|striptags|trim).split(' · ')[0] %}
+<div class="dk-top">
+<nav class="dk-crumb" aria-label="{{ _("Vous êtes ici") }}">
+{% if p is defined and p and p.name is defined %}
+<a href="{{ url_for('home') }}">{{ _("Chantiers") }}</a><i>/</i>
+{% if ep == 'project' %}<b>{{ p.name }}</b>{% else %}<a href="{{ url_for('project', project_id=p.id) }}">{{ p.name }}</a><i>/</i><b>{{ dk_title if dk_title != p.name else _("Page") }}</b>{% endif %}
+{% else %}<b>{{ dk_title if dk_title != 'ChantierVrai' else NAV.primary[0].label }}</b>{% endif %}
+</nav>
+<button type="button" class="dk-search" data-cmdk aria-haspopup="dialog">{{ _ico('search') }}<span>{{ _("Rechercher un chantier, une fonction…") }}</span><kbd>⌘K</kbd></button>
+{% if p is defined and p and p.id is defined and fn_groups %}
+{% set dk_cu = chat_unread(p.id) %}
+{% if ep != 'chat_page' %}<a class="dk-btn" href="{{ url_for('chat_page', project_id=p.id) }}">{{ _ico('chat') }}{{ _("Conversation") }}{% if dk_cu %}<em>{{ dk_cu }}</em>{% endif %}</a>{% endif %}
+<button type="button" class="dk-btn" data-sheet="fn-drawer" aria-haspopup="dialog">{{ _ico('grid') }}{{ _("Toutes les fonctions") }}</button>
+{% elif ep == 'home' and me.role == 'proprio' %}
+<a class="dk-btn p" href="{{ url_for('new_project') }}">+ {{ _("Nouveau chantier") }}</a>
+{% endif %}
+<a class="dk-ib" href="{{ url_for('notifications') }}" aria-label="{{ _("Alertes") }}{% if unread %} ({{ unread }}){% endif %}">{{ _ico('bell') }}{% if unread %}<em>{{ unread if unread < 10 else '9+' }}</em>{% endif %}</a>
+</div>
+<dialog class="dk-cmd" id="dk-cmd" aria-label="{{ _("Rechercher") }}">
+<input type="search" placeholder="{{ _("Chantier, fonction, page…") }}" aria-label="{{ _("Rechercher") }}" autocomplete="off">
+<ul>
+{% set dk_pj = my_projects_brief() %}
+{% if dk_pj %}<li class="dk-cmd-h">{{ _("Chantiers") }}</li>{% for x in dk_pj %}<li><a href="{{ url_for('project', project_id=x.id) }}">{{ _ico('home') }}<span>{{ x.name }}</span><small>{{ x.address or '' }}</small></a></li>{% endfor %}{% endif %}
+{% if fn_groups %}<li class="dk-cmd-h">{{ p.name }}</li>{% for g_ in fn_groups %}{% for it in g_['items'] %}<li><a href="{{ it.url }}">{{ _ico('grid') }}<span>{{ it.label }}</span><small>{{ g_.title }}</small></a></li>{% endfor %}{% endfor %}{% endif %}
+<li class="dk-cmd-h">{{ _("Menu") }}</li>{% for it in NAV.side %}<li><a href="{{ it.url }}">{{ _ico(it.icon) }}<span>{{ it.label }}</span></a></li>{% endfor %}
+</ul>
+</dialog>
+{% endif %}
 <main>
 {% if fn_groups and not ptabs %}<div class="fn-bar"><a class="fn-bar-back" href="{{ url_for('project', project_id=p.id) }}">{{ _ico('back') }}<span>{{ p.name }}</span></a><button type="button" class="tabs-fn" data-sheet="fn-drawer" aria-haspopup="dialog">{{ _ico('grid') }}<span>{{ _("Toutes les fonctions") }}</span></button></div>{% endif %}
 {% for cat, msg in get_flashed_messages(with_categories=true) %}
@@ -100,7 +132,7 @@
 <div class="sheet-grip" aria-hidden="true"></div>
 <div class="qs-head"><b>{{ g.project.name if g.project else _("Que voulez-vous faire ?") }}</b><button type="button" class="dr-close" data-close aria-label="{{ _("Fermer") }}">✕</button></div>
 <div class="qs-grid">
-{% set QI = {'cam': 'cam', 'note': 'chat', 'money': 'wallet', 'plan': 'steps', 'bill': 'bill', 'check': 'check', 'drone': 'drone', 'insp': 'shield', 'sheet': 'folder', 'steps': 'steps', 'land': 'land', 'ai': 'chat'} %}
+{% set QI = {'cam': 'cam', 'note': 'chat', 'money': 'wallet', 'plan': 'steps', 'bill': 'bill', 'check': 'check', 'drone': 'drone', 'insp': 'shield', 'sheet': 'folder', 'steps': 'steps', 'land': 'land', 'ai': 'chat', 'talk': 'chat'} %}
 {% for q in QA %}<a class="qs-item{% if q.primary %} primary{% endif %}" href="{{ q.url }}"><span class="qs-ico">{{ _ico(QI.get(q.ic, 'grid')) }}</span><span><b>{{ q.label }}</b><small>{{ q.desc }}</small></span></a>{% endfor %}
 </div>
 </dialog>

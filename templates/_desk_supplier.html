@@ -1,0 +1,48 @@
+{# Ordinateur : espace du fournisseur. Le téléphone garde son accueil « prochaine livraison ». #}
+{% set ds = desk_sup %}{% set k = ds.kpis %}
+<div class="dk-only dk">
+<div class="dk-head">
+<div><h1>{{ greeting }}, {{ me.name.split(' ')[0] }}</h1><p class="dk-sub">{{ today_label }} · {{ _("%(n)s commande(s) en cours", n=k.live) }}</p></div>
+<div class="dk-acts"><a class="dk-btn" href="{{ url_for('payments_received') }}">{{ _("Paiements") }}</a><a class="dk-btn p" href="{{ url_for('supplier_catalog') }}">{{ _("Mon catalogue") }}</a></div>
+</div>
+<div class="dk-kpis">
+<div class="dk-kpi"><span>{{ _("Encaissé ce mois") }}</span><b>{{ fcfa(k.earned) }}<small>FCFA</small></b><p>{{ _("Après commission ChantierVrai") }}</p></div>
+<div class="dk-kpi"><span>{{ _("À encaisser") }}</span><b>{{ fcfa(k.waiting_pay) }}<small>FCFA</small></b><p>{{ _("Livré, en attente de réception") }}</p></div>
+<div class="dk-kpi"><span>{{ _("À accepter") }}</span><b>{{ k.to_accept }}</b><p>{% if k.to_accept %}<span class="dk-warn">{{ _("Répondez vite : le chantier attend") }}</span>{% else %}{{ _("Aucune commande en attente") }}{% endif %}</p></div>
+<div class="dk-kpi"><span>{{ _("À livrer") }}</span><b>{{ k.to_deliver }}</b><p>{{ _("%(n)s cette semaine", n=ds.deliveries|length) }}</p></div>
+</div>
+<div class="dk-grid">
+<div class="dk-col">
+<section class="dk-card">
+<div class="dk-ch"><h2>{{ _("Commandes") }}</h2></div>
+{% if ds.orders %}<table class="dk-table">
+<thead><tr><th>{{ _("Commande") }}</th><th>{{ _("Chantier") }}</th><th>{{ _("Livraison") }}</th><th>{{ _("Statut") }}</th><th class="dk-num">{{ _("Montant") }}</th></tr></thead>
+<tbody>{% for o in ds.orders %}<tr data-href="{{ url_for('order', oid=o.id) }}">
+<td><a href="{{ url_for('order', oid=o.id) }}"><b>{{ o.ref }}</b></a><br><span class="dk-muted">{{ d(o.created_at) }}</span></td>
+<td style="white-space:normal"><b>{{ o.project_name }}</b><br><span class="dk-muted">{{ o.address or '' }}</span></td>
+<td>{% if o.status in ('envoyee', 'acceptee') %}{{ ds.when[o.id] }}{% elif o.delivered_at %}{{ d(o.delivered_at) }}{% else %}<span class="dk-muted">—</span>{% endif %}</td>
+<td><span class="dk-chip {{ ds.tone.get(o.status, 'mu') }}">{{ {'envoyee': _('À accepter'), 'acceptee': _('À livrer')}.get(o.status) or _(ORDER_STATUS[o.status]) }}</span></td>
+<td class="dk-num"><b>{{ fcfa(o.total) }}</b></td></tr>{% endfor %}</tbody></table>
+{% else %}<p class="dk-empty">{{ _("Aucune commande pour l'instant. Les chantiers vous trouvent par votre catalogue :") }} <a href="{{ url_for('supplier_catalog') }}">{{ _("ajoutez vos produits et vos prix") }}</a>.</p>{% endif %}
+</section>
+</div>
+<aside class="dk-col">
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Livraisons de la semaine") }}</h3>{% if ds.deliveries %}<span class="dk-chip bl">{{ ds.deliveries|length }}</span>{% endif %}</div>
+{% if ds.deliveries %}<ul class="dk-list">{% for o in ds.deliveries %}<li><span class="dk-ico" style="background:var(--dk-blbg);color:var(--dk-bl)">→</span><a class="dk-tx" href="{{ url_for('order', oid=o.id) }}"><b>{{ o.project_name }}</b><small>{{ o.ref }} · {{ o.address or '' }}</small></a><span class="dk-r"><b>{{ ds.when[o.id] }}</b><a class="dk-btn sm" href="{{ url_for('order', oid=o.id) }}">{{ _("Ouvrir") }}</a></span></li>{% endfor %}</ul>
+{% else %}<p class="dk-empty">{{ _("Aucune livraison prévue dans les 7 jours.") }}</p>{% endif %}
+</section>
+<section class="dk-card">
+<div class="dk-ch"><h3>{{ _("Mon catalogue") }}</h3><a href="{{ url_for('supplier_catalog') }}">{{ _("Modifier") }} →</a></div>
+<div class="dk-kv"><div><span>{{ _("Produits") }}</span><b>{{ ds.catalog.n }}</b></div><div><span>{{ _("Disponibles") }}</span><b>{{ ds.catalog.available }}</b></div>
+<p class="dk-muted" style="margin:0">{{ _("Les chefs de chantier commandent depuis ce catalogue, au prix affiché.") }}</p></div>
+</section>
+{% if not me.verified or not me.supplier_terms_at or not me.phone %}
+<section class="dk-card"><div class="dk-ch"><h3>{{ _("À compléter") }}</h3></div><ul class="dk-list">
+{% if not me.supplier_terms_at %}<li><span class="dk-ico" style="background:var(--dk-ambg);color:var(--dk-am)">!</span><a class="dk-tx" href="{{ url_for('supplier_terms') }}"><b>{{ _("Acceptez les conditions fournisseur") }}</b></a></li>{% endif %}
+{% if not me.verified %}<li><span class="dk-ico" style="background:var(--dk-ambg);color:var(--dk-am)">!</span><span class="dk-tx"><b>{{ _("Entreprise en attente de vérification") }}</b></span></li>{% endif %}
+{% if not me.phone %}<li><span class="dk-ico" style="background:var(--dk-ambg);color:var(--dk-am)">!</span><a class="dk-tx" href="{{ url_for('account') }}"><b>{{ _("Ajoutez votre numéro Mobile Money") }}</b></a></li>{% endif %}
+</ul></section>{% endif %}
+</aside>
+</div>
+</div>

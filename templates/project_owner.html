@@ -12,6 +12,7 @@
 
 {# ======================================================== ACCUEIL #}
 {% if tab == 'accueil' %}
+{% include "_desk_project.html" %}
 {% set cur = s.current %}{% set decl = s.steps|selectattr('status', 'equalto', 'declare')|list %}
 <div class="fp">
 <div class="fp-head">
@@ -33,6 +34,7 @@
 <span class="ab-amount">{{ compact(dst.amount) }}<small> FCFA</small></span>
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
 </a>{% endif %}
+{% set cu = chat_unread(p.id) %}<a class="fp-chat" href="{{ url_for('chat_page', project_id=p.id) }}"><span class="fp-chat-ico">{{ icon('chat') }}{% if cu %}<em>{{ cu }}</em>{% endif %}</span><span><b>{{ _("Conversation du chantier") }}</b><small>{% if cu %}{{ _("1 nouveau message") if cu == 1 else _("%(n)s nouveaux messages", n=cu) }}{% else %}{{ _("Écrire, envoyer une note vocale ou une photo") }}{% endif %}</small></span><span class="fp-chat-go">›</span></a>
 {# Accès direct aux familles de fonctions (contrôle, argent, documents…) : ouvre le panneau à la bonne famille #}
 {% if fn_groups %}
 <nav class="fp-shortcuts" aria-label="{{ _("Toutes les fonctions") }}">
