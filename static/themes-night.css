@@ -187,8 +187,6 @@ body.theme-nuit .todo-item{border-top-color:rgba(255,255,255,.1)}
 body.theme-nuit .todo-item .chev{color:#93A69D}
 body.theme-nuit details.todo-more>summary{border-top-color:rgba(255,255,255,.1)}
 body.theme-nuit .log-more{border-top-color:rgba(255,255,255,.1)}
-body.theme-nuit .camera:not(.hidden) #cam-snap{border-color:rgba(255,255,255,.1)}
-body.theme-nuit .camera:not(.hidden) #cam-snap::after{background:#101B16;color:#ECE8DD}
 body.theme-nuit .tabs-fn{background:#101B16;color:#ECE8DD;border-color:rgba(255,255,255,.1)}
 body.theme-nuit .tabs-fn:hover{background:#101B16;color:#ECE8DD}
 body.theme-nuit .dr-close{background:#101B16;color:#ECE8DD}
@@ -265,3 +263,28 @@ body.theme-nuit .pv-switch{background:#101B16;color:#ECE8DD}
 body.theme-nuit .pv-switch button{color:#93A69D}
 body.theme-nuit .pv-switch button.on{background:#101B16;color:#74DBA8}
 body.theme-nuit .ig-grid a{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ch-unread span{background:#251F14;color:#E3C48E}
+body.theme-nuit .ch-msg.them{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ch-author{color:#E3C48E}
+body.theme-nuit .ch-photo{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ch-urgent{color:#F3A188}
+body.theme-nuit .ch-card{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ch-kicker{color:#E3C48E}
+body.theme-nuit .ch-link{color:#74DBA8}
+body.theme-nuit .ch-compose{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ch-cam,body.theme-nuit .ch-mic,body.theme-nuit .ch-send{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ch-rec{background:#101B16;color:#ECE8DD}
+body.theme-nuit .fp-chat{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ph-kpis div{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ph-item{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ph-tx .ph-w{color:#E3C48E}
+body.theme-nuit .ph-tick{background:#11271C;color:#74DBA8}
+body.theme-nuit .ph-link{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ph-link svg{color:#E3C48E}
+body.theme-nuit .ph-when i{background:#251F14;color:#ECE8DD}
+body.theme-nuit .ph-tag{color:#E3C48E}
+body.theme-nuit .ph-tag.amber{color:#F3A188}
+body.theme-nuit .ph-tag.blue{color:#A4C6F4}
+body.theme-nuit .ph-tag.bad{color:#F3A188}
+body.theme-nuit .ph-tag.green{color:#74DBA8}
+body.theme-nuit .ph-rt .ph-w{color:#E3C48E}

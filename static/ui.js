@@ -366,3 +366,40 @@ document.querySelectorAll('input[data-money]').forEach(function (i) {
   };
   if (document.readyState === 'complete') setTimeout(go, 150); else window.addEventListener('load', function () { setTimeout(go, 150); });
 })();
+
+/* Ordinateur : palette de commandes (⌘K / Ctrl+K ou « / »), filtrage au clavier */
+(function () {
+  var dlg = document.getElementById('dk-cmd');
+  if (!dlg || !dlg.showModal) return;
+  var input = dlg.querySelector('input'), sel = 0;
+  function links() { return [].slice.call(dlg.querySelectorAll('li a')).filter(function (a) { return a.parentNode.style.display !== 'none'; }); }
+  function mark() { var l = links(); l.forEach(function (a, i) { a.classList.toggle('on', i === sel); }); if (l[sel]) l[sel].scrollIntoView({ block: 'nearest' }); }
+  function filter() {
+    var q = input.value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    dlg.querySelectorAll('li').forEach(function (li) {
+      if (li.classList.contains('dk-cmd-h')) { li.style.display = q ? 'none' : ''; return; }
+      var t = li.textContent.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      li.style.display = !q || t.indexOf(q) > -1 ? '' : 'none';
+    });
+    sel = 0; mark();
+  }
+  function open() { input.value = ''; filter(); dlg.showModal(); input.focus(); }
+  document.querySelectorAll('[data-cmdk]').forEach(function (b) { b.addEventListener('click', open); });
+  document.addEventListener('keydown', function (e) {
+    var typing = /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '');
+    if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing && !dlg.open)) { e.preventDefault(); open(); }
+  });
+  input.addEventListener('input', filter);
+  input.addEventListener('keydown', function (e) {
+    var l = links();
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, l.length - 1); mark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); mark(); }
+    else if (e.key === 'Enter' && l[sel]) { e.preventDefault(); location.href = l[sel].href; }
+  });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+})();
+/* Ordinateur : une ligne de tableau entière est cliquable */
+document.addEventListener('click', function (e) {
+  var tr = e.target.closest && e.target.closest('tr[data-href]');
+  if (tr && !e.target.closest('a,button,form')) location.href = tr.dataset.href;
+});

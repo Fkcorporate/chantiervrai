@@ -193,3 +193,32 @@ body.theme-blanc .act-chips button{background:#F2F2F0}
 body.theme-nuit .pv-switch{background:#14211B}
 body.theme-nuit .pv-switch button{color:#93A69D}
 body.theme-nuit .pv-switch button.on{background:#24342C;color:#F4F0E7}
+body.theme-nuit .chat-hd{background:#070F0B}
+body.theme-nuit .ch-msg.them{background:#14211B;color:#ECE8DD}
+body.theme-nuit .ch-msg.me{background:linear-gradient(180deg,#D6B57D,#C29A5C);color:#0B2219}
+body.theme-nuit .ch-msg.me .ch-play{background:#0B2219;color:#E3C48E}
+body.theme-nuit .ch-card{background:#0E1914;color:#ECE8DD}
+body.theme-nuit .ch-day span{background:rgba(255,255,255,.07);color:#93A69D}
+body.theme-nuit .ch-compose{background:rgba(7,15,11,.9)}
+body.theme-nuit .ch-cam{background:#14211B}
+body.theme-nuit .ch-rec{background:#14211B}
+body.theme-nuit .ch-link{color:#74DBA8}
+body.theme-blanc .chat-hd,body.theme-blanc .ch-compose{background:rgba(255,255,255,.94)}
+body.theme-blanc .ch-msg.them{box-shadow:0 0 0 1px #EDEDEB}
+body.theme-nuit .fp-chat{background:#0E1914;color:#ECE8DD;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+body.theme-nuit .fp-chat-ico em{box-shadow:0 0 0 2px #0E1914}
+body.theme-nuit .ch-av{box-shadow:0 0 0 2px #070F0B,0 0 0 4px #C9A46A}
+body.theme-nuit .ch-mic,body.theme-nuit .ch-send{background:linear-gradient(180deg,#E3C48E,#C29A5C)!important;color:#0B2219!important}
+body.theme-nuit .ph-kpis div,body.theme-nuit .ph-item,body.theme-nuit .ph-link{background:#0E1914;color:#ECE8DD;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+body.theme-nuit .ph-done .ph-item{background:transparent;box-shadow:none;border-color:rgba(255,255,255,.08)}
+body.theme-nuit .ph-th{background-color:#14211B;color:#E3C48E}
+body.theme-nuit .ph-tick{background:rgba(31,138,87,.18);color:#74DBA8}
+body.theme-nuit .ph-tx .ph-w{color:#E3C48E}
+body.theme-nuit .ph-h span{background:#E3C48E;color:#0B2219}
+body.theme-blanc .ph-kpis div,body.theme-blanc .ph-item,body.theme-blanc .ph-link{box-shadow:0 0 0 1px #EDEDEB}
+body.theme-nuit .ph-tag.amber{color:#F2B872}body.theme-nuit .ph-tag.blue{color:#A4C6F4}body.theme-nuit .ph-tag.bad{color:#F3A188}body.theme-nuit .ph-tag.green{color:#74DBA8}
+body.theme-nuit .ph-rt .ph-w{color:#E3C48E}
+body.theme-nuit .ph-cta{color:#0B2219!important}
+body.theme-nuit .ph-alt{color:#fff!important}
+
+body.theme-blanc .act-chips button.on{background:#0B2219;color:#fff}

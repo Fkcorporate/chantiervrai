@@ -157,6 +157,40 @@
         openFilePicker('image/*');
       });
   }
+  /* Sujet de la photo : glisser à gauche / à droite sur le viseur, ou toucher l'étiquette */
+  var modes = field('cam-modes'), tagNote = '';
+  function pickMode(btn, announce) {
+    if (!modes || !btn) return;
+    modes.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-checked', b === btn ? 'true' : 'false'); });
+    btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    if (modes.dataset.kind === 'zone') {
+      var sel = form.querySelector('select[name=zone_id]'); if (sel) sel.value = btn.dataset.v;
+    } else { tagNote = btn.dataset.v; }
+    if (navigator.vibrate) navigator.vibrate(8);
+    if (announce) {
+      var old = cam.querySelector('.cam-tagged'); if (old) old.remove();
+      var t = document.createElement('span'); t.className = 'cam-tagged'; t.textContent = btn.textContent; cam.appendChild(t);
+      setTimeout(function () { t.remove(); }, 950);
+    }
+  }
+  if (modes) {
+    modes.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) pickMode(b, false); });
+    var sx = null, sy = 0;
+    cam.addEventListener('touchstart', function (e) { if (e.target.closest('button')) { sx = null; return; } sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+    cam.addEventListener('touchend', function (e) {
+      if (sx === null) return;
+      var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+      var all = [].slice.call(modes.querySelectorAll('button')), cur = all.findIndex(function (b) { return b.getAttribute('aria-checked') === 'true'; });
+      var nx = Math.max(0, Math.min(all.length - 1, cur + (dx < 0 ? 1 : -1)));
+      if (nx !== cur) pickMode(all[nx], true);
+    }, { passive: true });
+    document.addEventListener('keydown', function (e) {
+      if (cam.classList.contains('hidden') || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      var all = [].slice.call(modes.querySelectorAll('button')), cur = all.findIndex(function (b) { return b.getAttribute('aria-checked') === 'true'; });
+      var nx = Math.max(0, Math.min(all.length - 1, cur + (e.key === 'ArrowRight' ? 1 : -1))); pickMode(all[nx], true);
+    });
+  }
   field('shoot').addEventListener('click', openCamera);
   field('cam-close').addEventListener('click', stopCamera);
   field('cam-snap').addEventListener('click', function () {
@@ -165,6 +199,10 @@
     var c = document.createElement('canvas'); c.width = w; c.height = h;
     c.getContext('2d').drawImage(camVideo, 0, 0, w, h);
     var at = Date.now();
+    var fl = field('cam-flash'); if (fl) { fl.classList.remove('on'); void fl.offsetWidth; fl.classList.add('on'); }
+    if (navigator.vibrate) navigator.vibrate(12);
+    var note = form.querySelector('textarea[name=note]');
+    if (tagNote && note && !note.value.trim()) note.value = tagNote + ' : ';
     c.toBlob(function (blob) {
       captured = blob;
       field('f-capture').value = 'app';
