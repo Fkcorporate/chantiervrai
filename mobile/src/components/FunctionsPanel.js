@@ -18,12 +18,13 @@ const ICONS = {
 
 const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-export default function FunctionsPanel({ visible, onClose, title, groups, onOpen }) {
+export default function FunctionsPanel({ visible, onClose, title, groups, onOpen, simpleMode, onMode }) {
   const width = Math.min(440, Dimensions.get('window').width * 0.92);
   const x = React.useRef(new Animated.Value(width)).current;
   const [q, setQ] = React.useState('');
+  const [more, setMore] = React.useState(false);   // mode simple : « Autres fonctions » replié
   React.useEffect(() => {
-    if (visible) { setQ(''); Animated.timing(x, { toValue: 0, duration: 260, useNativeDriver: true }).start(); }
+    if (visible) { setQ(''); setMore(false); Animated.timing(x, { toValue: 0, duration: 260, useNativeDriver: true }).start(); }
   }, [visible]);
   const close = () => Animated.timing(x, { toValue: width, duration: 180, useNativeDriver: true }).start(() => onClose());
   const words = norm(q).split(/\s+/).filter(Boolean);
@@ -53,9 +54,18 @@ export default function FunctionsPanel({ visible, onClose, title, groups, onOpen
             </View>
             <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
               {shown.map((g) => (
-                <View key={g.key} style={{ marginTop: 14 }}>
-                  <Text style={s.gTitle}>{g.title}</Text>
-                  <View style={s.list}>
+                <View key={g.key} style={{ marginTop: g.collapsed ? 20 : 14 }}>
+                  {g.collapsed && !words.length ? (
+                    <Pressable onPress={() => setMore(!more)} accessibilityRole="button" accessibilityState={{ expanded: more }}
+                      style={({ pressed }) => [s.more, more && s.moreOpen, pressed && { opacity: 0.7 }]}>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={s.label}>{t('Autres fonctions')}</Text>
+                        <Text style={s.desc}>{t('%(n)s fonction(s) en plus', { n: g.items.length })}</Text>
+                      </View>
+                      <Ionicons name={more ? 'chevron-down' : 'chevron-forward'} size={18} color="#9AA09C" />
+                    </Pressable>
+                  ) : <Text style={s.gTitle}>{g.title}</Text>}
+                  {g.collapsed && !words.length && !more ? null : <View style={[s.list, g.collapsed && !words.length && { marginTop: 6 }]}>
                     {g.items.map((it, i) => (
                       <Pressable key={it.path} onPress={() => { onOpen(it); close(); }} accessibilityRole="button"
                         accessibilityLabel={`${it.label}. ${it.desc}`}
@@ -68,9 +78,17 @@ export default function FunctionsPanel({ visible, onClose, title, groups, onOpen
                         <Ionicons name="chevron-forward" size={16} color="#B7BCB9" />
                       </Pressable>
                     ))}
-                  </View>
+                  </View>}
                 </View>
               ))}
+              {onMode && simpleMode !== undefined && simpleMode !== null && !words.length ? (
+                <View style={s.mode}>
+                  <Text style={s.desc}>{simpleMode ? t('Mode simple : l\'essentiel d\'abord.') : t('Vous voyez toutes les fonctions.')}</Text>
+                  <Pressable onPress={() => onMode(simpleMode ? 'complet' : 'simple')} accessibilityRole="button" hitSlop={8}>
+                    <Text style={s.link}>{simpleMode ? t('Toujours tout afficher') : t('Revenir au mode simple')}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
               {!shown.length ? <Text style={[s.desc, { textAlign: 'center', marginTop: 24 }]}>{t('Aucune fonction ne correspond. Essayez un autre mot.')}</Text> : null}
             </ScrollView>
           </SafeAreaView>
@@ -98,4 +116,9 @@ const s = StyleSheet.create({
   ico: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#F1F5F2', alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 15, fontWeight: '600', color: C.text },
   desc: { fontSize: 13, color: C.muted, lineHeight: 18 },
+  more: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 16, paddingVertical: 12,
+    borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: '#CFC9BB' },
+  moreOpen: { borderColor: 'transparent', paddingHorizontal: 4, minHeight: 44 },
+  mode: { marginTop: 18, marginHorizontal: 4, gap: 4 },
+  link: { fontSize: 14, fontWeight: '600', color: C.green, textDecorationLine: 'underline', paddingVertical: 8 },
 });

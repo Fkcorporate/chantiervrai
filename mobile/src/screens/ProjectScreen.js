@@ -269,12 +269,14 @@ export default function ProjectScreen({ go, back, params }) {
           <View style={st.fnCtaIco}><Ionicons name="grid-outline" size={22} color="#fff" /></View>
           <View style={{ flex: 1, gap: 2 }}>
             <T bold style={{ fontSize: 15 }}>{t('Toutes les fonctions du chantier')}</T>
-            <T muted style={{ fontSize: 13 }} numberOfLines={2}>{(p.functions || []).map((g) => g.title).join(' · ')}</T>
+            <T muted style={{ fontSize: 13 }} numberOfLines={2}>{(p.functions || []).filter((g) => !g.collapsed).map((g) => g.title).join(' · ')}</T>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#9AA09C" />
         </Pressable>
       ) : <Button kind="ghost" title={t('Ouvrir sur le site web')} onPress={openWeb} />}
       <FunctionsPanel visible={fnOpen} onClose={() => setFnOpen(false)} title={p.name} groups={p.functions}
+        simpleMode={p.role === 'owner' && 'simple_mode' in p ? p.simple_mode : null}
+        onMode={async (mode) => { try { await api.setMode(mode); await load(); } catch (e) { setError(e.message); } }}
         onOpen={(it) => {
           if (it.path.endsWith('#proof-form')) { go('capture', { project: p, mode: 'picture' }); return; }
           const [path, hash] = it.path.split('#');

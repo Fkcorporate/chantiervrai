@@ -57,6 +57,7 @@ export function createApi({ baseUrl, getToken, onUnauthorized, fetchImpl, lang }
     logout: (pushToken) => request('POST', '/api/v1/deconnexion', { json: { push_token: pushToken || null } }),
     me: () => request('GET', '/api/v1/moi'),
     deleteAccount: (password) => request('POST', '/api/v1/compte/supprimer', { json: { password } }),
+    setMode: (mode) => request('POST', '/api/v1/compte/mode', { json: { mode } }),
     updateMe: (fields) => request('PUT', '/api/v1/moi', { json: fields }),
     projects: () => request('GET', '/api/v1/chantiers'),
     project: (id) => request('GET', `/api/v1/chantiers/${id}`),
