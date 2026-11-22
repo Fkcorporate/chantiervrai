@@ -41,7 +41,7 @@ def driver():
 
 
 # Tables sans colonne id (cle primaire composee ou texte)
-NO_ID = {"reset_tokens", "project_members", "capture_tokens", "attestation_nonces", "settings", "offsite_files"}
+NO_ID = {"reset_tokens", "project_members", "capture_tokens", "attestation_nonces", "settings", "offsite_files", "chat_reads"}
 
 
 class Row:

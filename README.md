@@ -312,7 +312,7 @@ Prêt côté application. Reste à faire côté entreprise :
 
 1. **Juridique** : faire relire les CGU et la politique de confidentialité (`/cgu`, `/confidentialite`) ; déclaration auprès de l'ARTCI (loi n° 2013-450) ; contrat avec un **partenaire agréé pour le séquestre** : garder l'argent du propriétaire avant de le verser est une activité réglementée.
 2. **Services externes** : clés CinetPay, Twilio, SMTP, Copernicus, IA (voir le tableau). Valider l'API de transfert CinetPay dans leur environnement de test avant de verser de l'argent réel. Twilio WhatsApp exige un numéro WhatsApp Business et des modèles de messages approuvés.
-3. **Hébergement** : sur Render, suivre « Mise en ligne sur Render » ci-dessous. Sur un serveur à soi : `gunicorn -w 2 -b 127.0.0.1:8000 app:app` derrière Nginx en **HTTPS** (obligatoire pour le GPS et la caméra), avec `SESSION_COOKIE_SECURE=1`, une `SECRET_KEY` fixe et longue, `PUBLIC_URL`, les deux tâches cron (`flask relancer`, `flask quotidien`) et la copie distante des sauvegardes (`OFFSITE_*`). Installer ffmpeg et opencv-python-headless.
+3. **Hébergement** : sur Render, suivre « Mise en ligne sur Render » ci-dessous. Sur un serveur à soi : `gunicorn -w 2 -b 127.0.0.1:8000 app:app` derrière Nginx en **HTTPS** (obligatoire pour le GPS et la caméra), avec `SESSION_COOKIE_SECURE=1`, une `SECRET_KEY` fixe et longue, `PROXY_HOPS` = nombre de relais devant l'application (1 derrière Nginx ou Render, 0 sans relais : sert à reconnaître la vraie adresse IP pour le blocage des essais de connexion), `PUBLIC_URL`, les deux tâches cron (`flask relancer`, `flask quotidien`) et la copie distante des sauvegardes (`OFFSITE_*`). Installer ffmpeg et opencv-python-headless.
 4. **Support** : créer le compte administrateur, vérifier les premiers inspecteurs et fournisseurs, décider qui traite les litiges.
 5. **Fournisseurs** : signer un contrat simple avec chaque quincaillerie (commission, délais, qualité, reprise des produits non conformes) et lui faire tester une livraison avec l'application.
 
@@ -392,6 +392,8 @@ python3 test_utilite.py                # test d'utilité : ce que voit chaque ac
 python3 recette/navigateur.py          # dans un vrai navigateur (Playwright) : mots expliqués, hors ligne, autorisations, photo par réseau faible
 python3 test_production.py             # mise en production : signature S3, copie distante, restauration, santé, tâches, alertes
 python3 test_pilotage.py               # tableau de pilotage : accès, calculs, rendu
+python3 test_securite.py               # attaques jouées : fichier piégé, image « bombe », CSRF, redirection, force brute, IP falsifiée
+python3 test_mode_simple.py            # mode simple du particulier : l'essentiel d'abord, « Autres fonctions », bascule
 DATABASE_URL=postgresql://… python3 test_complet.py   # les mêmes tests sur PostgreSQL (base de test vidée !)
 cd mobile && npm test                  # application mobile : logique et parcours contre le serveur
 ```

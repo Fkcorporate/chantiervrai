@@ -60,8 +60,9 @@ check(A.app.test_client().get(f"/photos/{pr['id']}/vignette").status_code in (30
 check("en attente de la validation du propriétaire" in html(chef.get(f"/chantiers/{pid}")), "le chef voit que l'étape attend le propriétaire")
 
 h = html(own.get(f"/chantiers/{pid}"))
-check('class="actionbar"' in h and h.index('class="actionbar"') < h.index('class="post decision"') < h.index("todo-list"),
-      "l'étape à valider est en tête de l'accueil (barre d'action)")
+check('class="actionbar"' not in h and h.index('fp-answers') < h.index('class="post decision"') < h.index("todo-list")
+      and h.count('class="post decision"') == 1,
+      "l'étape à valider : comptée dans la synthèse en haut, puis une seule carte de décision (plus de barre en double)")
 t = A.TRUST.compute(dict(A.trust_inputs(s, s.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone(),
                                         A.project_stats(pid, s), None)))
 check(t["score"] <= 79, "problème de solidité ouvert : l'indice ne peut pas dire « bonne maîtrise »")
@@ -94,8 +95,8 @@ if pub:
     check('class="btn report-fab" href="#signaler"' in h, "portail public : bouton « Signaler un problème » toujours visible")
 
 def url_for_home_in_drawer(h):
-    """Le pied du panneau « Toutes les fonctions » reprend le menu de l'application (retour aux chantiers compris)."""
-    foot = h[h.index('class="dr-foot"'):]
+    """Le pied du panneau « Toutes les fonctions » offre la sortie vers tous les chantiers."""
+    foot = h[h.index('class="dr-foot'):]
     return 'href="/"' in foot[:foot.index("</div>")]
 
 
@@ -103,8 +104,8 @@ h = html(own.get(f"/chantiers/{pid}"))
 check('class="card alert todo-list"' in h and h.count('class="card alert"') == 0, "accueil : les points à voir regroupés dans une seule carte")
 check("(s)" not in re.sub(r"<script.*?</script>", "", h, flags=re.S), "accueil : pluriels accordés (« 1 preuve refusée », pas « 1 preuve(s) refusée(s) »)")
 check('class="appbar"' in h and 'class="tabs"' in h and 'class="bottombar"' not in h and 'data-sheet="fn-drawer"' in h
-      and 'class="dr-foot"' in h and url_for_home_in_drawer(h),
-      "chantier sur téléphone : barre du haut (retour, toutes les fonctions + menu de l'application, alertes), sections du chantier en bas")
+      and 'class="dr-foot' in h and url_for_home_in_drawer(h),
+      "chantier sur téléphone : barre du haut (retour, toutes les fonctions, alertes), sortie vers tous les chantiers, sections du chantier en bas")
 h_home = html(own.get("/"))
 bb = re.search(r'<nav class="bottombar".*?</nav>', h_home, re.S).group(0)
 check(len(re.findall(r"<a href=", bb)) == 4 and "bb-more" in bb and 'class="on" aria-current="page"' in bb,

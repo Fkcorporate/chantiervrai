@@ -21,6 +21,7 @@ import unicodedata
 from decimal import ROUND_HALF_UP, Decimal
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
+from urllib.parse import urlsplit, urlunsplit
 
 import click
 
@@ -28,6 +29,11 @@ from flask import (Flask, Response, abort, flash, g, get_flashed_messages, got_r
                    render_template, has_request_context, request, send_from_directory, session, url_for)
 import numpy as np
 from PIL import Image, ImageOps
+import warnings
+
+# Images piégées (« bombes » de décompression) : au-delà de 64 millions de pixels, la photo est refusée.
+Image.MAX_IMAGE_PIXELS = 64_000_000
+warnings.simplefilter("error", Image.DecompressionBombWarning)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from services import env, run_async
@@ -1810,10 +1816,25 @@ def project_role(p, user=None):
 # Toutes les fonctions d'un chantier, rangées par famille et filtrées selon le profil.
 # Un seul endroit à maintenir : le panneau « Toutes les fonctions » (web) et l'API mobile le lisent.
 # ---------------------------------------------------------------------------
-def project_functions(p, role=None, advanced=None):
+def simple_mode(user):
+    """Mode simple : réglage par défaut du propriétaire particulier. Les pros, chefs et inspecteurs voient tout ;
+    le particulier peut passer en mode complet depuis le panneau des fonctions ou Mon compte."""
+    return bool(user) and user["role"] == "proprio" and not user["advanced"]
+
+
+# Fonctions qui répondent aux trois questions du particulier : ça avance ? mon argent ? que dois-je décider ?
+SIMPLE_CORE = {("project", "preuves"), ("project", "etapes"), ("project", "vues"), "chat_page", "reports",
+               ("project", "dossier#inspections"), "plan_real", "trust_page", "purchases_page", "change_orders_page",
+               "payments_ledger", "financing", ("project", "dossier#documents"), "land_page",
+               ("project", "dossier#membres"), ("project", "dossier#litiges")}
+
+
+def project_functions(p, role=None, advanced=None, simple=None):
     role = role or g.get("project_role") or project_role(p)
     if advanced is None:
         advanced = g.get("advanced", True)
+    if simple is None:
+        simple = role == "owner" and simple_mode(current_user())
     pid = p["id"]
     u = lambda ep, **kw: url_for(ep, project_id=pid, **kw)
     tab = lambda t, anchor=None: url_for("project", project_id=pid, onglet=t) + (f"#{anchor}" if anchor else "")
@@ -1823,6 +1844,9 @@ def project_functions(p, role=None, advanced=None):
         items = [it for it in items if it]
         if items:
             G.append({"key": key, "title": title, "items": items})
+
+    core_urls = {url_for("project", project_id=pid, onglet=k[1].split("#")[0]) + ("#" + k[1].split("#")[1] if "#" in k[1] else "")
+                 if isinstance(k, tuple) else url_for(k, project_id=pid) for k in SIMPLE_CORE} if simple else set()
 
     def it(label, desc, url, ic):
         return {"label": label, "desc": desc, "url": url, "ic": ic}
@@ -1939,7 +1963,6 @@ def project_functions(p, role=None, advanced=None):
             grp("avance", _("Outils avancés"), [
                 it(_("Maquette numérique"), _("Fichier IFC et avancement en 3D"), u("bim"), "bim"),
                 it(_("Visites 360°"), _("Se déplacer dans le chantier"), u("panos"), "pano"),
-            it(_("Drone et caméra"), _("Vues aériennes et caméra du chantier"), u("aerial_page"), "drone"),
                 it(_("Drone et caméra"), _("Vues aériennes et caméra du chantier"), u("aerial_page"), "drone"),
                 it(_("Capteurs et météo"), _("Pluie, température, humidité du béton"), u("sensors_page"), "sensor"),
             ])
@@ -1958,6 +1981,16 @@ def project_functions(p, role=None, advanced=None):
             it(_("Visites 360°"), _("Se déplacer dans le chantier"), u("panos"), "pano"),
             it(_("Capteurs et météo"), _("Pluie, température, humidité du béton"), u("sensors_page"), "sensor"),
         ])
+    if simple and core_urls:
+        # Mode simple : l'essentiel reste rangé par famille, tout le reste va dans « Autres fonctions », replié
+        # (la recherche le retrouve quand même).
+        rest = []
+        for grp_ in G:
+            rest += [i for i in grp_["items"] if i["url"] not in core_urls]
+            grp_["items"] = [i for i in grp_["items"] if i["url"] in core_urls]
+        G = [grp_ for grp_ in G if grp_["items"]]
+        if rest:
+            G.append({"key": "autres", "title": _("Autres fonctions"), "items": rest, "collapsed": True})
     return G
 
 
@@ -2188,8 +2221,27 @@ LOGIN_MAX_PER_EMAIL = 5      # essais rates par compte sur 15 minutes
 LOGIN_MAX_PER_IP = 30        # essais rates par adresse IP sur 15 minutes
 
 
+PROXY_HOPS = int(os.environ.get("PROXY_HOPS", "1"))   # nombre de relais de confiance devant l'application (Render : 1)
+
+
 def client_ip():
-    return (request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0]).strip()
+    """Adresse réelle du visiteur. La première valeur de X-Forwarded-For est écrite par le visiteur lui-même
+    (donc falsifiable) : on prend celle ajoutée par le relais de l'hébergeur, en partant de la fin."""
+    parts = [x.strip() for x in request.headers.get("X-Forwarded-For", "").split(",") if x.strip()]
+    if PROXY_HOPS and len(parts) >= PROXY_HOPS:
+        return parts[-PROXY_HOPS]
+    return request.remote_addr or ""
+
+
+def local_url(target, default=None):
+    """N'accepte qu'une adresse de l'application elle-même (empêche la redirection vers un site piégé)."""
+    t = (target or "").strip()
+    if t.startswith("http://") or t.startswith("https://"):
+        u = urlsplit(t)
+        if u.netloc == request.host:
+            t = urlunsplit(("", "", u.path or "/", u.query, u.fragment))
+    ok = t.startswith("/") and not t.startswith("//") and "\\" not in t and not any(ord(ch) < 32 for ch in t)
+    return t if ok else (default or url_for("home"))
 
 
 def too_many_attempts(email):
@@ -2263,6 +2315,20 @@ def register():
     return render_template("register.html")
 
 
+@app.route("/compte/mode", methods=["POST"])
+@login_required
+def account_mode():
+    """Bascule mode simple / mode complet (toutes les fonctions), depuis le panneau des fonctions."""
+    me = current_user()
+    full = request.form.get("mode") == "complet"
+    db = get_db()
+    db.execute("UPDATE users SET advanced = ? WHERE id = ?", (1 if full else 0, me["id"]))
+    db.commit()
+    flash(_("Mode complet : toutes les fonctions sont affichées.") if full else
+          _("Mode simple : l'essentiel d'abord, le reste dans « Autres fonctions »."), "ok")
+    return redirect(local_url(request.form.get("next") or request.referrer))
+
+
 @app.route("/connexion", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -2275,8 +2341,7 @@ def login():
             if user["blocked"]:
                 flash(_('Ce compte est suspendu. Contactez le support.'), "error")
                 return render_template("login.html"), 403
-            nxt = request.args.get("next", "")
-            nxt = nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("home")
+            nxt = local_url(request.args.get("next"))
             if user["totp_on"]:
                 chosen = session.get("lang")
                 session.clear()
@@ -2317,7 +2382,7 @@ def login_code():
                 ok = True
                 left = len(codes)
         if ok:
-            nxt = session.get("pending_next") or url_for("home")
+            nxt = local_url(session.get("pending_next"))
             start_session(user)
             if not SEC.totp_ok(user["totp_secret"], code):
                 flash(_('Code de secours utilisé. Il vous en reste %(left)s.', left=left), "ok")
@@ -3256,7 +3321,7 @@ def proofs_of(project_id, db=None):
         "WHERE proofs.project_id = ? ORDER BY proofs.id DESC", (project_id,)).fetchall()
 
 
-def owner_feed(db, p, stats, proofs):
+def owner_feed(db, p, stats, proofs, limit=10):
     """Fil de preuves de la page d'accueil du propriétaire : étapes en « stories », preuves groupées par jour,
     passages de drone et inspections, chacun avec ce qui le rend fiable."""
     today = datetime.now(timezone.utc).date()
@@ -3310,7 +3375,7 @@ def owner_feed(db, p, stats, proofs):
                       "title": b["title"], "amount": b["amount"], "status": b["status"], "photo": bool(b["delivery_file"])})
     items.sort(key=lambda x: x["at"] or "", reverse=True)
     days = []
-    for it in items[:10]:
+    for it in items[:limit]:
         try:
             dday = datetime.fromisoformat(it["at"]).date()
         except (TypeError, ValueError):
@@ -3435,7 +3500,8 @@ def project(project_id):
     if tab == "accueil":
         ctx["trust"] = project_trust(p, stats, ctx["pred"], db)
         if role == "owner":
-            ctx["feed"] = owner_feed(db, p, stats, proofs)
+            ctx["simple"] = simple_mode(current_user()) and role == "owner"
+            ctx["feed"] = owner_feed(db, p, stats, proofs, limit=5 if ctx["simple"] else 10)
         if p["chef_id"]:
             ctx["chef_user"] = db.execute("SELECT * FROM users WHERE id = ?", (p["chef_id"],)).fetchone()
             ctx["my_review"] = db.execute("SELECT * FROM contractor_reviews WHERE project_id = ? AND author_id = ?",
@@ -3948,7 +4014,7 @@ def proof_photo(proof_id):
     if pr is None:
         abort(404)
     proof_access(pr)
-    return send_from_directory(UPLOAD_DIR, pr["filename"])
+    return send_user_file(UPLOAD_DIR, pr["filename"])
 
 
 @app.route("/photos/<int:proof_id>/vignette")
@@ -3960,7 +4026,7 @@ def proof_thumb(proof_id):
         abort(404)
     proof_access(pr)
     if pr["thumb"]:
-        return send_from_directory(UPLOAD_DIR, pr["thumb"])
+        return send_user_file(UPLOAD_DIR, pr["thumb"])
     small = "v640_" + pr["filename"].rsplit(".", 1)[0] + ".jpg"
     path = os.path.join(UPLOAD_DIR, small)
     if not os.path.exists(path):
@@ -3969,8 +4035,8 @@ def proof_thumb(proof_id):
             im.thumbnail((640, 640))
             im.save(path, "JPEG", quality=72)
         except (OSError, ValueError):
-            return send_from_directory(UPLOAD_DIR, pr["filename"])
-    resp = send_from_directory(UPLOAD_DIR, small)
+            return send_user_file(UPLOAD_DIR, pr["filename"])
+    resp = send_user_file(UPLOAD_DIR, small)
     resp.headers["Cache-Control"] = "private, max-age=86400"
     return resp
 
@@ -4533,7 +4599,7 @@ def payment_receipt(rid):
     due = payment_due(db, r["kind"], r["ref_id"])
     if not pay_access(due, current_user()):
         abort(403)
-    return send_from_directory(DOC_DIR, r["receipt"], download_name=r["receipt_name"] or r["receipt"],
+    return send_user_file(DOC_DIR, r["receipt"], download_name=r["receipt_name"] or r["receipt"],
                                as_attachment=ext_of(r["receipt"]) not in ("pdf", "jpg", "jpeg", "png", "webp"))
 
 
@@ -5227,7 +5293,7 @@ def upload_document(project_id):
 
 def send_document(doc):
     as_att = ext_of(doc["filename"]) not in ("pdf", "jpg", "jpeg", "png", "html", "txt")
-    return send_from_directory(DOC_DIR, doc["filename"], as_attachment=as_att,
+    return send_user_file(DOC_DIR, doc["filename"], as_attachment=as_att,
                                download_name=doc["original_name"] or doc["filename"])
 
 
@@ -5435,7 +5501,7 @@ def invoice_file(invoice_id):
     if inv is None:
         abort(404)
     load_project(inv["project_id"], roles=("owner", "chef"))
-    return send_from_directory(INV_DIR, inv["filename"])
+    return send_user_file(INV_DIR, inv["filename"])
 
 
 # --------------------------------------------------------------------------
@@ -5523,7 +5589,7 @@ def satellite_image(sat_id):
     if s is None:
         abort(404)
     load_project(s["project_id"], roles=("owner", "chef", "inspecteur", "intervenant"))
-    return send_from_directory(SAT_DIR, s["filename"])
+    return send_user_file(SAT_DIR, s["filename"])
 
 
 @app.route("/satellite/changements/<int:a>/<int:b>")
@@ -5642,7 +5708,7 @@ def media3d_file(media_id):
     if not (ms and ms["pilot_id"] == me["id"]):
         load_project(m["project_id"], roles=("owner", "chef", "inspecteur", "intervenant"))
     mt = "model/gltf-binary" if m["filename"].endswith(".glb") else None
-    return send_from_directory(M3D_DIR, m["filename"], mimetype=mt)
+    return send_user_file(M3D_DIR, m["filename"], mimetype=mt)
 
 
 # --------------------------------------------------------------------------
@@ -5933,11 +5999,11 @@ def open_dispute(project_id):
     text = request.form.get("text", "").strip()[:3000]
     if len(subject) < 5 or len(text) < 20:
         flash(_("Indiquez l'objet du litige et expliquez la situation (20 caractères minimum)."), "error")
-        return redirect(request.referrer or url_for("project", project_id=project_id))
+        return redirect(local_url(request.referrer, url_for("project", project_id=project_id)))
     if db.execute("SELECT 1 FROM disputes WHERE project_id = ? AND status IN ('ouvert', 'en_appel') AND COALESCE(step_id, 0) = ?",
                   (project_id, step_id or 0)).fetchone():
         flash(_('Un litige est déjà ouvert sur cette étape.'), "error")
-        return redirect(request.referrer or url_for("project", project_id=project_id))
+        return redirect(local_url(request.referrer, url_for("project", project_id=project_id)))
     cur = db.execute("INSERT INTO disputes (project_id, step_id, opened_by, subject, created_at, stage, respond_by) "
                      "VALUES (?,?,?,?,?,?,?)",
                      (project_id, step_id, current_user()["id"], subject, now_iso(), "echanges",
@@ -6738,7 +6804,7 @@ def bim_file(model_id):
     if m is None:
         abort(404)
     load_project(m["project_id"], roles=("owner", "chef", "inspecteur", "intervenant", "admin"))
-    return send_from_directory(BIM_DIR, m["filename"], as_attachment=True,
+    return send_user_file(BIM_DIR, m["filename"], as_attachment=True,
                                download_name=m["original_name"] or f"maquette-v{m['version']}.ifc")
 
 
@@ -7184,7 +7250,7 @@ def pano_file(vid, kind):
     if v is None or kind not in ("image", "vignette"):
         abort(404)
     load_project(v["project_id"], roles=("owner", "chef", "inspecteur", "intervenant", "admin"))
-    return send_from_directory(PANO_DIR, v["filename"] if kind == "image" else v["thumb"])
+    return send_user_file(PANO_DIR, v["filename"] if kind == "image" else v["thumb"])
 
 
 # --------------------------------------------------------------------------
@@ -8952,7 +9018,7 @@ def site_note_audio(nid):
     if n is None or not n["filename"]:
         abort(404)
     load_project(n["project_id"], roles=("owner", "chef", "inspecteur", "intervenant", "admin"))
-    return send_from_directory(VOICE_DIR, n["filename"])
+    return send_user_file(VOICE_DIR, n["filename"])
 
 
 # --------------------------------------------------------------------------
@@ -9156,7 +9222,7 @@ def financing_doc(doc_id):
     if d is None:
         abort(404)
     fin_access(d["project_id"])
-    return send_from_directory(FIN_DIR, d["filename"], as_attachment=False, download_name=d["original_name"] or d["filename"])
+    return send_user_file(FIN_DIR, d["filename"], as_attachment=False, download_name=d["original_name"] or d["filename"])
 
 
 def finance_daily(db):
@@ -9647,7 +9713,7 @@ def plot_document(plot_id, doc_id):
     d = db.execute("SELECT * FROM plot_documents WHERE id = ? AND plot_id = ?", (doc_id, plot_id)).fetchone()
     if not d:
         abort(404)
-    return send_from_directory(FIN_DIR, d["filename"], as_attachment=False, download_name=d["original_name"] or d["filename"])
+    return send_user_file(FIN_DIR, d["filename"], as_attachment=False, download_name=d["original_name"] or d["filename"])
 
 
 def copy_plot_to_project(db, pl, pr, me):
@@ -9834,7 +9900,7 @@ def camera_shot_file(shot_id):
     if sh is None:
         abort(404)
     load_project(sh["project_id"], roles=("owner", "chef", "inspecteur", "intervenant"))
-    return send_from_directory(CAM_DIR, sh["filename"])
+    return send_user_file(CAM_DIR, sh["filename"])
 
 
 @app.route("/api/v1/cameras/photo", methods=["POST"])
@@ -9987,6 +10053,25 @@ CO_STATUS = {"proposee": L("En attente du propriétaire"), "acceptee": L("Accept
 SKY = {"soleil": L("Soleil"), "nuageux": L("Nuageux"), "pluie": L("Pluie"), "forte_pluie": L("Forte pluie")}
 
 
+INLINE_SAFE = ("application/pdf", "text/plain", "model/gltf-binary")
+
+
+def send_user_file(folder, name, **kw):
+    """Sert un fichier déposé : seuls images, sons, vidéos, PDF et texte s'ouvrent dans le navigateur.
+    Tout le reste (HTML, SVG, XML...) est téléchargé et isolé, pour qu'un fichier piégé ne s'exécute jamais sur le site."""
+    resp = send_from_directory(folder, name, **kw)
+    mt = (resp.mimetype or "").lower()
+    generated = os.path.basename(name).startswith("pv_")   # PV produits par l'application elle-même
+    inline_ok = (mt.startswith(("image/", "audio/", "video/")) and "svg" not in mt) or mt in INLINE_SAFE
+    if not generated and not inline_ok:
+        resp.close()
+        resp = send_from_directory(folder, name, as_attachment=True, download_name=kw.get("download_name") or name,
+                                   mimetype="application/octet-stream")
+        resp.headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+    resp.headers["Cache-Control"] = "private, max-age=3600"
+    return resp
+
+
 def save_upload(file, folder, images_only=False):
     """Enregistre une pièce (photo, PDF) sous un nom aléatoire. Renvoie (nom, image ou None) ou (None, None)."""
     if not file or not file.filename:
@@ -10109,7 +10194,7 @@ def purchase_file(project_id, req_id, kind):
     name = r and (r["quote_file"] if kind == "devis" else r["delivery_file"] if kind == "livraison" else None)
     if not name:
         abort(404)
-    return send_from_directory(BUY_DIR, name)
+    return send_user_file(BUY_DIR, name)
 
 
 @app.route("/chantiers/<int:project_id>/avenants", methods=["GET", "POST"])
@@ -10446,7 +10531,7 @@ def chat_file(project_id, mid):
     m = get_db().execute("SELECT * FROM project_messages WHERE id = ? AND project_id = ?", (mid, project_id)).fetchone()
     if not m or not m["filename"]:
         abort(404)
-    return send_from_directory(CHAT_DIR, m["filename"])
+    return send_user_file(CHAT_DIR, m["filename"])
 
 
 # --------------------------------------------------------------------------
@@ -12860,6 +12945,17 @@ def api_logout():
     return jsonify(ok=True)
 
 
+@app.route("/api/v1/compte/mode", methods=["POST"])
+@api_auth
+def api_account_mode():
+    me = current_user()
+    full = (request.get_json(silent=True) or request.form or {}).get("mode") == "complet"
+    db = get_db()
+    db.execute("UPDATE users SET advanced = ? WHERE id = ?", (1 if full else 0, me["id"]))
+    db.commit()
+    return jsonify(ok=True, simple_mode=simple_mode(db.execute("SELECT * FROM users WHERE id = ?", (me["id"],)).fetchone()))
+
+
 @app.route("/api/v1/compte/supprimer", methods=["POST"])
 @api_auth
 def api_delete_account():
@@ -13007,9 +13103,11 @@ def api_project(project_id):
                                                   (project_id, current_user()["id"]))] if role == "inspecteur" else []
     out["chat_unread"] = chat_unread(project_id)
     # Le même catalogue que le panneau « Toutes les fonctions » du site, pour l'application
-    out["functions"] = [{"key": grp_["key"], "title": grp_["title"],
+    simple = role == "owner" and simple_mode(current_user())
+    out["simple_mode"] = simple if role == "owner" and current_user()["role"] == "proprio" else None   # None : pas de bascule proposée
+    out["functions"] = [{"key": grp_["key"], "title": grp_["title"], "collapsed": bool(grp_.get("collapsed")),
                          "items": [{"label": i["label"], "desc": i["desc"], "path": i["url"], "icon": i["ic"]} for i in grp_["items"]]}
-                        for grp_ in project_functions(p, role, show_advanced(db, current_user(), project_id))]
+                        for grp_ in project_functions(p, role, show_advanced(db, current_user(), project_id), simple)]
     return jsonify(ok=True, project=out)
 
 
@@ -13368,7 +13466,7 @@ def friendly_error(e):
 @app.errorhandler(413)
 def too_large(_e):
     flash(_('Fichier trop lourd (120 Mo maximum).'), "error")
-    return redirect(request.referrer or url_for("home"))
+    return redirect(local_url(request.referrer))
 
 
 init_db()
