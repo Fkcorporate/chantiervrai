@@ -84,7 +84,7 @@
 <button type="button" class="dk-search" data-cmdk aria-haspopup="dialog">{{ _ico('search') }}<span>{{ _("Rechercher un chantier, une fonction…") }}</span><kbd>⌘K</kbd></button>
 {% if p is defined and p and p.id is defined and fn_groups %}
 {% set dk_cu = chat_unread(p.id) %}
-{% if ep != 'chat_page' %}<a class="dk-btn" href="{{ url_for('chat_page', project_id=p.id) }}">{{ _ico('chat') }}{{ _("Conversation") }}{% if dk_cu %}<em>{{ dk_cu }}</em>{% endif %}</a>{% endif %}
+{% if ep != 'chat_page' and url_for('chat_page', project_id=p.id) not in ptabs %}<a class="dk-btn" href="{{ url_for('chat_page', project_id=p.id) }}">{{ _ico('chat') }}{{ _("Conversation") }}{% if dk_cu %}<em>{{ dk_cu }}</em>{% endif %}</a>{% endif %}
 <button type="button" class="dk-btn" data-sheet="fn-drawer" aria-haspopup="dialog">{{ _ico('grid') }}{{ _("Toutes les fonctions") }}</button>
 {% elif ep == 'home' and me.role == 'proprio' %}
 <a class="dk-btn p" href="{{ url_for('new_project') }}">+ {{ _("Nouveau chantier") }}</a>

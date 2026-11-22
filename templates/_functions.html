@@ -45,17 +45,28 @@
 <label class="dr-search"><span class="sr-only">{{ _("Rechercher une fonction") }}</span>{{ fni('search') }}<input type="search" id="fn-q" placeholder="{{ _("Rechercher : stock, paiement, plan…") }}" autocomplete="off" enterkeyhint="search"></label>
 <nav class="dr-body" aria-label="{{ _("Fonctions du chantier") }}">
 {% for g in fn_groups %}
-<section class="dr-group" data-group id="fn-g{{ loop.index }}">
-<h3>{{ g.title }}</h3>
-<ul>
+<section class="dr-group{% if g.collapsed %} dr-more{% endif %}" data-group id="fn-g{{ loop.index }}"{% if g.collapsed %} data-collapsed{% endif %}>
+{% if g.collapsed %}<button type="button" class="dr-more-btn" aria-expanded="false" aria-controls="fn-more-list"><span><b>{{ _("Autres fonctions") }}</b><small>{{ _("%(c)s fonction(s) en plus : stock, journal, qualité, export…", c=g["items"]|length) }}</small></span><span class="dr-more-chev" aria-hidden="true">{{ fni('chev') }}</span></button>
+<h3 class="sr-only">{{ g.title }}</h3>
+<ul id="fn-more-list" hidden>
+{% else %}<h3>{{ g.title }}</h3>
+<ul>{% endif %}
 {% for it in g['items'] %}<li><a href="{{ it.url }}" class="dr-item" data-q="{{ (it.label ~ ' ' ~ it.desc ~ ' ' ~ g.title)|lower }}"><span class="dr-ico">{{ fni(it.ic) }}</span><span class="dr-txt"><b>{{ it.label }}</b><span>{{ it.desc }}</span></span><span class="dr-chev">{{ fni('chev') }}</span></a></li>
 {% endfor %}
 </ul>
 </section>
 {% endfor %}
+{% if me and me.role == 'proprio' and g.get('project_role') == 'owner' %}
+<form method="post" action="{{ url_for('account_mode') }}" class="dr-mode"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+{% if me.advanced %}<input type="hidden" name="mode" value="simple"><span>{{ _("Vous voyez toutes les fonctions.") }}</span><button type="submit" class="linkbtn">{{ _("Revenir au mode simple") }}</button>
+{% else %}<input type="hidden" name="mode" value="complet"><span>{{ _("Mode simple : l'essentiel d'abord.") }}</span><button type="submit" class="linkbtn">{{ _("Toujours tout afficher") }}</button>{% endif %}
+</form>
+{% endif %}
 <p class="dr-empty muted" hidden>{{ _("Aucune fonction ne correspond. Essayez un autre mot.") }}</p>
 </nav>
-<div class="dr-foot">
-{% for it in NAV.side %}{% if it.key not in ('alerts',) %}<a href="{{ it.url }}">{{ _ico(it.icon) }}<span>{{ it.label }}</span></a>{% endif %}{% endfor %}
+{# Le panneau ne parle que de ce chantier ; une seule sortie vers les autres #}
+<div class="dr-foot dr-foot-min">
+<a href="{{ url_for('home') }}">{{ fni('chev') }}<span>{{ _("Tous mes chantiers") }}</span></a>
+<a href="{{ url_for('help_page') }}"><span>{{ _("Aide") }}</span></a>
 </div>
 </dialog>

@@ -33,7 +33,8 @@
 <label>{{ _("Présentation") }}<textarea name="bio">{{ me.bio or '' }}</textarea></label>
 {% endif %}
 {% if me.role in ('proprio', 'chef') %}
-<label class="check"><input type="checkbox" name="advanced" value="1"{% if me.advanced %} checked{% endif %}> {{ _("Afficher les fonctions avancées : maquette numérique, capteurs, visites 360°, zones et quantités") }}</label>
+{% if me.role == 'proprio' %}<label class="check"><input type="checkbox" name="advanced" value="1"{% if me.advanced %} checked{% endif %}> {{ _("Mode complet : afficher toutes les fonctions sur mes chantiers (sinon l'essentiel d'abord, le reste dans « Autres fonctions »)") }}</label>
+{% else %}<label class="check"><input type="checkbox" name="advanced" value="1"{% if me.advanced %} checked{% endif %}> {{ _("Afficher les fonctions avancées : maquette numérique, capteurs, visites 360°, zones et quantités") }}</label>{% endif %}
 {% endif %}
 <button class="btn" type="submit">{{ _("Enregistrer") }}</button>
 </form>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block bodyclass %}{% if tab == 'accueil' %}feed-home{% endif %}{% endblock %}
+{% block bodyclass %}{% if tab == 'accueil' %}feed-home{% if cover %} top-photo fp-photo{% endif %}{% endif %}{% endblock %}
 {% from "_macros.html" import proof_card, tabs, csrf, risk_pill, tool, icon with context %}
 {% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
 {% block head %}
@@ -15,10 +15,27 @@
 {% include "_desk_project.html" %}
 {% set cur = s.current %}{% set decl = s.steps|selectattr('status', 'equalto', 'declare')|list %}
 <div class="fp">
+{% set step_line %}{% if cur %}{{ _("Étape %(i)s sur %(n)s", i=(s.steps|map(attribute='id')|list).index(cur.id) + 1, n=s.steps|length) }} · {{ cur.name }}{% else %}{{ _("Chantier") }}{% endif %}{% endset %}
+{% if cover %}
+<section class="fp-hero" aria-labelledby="fp-h1">
+<img src="{{ url_for('proof_thumb', proof_id=cover.id) }}" alt="" decoding="async" fetchpriority="high">
+<a class="fp-hero-chip" href="{{ url_for('project', project_id=p.id, onglet='preuves') }}">{{ icon('check') }}<span>{{ _("Photo vérifiée") }} · {{ ago(cover.created_at) }}</span></a>
+<div class="fp-hero-body"><span class="fp-hero-step">{{ step_line }}</span><h1 id="fp-h1">{{ p.name }}</h1>{% if p.address %}<span class="fp-hero-addr">{{ p.address }}</span>{% endif %}</div>
+</section>
+{% else %}
 <div class="fp-head">
-<div><span class="eyebrow">{% if cur %}{{ _("Étape %(i)s sur %(n)s", i=(s.steps|map(attribute='id')|list).index(cur.id) + 1, n=s.steps|length) }} · {{ cur.name }}{% else %}{{ _("Chantier") }}{% endif %}</span>
+<div><span class="eyebrow">{{ step_line }}</span>
 <h1>{{ p.name }}</h1><span class="muted">{{ p.address }}</span></div>
 </div>
+{% endif %}
+
+{# Les trois réponses, dès le premier écran du téléphone : ça avance ? mon argent ? que dois-je décider ? #}
+{% set n_todo = alerts|length if alerts else 0 %}{% set paid_pct = (100 * s.paid / s.total)|round|int if s.total else 0 %}
+<nav class="fp-answers{% if cover %} on-photo{% endif %}" aria-label="{{ _("En bref") }}">
+<a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}"><b>{{ s.verified_pct }}<i>%</i></b><small>{{ _("Avancement") }}</small><span class="fpa-bar" aria-hidden="true"><span style="width:{{ s.verified_pct }}%"></span></span></a>
+<a href="{{ url_for('payments_ledger', project_id=p.id) }}" title="{{ fcfa(s.paid) }} / {{ fcfa(s.total) }} FCFA"><b>{{ compact(s.paid) }}</b><small>{{ _("versés sur %(t)s", t=compact(s.total)) }}</small></a>
+<a class="{{ 'todo' if n_todo else 'calm' }}" href="{{ '#todo-h' if n_todo else url_for('chat_page', project_id=p.id) }}"><b>{% if n_todo %}{{ n_todo }}{% else %}{{ icon('check') }}{% endif %}</b><small>{{ pl(n_todo, "point(s) à voir") if n_todo else _("Rien à décider") }}</small></a>
+</nav>
 
 {# Étapes en « stories » #}
 <div class="stories" role="list" aria-label="{{ _("Étapes") }}">
@@ -29,18 +46,13 @@
 {% endfor %}
 </div>
 
-{% if decl %}{% set dst = decl[0] %}<a class="actionbar" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">
-<span class="ab-txt"><span>{{ _("Votre décision") }}</span><b>{{ _("Vérifier et valider « %(name)s »", name=dst.name) }}</b></span>
-<span class="ab-amount">{{ compact(dst.amount) }}<small> FCFA</small></span>
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-</a>{% endif %}
 {% set cu = chat_unread(p.id) %}<a class="fp-chat" href="{{ url_for('chat_page', project_id=p.id) }}"><span class="fp-chat-ico">{{ icon('chat') }}{% if cu %}<em>{{ cu }}</em>{% endif %}</span><span><b>{{ _("Conversation du chantier") }}</b><small>{% if cu %}{{ _("1 nouveau message") if cu == 1 else _("%(n)s nouveaux messages", n=cu) }}{% else %}{{ _("Écrire, envoyer une note vocale ou une photo") }}{% endif %}</small></span><span class="fp-chat-go">›</span></a>
-{# Accès direct aux familles de fonctions (contrôle, argent, documents…) : ouvre le panneau à la bonne famille #}
-{% if fn_groups %}
-<nav class="fp-shortcuts" aria-label="{{ _("Toutes les fonctions") }}">
-{% for g in fn_groups %}<button type="button" class="fp-sc" data-sheet="fn-drawer" data-group-go="fn-g{{ loop.index }}"><span class="fp-sc-ico">{{ icon({'suivi': 'cam', 'controle': 'shield', 'argent': 'wallet', 'materiaux': 'steps', 'documents': 'folder', 'equipe': 'people', 'avance': 'grid'}.get(g.key, 'grid')) }}</span><span><b>{{ g.title }}</b><small>{{ _("%(n)s fonction(s)", n=g['items']|length) }}</small></span></button>{% endfor %}
+{# Trois gestes directs ; tout le reste est dans le panneau des fonctions #}
+<nav class="fp-quick" aria-label="{{ _("Raccourcis") }}">
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}#membres"><span class="fq-ico">{{ icon('people') }}</span><span>{{ _("Inviter la famille") }}</span></a>
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}#inspections"><span class="fq-ico">{{ icon('shield') }}</span><span>{{ _("Faire inspecter") }}</span></a>
+{% if fn_groups %}<button type="button" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fq-ico">{{ icon('grid') }}</span><span>{{ _("Toutes les fonctions") }}</span></button>{% endif %}
 </nav>
-{% endif %}
 <div class="fp-grid"><div class="fp-main">
 {# Décision : la preuve qui demande une réponse #}
 {% if decl %}{% set dst = decl[0] %}{% set dok = ok_by_step.get(dst.id, 0) %}{% set dcs = checks_by_step.get(dst.id) %}{% set dimg = feed.last_by_step.get(dst.id) %}
@@ -158,12 +170,13 @@
 </div>
 {% endif %}
 
-<h2>{{ _("Activité récente") }}</h2>
+{% if not simple %}<h2>{{ _("Activité récente") }}</h2>
 <div class="card log">
 {% for a in activity[:6] %}<div><span title="{{ dt(a.created_at) }}">{{ dts(a.created_at) }}</span><span>{% if a.author %}<b>{{ a.author }}</b> · {% endif %}{{ a.text|tr }}</span></div>
 {% else %}<span class="muted">{{ _("Rien pour l'instant.") }}</span>{% endfor %}
 {% if activity|length > 6 %}<a class="log-more" href="{{ url_for('reports', project_id=p.id) }}">{{ _("Tout l'historique") }}</a>{% endif %}
 </div>
+{% endif %}
 
 <h2>{{ _("Compte rendu de la semaine") }}</h2>
 {% if last_report %}
@@ -715,7 +728,7 @@ document.querySelectorAll('[data-pv]').forEach(function (b) {
 
 {% endif %}
 {% endblock %}
-{% block tabs %}{{ tabs(p, [('accueil',_('Accueil'),'home'),('preuves',_('Preuves'),'cam'),('etapes',_('Étapes'),'steps'),('vues',_('Vues'),'sat'),('dossier',_('Dossier'),'folder')], tab) }}{% endblock %}
+{% block tabs %}{% set chat_u = url_for('chat_page', project_id=p.id) %}{{ tabs(p, [('accueil',_('Accueil'),'home'),('preuves',_('Preuves'),'cam'),('etapes',_('Paiements'),'wallet'),(chat_u,_('Messages'),'chat')], tab, {chat_u: chat_unread(p.id)}) }}{% endblock %}
 {% block scripts %}
 {% if tab == 'vues' %}
 <script>

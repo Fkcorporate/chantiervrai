@@ -83,10 +83,11 @@
 {% elif name == 'chev' %}<path d="M9 5l7 7-7 7"/>
 {% endif %}</svg>{% endmacro %}
 
-{% macro tabs(p, items, current) %}
+{% macro tabs(p, items, current, badges={}) %}
 <nav class="tabs" aria-label="{{ _("Sections du chantier") }}"><div>
 {% for key, label, ic in items %}
-<a href="{{ url_for('project', project_id=p.id, onglet=key) }}" class="{{ 'on' if key == current }}"{% if key == current %} aria-current="page"{% endif %}>{{ icon(ic) }}{{ label }}</a>
+{% set ext = key.startswith('/') %}{% set on = (request.path == key) if ext else key == current %}
+<a href="{{ key if ext else url_for('project', project_id=p.id, onglet=key) }}" class="{{ 'on' if on }}"{% if on %} aria-current="page"{% endif %}>{{ icon(ic) }}{{ label }}{% if badges.get(key) %}<em class="tab-badge" aria-label="{{ _("%(n)s non lu(s)", n=badges[key]) }}">{{ badges[key] if badges[key] < 10 else '9+' }}</em>{% endif %}</a>
 {% if loop.index == 2 %}<button type="button" class="bb-plus tabs-plus" data-sheet="quick-sheet" aria-haspopup="dialog" aria-label="{{ _("Actions rapides") }}"><span>＋</span></button>{% endif %}
 {% endfor %}
 <button type="button" class="tabs-fn" data-sheet="fn-drawer" aria-haspopup="dialog">{{ icon('grid') }}<span>{{ _("Toutes les fonctions") }}</span></button>
