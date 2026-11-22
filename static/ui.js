@@ -163,7 +163,8 @@
 
 /* Titre compact de la barre du haut : il apparaît quand le grand titre de la page sort de l'écran */
 (function () {
-  var title = document.getElementById('ab-title'), h1 = document.querySelector('main h1');
+  var title = document.getElementById('ab-title'),
+      h1 = [].slice.call(document.querySelectorAll('main h1')).filter(function (h) { return h.offsetParent; })[0];   // le premier titre visible (la version ordinateur est masquée)
   if (!title || !h1 || !('IntersectionObserver' in window) || window.innerWidth >= 1000) return;
   if (h1.getBoundingClientRect().top > 520) return;          // grand titre loin du haut : barre toujours titrée
   title.style.transition = 'none'; title.classList.add('is-hidden');
@@ -307,6 +308,17 @@
   var items = [].slice.call(dr.querySelectorAll('.dr-item'));
   items.forEach(function (a) { a.dataset.n = norm(a.dataset.q); });
   var empty = dr.querySelector('.dr-empty');
+  // Mode simple : « Autres fonctions » est replié ; un toucher le déplie, la recherche y cherche aussi
+  var more = dr.querySelector('[data-collapsed]'), moreBtn = more && more.querySelector('.dr-more-btn'),
+      moreList = more && more.querySelector('ul'), opened = false;
+  var setMore = function (open) {
+    if (!more) return;
+    moreList.hidden = !open; moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false'); more.classList.toggle('is-open', open);
+  };
+  if (moreBtn) moreBtn.addEventListener('click', function () {
+    opened = moreList.hidden; setMore(opened);
+    if (opened) setTimeout(function () { moreBtn.scrollIntoView({block: 'start', behavior: 'smooth'}); }, 30);
+  });
   q.addEventListener('input', function () {
     var words = norm(q.value).split(/\s+/).filter(Boolean), shown = 0;
     items.forEach(function (a) {
@@ -314,6 +326,7 @@
       a.parentNode.hidden = !ok; if (ok) shown++;
     });
     dr.querySelectorAll('[data-group]').forEach(function (g) { g.hidden = !g.querySelector('li:not([hidden])'); });
+    if (more) setMore(words.length ? !more.hidden : opened);
     empty.hidden = shown > 0;
   });
   // Entrée ouvre le premier résultat

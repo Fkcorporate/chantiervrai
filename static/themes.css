@@ -222,3 +222,15 @@ body.theme-nuit .ph-cta{color:#0B2219!important}
 body.theme-nuit .ph-alt{color:#fff!important}
 
 body.theme-blanc .act-chips button.on{background:#0B2219;color:#fff}
+/* Accueil du chantier : finitions du thème Nuit et Blanc */
+body.theme-nuit .fpa-bar{background:rgba(255,255,255,.1)}
+body.theme-nuit .fp-answers a+a{border-left-color:rgba(255,255,255,.08)}
+body.theme-nuit .fp-answers{box-shadow:0 0 0 1px rgba(255,255,255,.06),0 14px 34px -16px rgba(0,0,0,.6)}
+body.theme-nuit .fp-quick a,body.theme-nuit .fp-quick button{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015)),#0C1712;box-shadow:0 0 0 1px rgba(255,255,255,.07)}
+body.theme-nuit .fq-ico{background:rgba(201,164,106,.14)}
+body.theme-nuit .tab-badge{box-shadow:0 0 0 2px #0C1712}
+body.theme-blanc .fp-quick a,body.theme-blanc .fp-quick button{box-shadow:0 0 0 1px #EDEDEB,0 10px 24px -20px rgba(0,0,0,.2)}
+body.theme-blanc .fq-ico{background:#0B0F0D}
+body.theme-blanc .fp-answers{box-shadow:0 0 0 1px #EDEDEB,0 14px 34px -18px rgba(0,0,0,.22)}
+body.theme-nuit.top-photo .appbar.scrolled{background:rgba(10,20,15,.9)}
+body.theme-nuit.top-photo .appbar.scrolled .ab-btn{color:#ECE8DD}

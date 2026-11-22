@@ -1232,8 +1232,7 @@ dialog.sheet.drawer::backdrop{background:rgba(11,34,25,.32);-webkit-backdrop-fil
 .fn-cta-txt span{font-size:13px;color:var(--muted);line-height:1.35}
 .fn-cta-chev{font-size:24px;color:#9AA09C}
 label.dr-search{flex-direction:row;align-items:center;gap:10px}
-.dr-foot{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));overflow:visible;gap:2px}
-.dr-foot a{min-width:0}
+@media (min-width:1000px){.dr-foot{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));overflow:visible;gap:2px}.dr-foot a{min-width:0}}
 @media (min-width:1000px){.fn-cta{display:none}}
 .timeline .tag{flex:none;white-space:nowrap}
 .chef-ico{background:var(--forest);color:#fff}
@@ -1844,3 +1843,83 @@ body.chat-page .bottombar,body.chat-page .tabs{display:none!important}
 /* Lisibilité : mots du lexique dans les bulles, filtres actifs, + de la barre d'onglets, carte hors ligne */
 .ch-msg .term,.ch-card .term{color:inherit!important;background:none!important;text-decoration-color:currentColor}
 .plot-map>span,.plot-map .map-off{color:#E8EDE9!important}
+
+/* ---- Mode simple du particulier ---- */
+.dr-more{margin-top:20px}
+.dr-more-btn{width:100%;display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px dashed #CFC9BB;border-radius:18px;background:transparent;
+  font:inherit;color:var(--ink);text-align:left;cursor:pointer;min-height:60px}
+.dr-more-btn span:first-child{flex:1;display:flex;flex-direction:column;gap:2px}
+.dr-more-btn b{font-size:15px;font-weight:600}
+.dr-more-btn small{font-size:13px;color:var(--muted);line-height:1.35}
+.dr-more-chev{display:flex;color:#9AA09C;transition:transform .2s ease}
+.dr-more-chev svg{width:20px;height:20px}
+.dr-more.is-open .dr-more-chev{transform:rotate(90deg)}
+.dr-more.is-open .dr-more-btn{border-style:solid;border-color:transparent;padding-left:4px;min-height:44px}
+.dr-more.is-open ul{margin-top:6px}
+.dr-more-btn:focus-visible{outline:3px solid var(--forest);outline-offset:2px}
+.dr-mode{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 12px;margin:18px 4px 4px;font-size:13px;color:var(--muted)}
+.linkbtn{background:none;border:0;padding:8px 0;font:inherit;font-weight:600;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-height:40px}
+@media (max-width:999px){.dr-foot a{min-width:64px;min-height:48px;padding:4px 6px;font-size:11.5px}}
+
+/* ---- Accueil du chantier, finition : la dernière photo vérifiée en tête, une carte de synthèse, trois gestes ---- */
+.fp-hero{position:relative;margin:0 -18px;height:min(54vh,410px);min-height:300px;overflow:hidden;background:var(--forest);color:#fff;
+  border-radius:0 0 30px 30px;isolation:isolate}
+.fp-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scale(1.02)}
+.fp-hero::after{content:"";position:absolute;inset:0;z-index:0;
+  background:linear-gradient(180deg,rgba(8,26,19,.42) 0,rgba(8,26,19,0) 26%,rgba(8,26,19,0) 42%,rgba(8,26,19,.78) 78%,rgba(8,26,19,.92) 100%)}
+.fp-hero-chip{position:absolute;z-index:1;left:18px;top:calc(env(safe-area-inset-top) + 70px);display:inline-flex;align-items:center;gap:6px;
+  padding:7px 12px 7px 9px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;
+  font-size:12.5px;font-weight:500;text-decoration:none;-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4)}
+.fp-hero-chip svg{width:15px;height:15px;color:#A9E5C4}
+.fp-hero-body{position:absolute;z-index:1;left:0;right:0;bottom:0;padding:0 22px 64px;display:flex;flex-direction:column;gap:6px}
+.fp-hero-step{font-size:13.5px;font-weight:500;color:#C9A46A;letter-spacing:.01em}
+.fp-hero h1{margin:0;color:#fff;font-family:"Inter Display",Inter,system-ui,sans-serif;font-size:clamp(30px,8.6vw,38px);font-weight:600;
+  line-height:1.04;letter-spacing:-.035em;text-wrap:balance}
+.fp-hero-addr{font-size:14px;color:rgba(255,255,255,.72)}
+
+.fp-answers{position:relative;z-index:2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:#fff;border-radius:22px;
+  padding:16px 4px 14px;box-shadow:0 1px 2px rgba(12,42,30,.05),0 14px 34px -16px rgba(12,42,30,.28)}
+.fp-answers.on-photo{margin:-48px 4px 0}
+.fp-answers a{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:2px 14px;min-width:0;text-decoration:none;color:var(--ink)}
+.fp-answers a+a{border-left:1px solid #ECE8DF}
+.fp-answers b{display:flex;align-items:baseline;height:32px;font-family:"Inter Display",Inter,system-ui,sans-serif;font-size:27px;font-weight:600;
+  letter-spacing:-.035em;line-height:32px;font-variant-numeric:tabular-nums}
+.fp-answers b i{font-style:normal;font-size:16px;font-weight:500;margin-left:2px;color:#59625D}
+.fp-answers b svg{width:26px;height:26px;align-self:center;color:var(--accent-fill)}
+.fp-answers small{font-size:12.5px;line-height:1.3;color:#59625D}
+.fp-answers .todo b{color:#A84B12}
+.fpa-bar{display:block;width:100%;height:3px;margin-top:4px;border-radius:3px;background:#ECE8DF;overflow:hidden}
+.fpa-bar span{display:block;height:100%;border-radius:3px;background:var(--accent-fill)}
+@media (hover:hover){.fp-answers a:hover small{color:var(--ink)}}
+
+.fp-quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.fp-quick a,.fp-quick button{display:flex;flex-direction:column;align-items:center;gap:9px;padding:16px 8px 14px;border:0;border-radius:20px;background:#fff;
+  color:var(--ink);font:inherit;font-size:13px;font-weight:500;line-height:1.25;text-align:center;text-decoration:none;cursor:pointer;
+  box-shadow:0 1px 2px rgba(12,42,30,.04);transition:transform .15s ease,box-shadow .15s ease}
+.fp-quick a:active,.fp-quick button:active{transform:scale(.97)}
+@media (hover:hover){.fp-quick a:hover,.fp-quick button:hover{box-shadow:0 0 0 1px rgba(201,164,106,.55),0 12px 26px -16px rgba(12,42,30,.4)}}
+.fq-ico{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:var(--forest);color:#C9A46A}
+.fq-ico svg{width:20px;height:20px}
+.fp-quick :focus-visible{outline:3px solid var(--forest);outline-offset:2px}
+
+/* Photo en tête : la barre du haut flotte au-dessus, discrète */
+@media (max-width:999px){
+  body.fp-photo main{padding-top:0}
+  body.fp-photo .appbar:not(.scrolled) .ab-title{opacity:0}
+  body.fp-photo .appbar:not(.scrolled) .ab-btn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);box-shadow:none;color:#fff;
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+  body.fp-photo .appbar:not(.scrolled) .ab-btn svg{color:#fff}
+}
+
+/* Onglets du chantier : pastille des messages non lus */
+.tabs a{position:relative}
+.tab-badge{position:absolute;top:7px;left:calc(50% + 5px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#C2410C;color:#fff;
+  font:600 11px/18px Inter,system-ui,sans-serif;font-style:normal;text-align:center;box-shadow:0 0 0 2px #fff}
+@media (min-width:1000px){.tab-badge{position:static;margin-left:4px;box-shadow:none}}
+
+/* Pied du panneau des fonctions : une sortie, l'aide */
+.dr-foot.dr-foot-min{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 22px calc(env(safe-area-inset-bottom) + 14px)}
+.dr-foot.dr-foot-min a{flex:none;flex-direction:row;min-width:0;min-height:44px;padding:0;gap:6px;font-size:14px;font-weight:600;color:var(--ink);background:none}
+.dr-foot.dr-foot-min a:last-child{font-weight:500;color:#59625D}
+.dr-foot.dr-foot-min a svg{width:18px;height:18px;transform:rotate(180deg)}
+@media (max-width:999px){body.fp-photo main{padding-bottom:calc(100px + env(safe-area-inset-bottom))}}

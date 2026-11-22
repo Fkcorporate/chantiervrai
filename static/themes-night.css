@@ -288,3 +288,13 @@ body.theme-nuit .ph-tag.blue{color:#A4C6F4}
 body.theme-nuit .ph-tag.bad{color:#F3A188}
 body.theme-nuit .ph-tag.green{color:#74DBA8}
 body.theme-nuit .ph-rt .ph-w{color:#E3C48E}
+body.theme-nuit .dr-more-btn{border-color:rgba(255,255,255,.1)}
+body.theme-nuit .dr-more-chev{color:#93A69D}
+body.theme-nuit .fp-hero-chip{border-color:rgba(255,255,255,.1)}
+body.theme-nuit .fp-answers{background:#101B16;color:#ECE8DD}
+body.theme-nuit .fp-answers b i{color:#74DBA8}
+body.theme-nuit .fp-answers small{color:#74DBA8}
+body.theme-nuit .fp-answers .todo b{color:#F3A188}
+body.theme-nuit .fpa-bar{background:#101B16;color:#ECE8DD}
+body.theme-nuit .fp-quick a,body.theme-nuit .fp-quick button{background:#101B16;color:#ECE8DD}
+body.theme-nuit .dr-foot.dr-foot-min a:last-child{color:#74DBA8}
