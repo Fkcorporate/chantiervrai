@@ -40,12 +40,13 @@ def totp_now(secret, at=None):
     return _code(secret, int((at or time.time()) // 30))
 
 
-def totp_ok(secret, code, at=None):
+def totp_ok(secret, code, at=None, drift=1):
+    """drift : pas de 30 s tolérés de part et d'autre (1 à la connexion ; 2 à la mise en place, le temps de taper)."""
     code = "".join(c for c in (code or "") if c.isdigit())
     if len(code) != 6 or not secret:
         return False
     t = int((at or time.time()) // 30)
-    return any(hmac.compare_digest(_code(secret, t + d), code) for d in (-1, 0, 1))
+    return any(hmac.compare_digest(_code(secret, t + d), code) for d in range(-drift, drift + 1))
 
 
 def otpauth_uri(secret, email, issuer="ChantierVrai"):

@@ -23,11 +23,15 @@
 <button class="btn ghost">{{ _("Désactiver") }}</button></form>
 {% elif setup %}
 <span>{{ _("1. Installez Google Authenticator, Microsoft Authenticator ou une application équivalente.") }}</span>
-<span>{{ _("2. Sur le téléphone, touchez") }} <a href="{{ uri }}">{{ _("ce lien") }}</a>{{ _(", ou ajoutez un compte et saisissez la clé :") }}</span>
-<span class="code" style="font-size:17px;letter-spacing:.06em">{{ setup_group }}</span>
+<span>{{ _("2. Dans l'application, touchez « + » puis « Scanner un code QR », et visez ce code :") }}</span>
+<div class="totp-qr">{{ qr }}</div>
+<details class="totp-key"><summary>{{ _("Impossible de scanner ? Saisir la clé à la main") }}</summary>
+<span class="muted">{{ _("Sur ce téléphone :") }} <a href="{{ uri }}">{{ _("ouvrir directement dans l'application") }}</a>. {{ _("Sinon, ajoutez un compte « ChantierVrai », saisissez cette clé et choisissez le type « Basé sur l'heure » :") }}</span>
+<span class="code totp-code">{{ setup_group }}</span></details>
 <form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="totp_confirm">
-<label>{{ _("3. Saisissez le code à 6 chiffres affiché") }}<input name="code" inputmode="numeric" autocomplete="one-time-code" required></label>
+<label>{{ _("3. Saisissez le code à 6 chiffres affiché pour ChantierVrai") }}<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required></label>
 <button class="btn">{{ _("Activer") }}</button></form>
+<form method="post" class="totp-restart">{{ csrf() }}<input type="hidden" name="action" value="totp_start"><span class="muted">{{ _("Le code est toujours refusé ? Supprimez l'entrée ChantierVrai de l'application et recommencez avec une nouvelle clé.") }}</span><button type="submit" class="linkbtn">{{ _("Nouvelle clé") }}</button></form>
 {% else %}
 <span class="muted">{{ _("Fortement conseillé si vous gérez de l'argent : même avec votre mot de passe, personne ne peut se connecter sans votre téléphone.") }}</span>
 <form method="post">{{ csrf() }}<input type="hidden" name="action" value="totp_start"><button class="btn">{{ _("Activer la double authentification") }}</button></form>

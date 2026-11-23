@@ -17,6 +17,7 @@ import re
 import secrets
 import shutil
 import sqlite3
+import time
 import unicodedata
 from decimal import ROUND_HALF_UP, Decimal
 from datetime import date, datetime, timedelta, timezone
@@ -34,12 +35,14 @@ import warnings
 # Images piégées (« bombes » de décompression) : au-delà de 64 millions de pixels, la photo est refusée.
 Image.MAX_IMAGE_PIXELS = 64_000_000
 warnings.simplefilter("error", Image.DecompressionBombWarning)
+from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from services import env, run_async
 from services import db as DB
 from services import i18n as I18N
 from services import glossary as GLOSS
+from services import qr as QR
 from services.i18n import L, _
 from services import materials as MAT
 from services import media as MEDIA
@@ -154,7 +157,32 @@ JS_STRINGS = [
 ]
 
 app = Flask(__name__, instance_path=INSTANCE_DIR)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+def _stable_secret_key():
+    """Clé des sessions. Sans SECRET_KEY, une clé est créée une fois dans le dossier de données et partagée par tous
+    les processus : sinon chaque processus aurait la sienne, et les sessions (connexion, mise en place de la 2FA)
+    se perdraient d'une requête à l'autre."""
+    if os.environ.get("SECRET_KEY"):
+        return os.environ["SECRET_KEY"]
+    path = os.path.join(INSTANCE_DIR, ".secret_key")
+    try:
+        os.makedirs(INSTANCE_DIR, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        os.write(fd, secrets.token_hex(32).encode())
+        os.close(fd)
+    except FileExistsError:
+        pass
+    except OSError:
+        return secrets.token_hex(32)
+    for _ in range(50):                      # un autre processus vient peut-être de la créer
+        with open(path) as fh:
+            key = fh.read().strip()
+        if len(key) == 64:
+            return key
+        time.sleep(0.02)
+    return secrets.token_hex(32)
+
+
+app.config["SECRET_KEY"] = _stable_secret_key()
 app.config["MAX_CONTENT_LENGTH"] = 120 * 1024 * 1024
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -2524,7 +2552,9 @@ def security():
             session["totp_setup"] = SEC.new_secret()
         elif action == "totp_confirm":
             secret = session.get("totp_setup")
-            if secret and SEC.totp_ok(secret, request.form.get("code")):
+            if not secret:
+                flash(_("La mise en place a expiré. Touchez « Activer la double authentification » pour recommencer."), "error")
+            elif SEC.totp_ok(secret, request.form.get("code"), drift=2):
                 new_codes = SEC.backup_codes()
                 db.execute("UPDATE users SET totp_secret = ?, totp_on = 1, backup_codes = ? WHERE id = ?",
                            (secret, json.dumps([SEC.hash_code(c) for c in new_codes]), me["id"]))
@@ -2532,7 +2562,7 @@ def security():
                 session.pop("totp_setup", None)
                 flash(_('Double authentification activée.'), "ok")
             else:
-                flash(_("Code incorrect. Vérifiez l'heure de votre téléphone et réessayez."), "error")
+                flash(_("Code incorrect. Vérifiez que l'heure du téléphone est réglée automatiquement, et que le compte ajouté est bien « ChantierVrai » avec la clé affichée ici."), "error")
         elif action == "totp_off":
             if check_password_hash(me["password_hash"], request.form.get("current", "")):
                 db.execute("UPDATE users SET totp_on = 0, totp_secret = NULL, backup_codes = NULL WHERE id = ?",
@@ -2551,8 +2581,9 @@ def security():
         g.pop("user", None)
     me = current_user()
     setup = session.get("totp_setup")
+    uri = SEC.otpauth_uri(setup, me["email"]) if setup else None
     return render_template("security.html", setup=setup, setup_group=SEC.group(setup) if setup else None,
-                           uri=SEC.otpauth_uri(setup, me["email"]) if setup else None, new_codes=new_codes)
+                           uri=uri, qr=Markup(QR.svg(uri, size=200)) if uri else None, new_codes=new_codes)
 
 
 @app.route("/compte/export")

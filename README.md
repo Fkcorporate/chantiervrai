@@ -394,6 +394,7 @@ python3 test_production.py             # mise en production : signature S3, copi
 python3 test_pilotage.py               # tableau de pilotage : accès, calculs, rendu
 python3 test_securite.py               # attaques jouées : fichier piégé, image « bombe », CSRF, redirection, force brute, IP falsifiée
 python3 test_mode_simple.py            # mode simple du particulier : l'essentiel d'abord, « Autres fonctions », bascule
+python3 test_double_auth.py            # double authentification : QR code relu, nouvelle clé, session expirée, connexion
 DATABASE_URL=postgresql://… python3 test_complet.py   # les mêmes tests sur PostgreSQL (base de test vidée !)
 cd mobile && npm test                  # application mobile : logique et parcours contre le serveur
 ```

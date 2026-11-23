@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Mon compte · ChantierVrai") }}{% endblock %}
+{% block content %}
+<h1>{{ _("Mon compte") }}</h1>
+<form method="post" class="card">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<span class="muted">{{ ROLES[me.role] }} · {{ me.email }}</span>
+<label>{{ _("Nom complet") }}<input name="name" value="{{ me.name }}" required></label>
+<label>{{ _("Téléphone (WhatsApp, SMS, Mobile Money)") }}<input name="phone" value="{{ me.phone or '' }}" inputmode="tel" placeholder="{{ _("07 00 00 00 00 ou +225…") }}"></label>
+<b>{{ _("Me prévenir des événements importants par") }}</b>
+<span class="muted">{{ _("Étape à valider, preuve refusée, paiement, rapport de la semaine, inspection.") }}</span>
+{% for ch, label in [('whatsapp', 'WhatsApp'), ('sms', 'SMS'), ('email', 'E-mail')] %}
+<label class="check check-2l"><input type="checkbox" name="notify_{{ ch }}" value="1"{% if me['notify_' ~ ch] %} checked{% endif %}> <span class="c2-txt"><span>{{ label }}</span>{% if not channels[ch] %}<span class="muted">{{ _("(pas encore activé sur ce serveur : message seulement enregistré)") }}</span>{% endif %}</span></label>
+{% endfor %}
+{% if me.role == 'chef' or (me.role == 'pro' and me.profession == 'entrepreneur') %}
+<b>{{ _("Profil d'entrepreneur") }}</b>
+<span class="muted">{{ _("Une fois votre entreprise vérifiée, votre profil apparaît dans l'annuaire avec votre historique mesuré par l'application : chantiers terminés, retards, non-conformités, indice de confiance et avis des propriétaires.") }}</span>
+<label>{{ _("Entreprise et RCCM") }}<input name="company" value="{{ me.company or '' }}" placeholder="{{ _("Bâtir Plus SARL, RCCM CI-ABJ-2021-B-1234") }}"></label>
+<label>{{ _("Zone d'intervention") }}<input name="zone" value="{{ me.zone or '' }}"></label>
+<label>{{ _("Présentation et références") }}<textarea name="bio">{{ me.bio or '' }}</textarea></label>
+<label class="check"><input type="checkbox" name="verify_requested" value="1"{% if me.verify_requested %} checked{% endif %}> {{ _("Apparaître dans l'annuaire des entrepreneurs (après vérification de l'entreprise)") }}</label>
+{% if me.verify_requested and not me.verified %}<span class="tag amber">{{ _("Vérification en cours") }}</span>{% elif me.verified and me.verify_requested %}<span class="tag blue">{{ _("Entreprise vérifiée") }}</span> <a href="{{ url_for('contractor', uid=me.id) }}">{{ _("Voir mon profil public") }}</a>{% endif %}
+{% elif me.role == 'pro' and me.profession == 'pilote_drone' %}
+<b>{{ _("Profil de télépilote") }}</b>
+<label>{{ _("Numéro d'autorisation d'exploitation (ANAC)") }}<input name="anac_ref" value="{{ me.anac_ref or '' }}" maxlength="80"></label>
+<label>{{ _("Zone d'intervention") }}<input name="zone" value="{{ me.zone or '' }}"></label>
+<label>{{ _("Présentation et matériel") }}<textarea name="bio" placeholder="{{ _("Ex. DJI Mavic 3 Enterprise, orthophotos avec WebODM") }}">{{ me.bio or '' }}</textarea></label>
+{% if me.verified %}<span class="tag blue">{{ _("Télépilote vérifié") }}</span>{% elif me.anac_ref %}<span class="tag amber">{{ _("Vérification en cours") }}</span>{% endif %}
+{% elif me.role in ('inspecteur', 'fournisseur') %}
+<b>{{ _("Profil d'inspecteur") if me.role == 'inspecteur' else _("Profil du fournisseur") }}</b>
+<label>{{ _("Zone d'intervention") if me.role == 'inspecteur' else _("Zone de livraison") }}<input name="zone" value="{{ me.zone or '' }}"></label>
+{% if me.role == 'inspecteur' %}<span class="muted">{{ _("ChantierVrai vous attribue les inspections de votre zone et vous verse la rémunération fixée pour chaque visite, après votre rapport. Vous ne traitez pas d'argent avec le propriétaire.") }}</span>{% endif %}
+<label>{{ _("Présentation") }}<textarea name="bio">{{ me.bio or '' }}</textarea></label>
+{% endif %}
+{% if me.role in ('proprio', 'chef') %}
+{% if me.role == 'proprio' %}<label class="check"><input type="checkbox" name="advanced" value="1"{% if me.advanced %} checked{% endif %}> {{ _("Mode complet : afficher toutes les fonctions sur mes chantiers (sinon l'essentiel d'abord, le reste dans « Autres fonctions »)") }}</label>
+{% else %}<label class="check"><input type="checkbox" name="advanced" value="1"{% if me.advanced %} checked{% endif %}> {{ _("Afficher les fonctions avancées : maquette numérique, capteurs, visites 360°, zones et quantités") }}</label>{% endif %}
+{% endif %}
+<button class="btn" type="submit">{{ _("Enregistrer") }}</button>
+</form>
+<nav class="set-list" aria-label="{{ _("Réglages") }}">
+{% if me.role == 'proprio' %}<a class="set-row" href="{{ url_for('api_settings') }}">{{ _("API et webhooks : connecter d'autres logiciels") }}</a>{% endif %}
+<a class="set-row" href="{{ url_for('security') }}">{{ _("Sécurité, double authentification et mes données") }}</a>
+{% if me.role == 'proprio' %}<a class="set-row" href="{{ url_for('subscription') }}">{{ _("Mon abonnement et mes factures") }}</a>{% endif %}
+{% if me.is_admin %}<a class="set-row" href="{{ url_for('admin') }}">{{ _("Administration") }}</a>{% endif %}
+{% if me.role == 'fournisseur' %}<a class="set-row" href="{{ url_for('supplier_catalog') }}">{{ _("Mon catalogue de produits") }}</a>{% endif %}
+</nav>
+{% if me.role == 'fournisseur' and not me.verified %}<div class="card alert"><b>{{ _("Entreprise en attente de vérification") }}</b><span class="muted">{{ _("Envoyez votre RCCM et l'adresse de votre dépôt au support. Vos produits seront proposés aux chantiers une fois vérifiés.") }}</span></div>{% endif %}
+{% if me.role == 'inspecteur' and not me.verified %}<div class="card alert"><b>{{ _("Profil en attente de vérification") }}</b><span class="muted">{{ _("Envoyez vos diplômes et références au support. Votre profil sera proposé aux propriétaires une fois vérifié.") }}</span></div>{% endif %}
+<div class="card"><b>{{ _("Installer l'application") }}</b><span class="muted">{{ _("Sur Android : menu ⋮ du navigateur, « Installer l'application ». Sur iPhone : bouton Partager de Safari, « Sur l'écran d'accueil ». ChantierVrai s'ouvre alors comme une application, en plein écran.") }}</span></div>
+{% endblock %}

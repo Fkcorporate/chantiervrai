@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}ChantierVrai{% endblock %}</title>
+<meta name="theme-color" content="{{ {'ivoire': '#F6F4EF', 'blanc': '#FFFFFF', 'nuit': '#070F0B'}[THEME] }}">
+<link rel="manifest" href="{{ url_for('manifest') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ChantierVrai">
+<link rel="preload" href="{{ url_for('static', filename='fonts/InterDisplay-ExtraBold.woff') }}" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="{{ asset('style.css') }}">
+<link rel="stylesheet" href="{{ asset('themes-night.css') }}">
+<link rel="stylesheet" href="{{ asset('themes.css') }}">
+<link rel="stylesheet" href="{{ asset('desktop.css') }}" media="(min-width: 1100px)">
+{% block head %}{% endblock %}
+</head>
+{% from "_macros.html" import icon as _ico %}
+{% if false %}{% block tabs %}{% endblock %}{% endif %}
+{% set ep = request.endpoint or '' %}
+{% set ptabs = self.tabs()|trim %}
+{% set fn_groups = project_functions(p) if (me and p is defined and p and p.owner_id is defined) else [] %}
+{% macro theme_picker() %}<div class="theme-pick" role="group" aria-label="{{ _("Apparence") }}">{% for k, lab in (('ivoire', _("Ivoire")), ('blanc', _("Blanc")), ('nuit', _("Nuit"))) %}<button type="button" data-theme="{{ k }}" aria-pressed="{{ 'true' if THEME == k else 'false' }}"><i class="sw-{{ k }}"></i>{{ lab }}</button>{% endfor %}</div>{% endmacro %}
+{% set QA = quick_actions(me) if me else [] %}
+<body class="theme-{{ THEME }} {% if me %}has-app{% endif %}{% if ptabs %} has-ptabs{% endif %} {% block bodyclass %}{% endblock %}">
+<script>/* Ordinateur : l'accueil « nuit » et le fil plein écran sont des vues téléphone */if (window.matchMedia && matchMedia('(min-width: 1100px)').matches) document.body.classList.remove('night', 'top-dark', 'feed-home');</script>
+<div class="wrap{% block wrapclass %}{% endblock %}">
+{% if me %}
+{# ---- Téléphone : barre du haut (retour, titre, alertes) ---- #}
+{% set root_eps = ('home', 'payments_received', 'map_view', 'assistant', 'academy', 'help_page', 'notifications', 'account', 'contractors', 'admin') %}
+{% set page_title = (self.title()|striptags|trim).split(' · ')[0] %}
+<div class="appbar">
+{% if ep == 'project' %}
+<a class="ab-btn ab-back" href="{{ url_for('home') }}" aria-label="{{ _("Retour aux chantiers") }}">{{ _ico('back') }}</a>
+{% elif p is defined and p and p.id is defined and ep not in root_eps %}
+<a class="ab-btn ab-back" href="{{ url_for('project', project_id=p.id) }}" aria-label="{{ _("Retour au chantier") }}">{{ _ico('back') }}</a>
+{% elif ep not in root_eps %}
+<a class="ab-btn ab-back" href="{{ url_for('home') }}" onclick="if (history.length > 1 && document.referrer.indexOf(location.host) > -1) { history.back(); return false; }" aria-label="{{ _("Retour") }}">{{ _ico('back') }}</a>
+{% else %}
+<a class="ab-logo" href="{{ url_for('home') }}" aria-label="ChantierVrai"><img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="30" height="30"></a>
+{% endif %}
+<div class="ab-title" id="ab-title">
+{% if ep == 'project' and p is defined %}<span class="ab-kicker">{{ _("Chantier") }}</span>{% elif p is defined and p and p.name is defined and ep not in root_eps %}<span class="ab-kicker">{{ p.name }}</span>{% endif %}
+<b>{{ page_title if page_title != 'ChantierVrai' else NAV.primary[0].label }}</b>
+</div>
+{% if fn_groups %}<button type="button" class="ab-btn ab-fn" data-sheet="fn-drawer" aria-haspopup="dialog" aria-label="{{ _("Toutes les fonctions") }}">{{ _ico('grid') }}</button>
+{% elif ptabs %}<button type="button" class="ab-btn" data-sheet="nav-sheet" aria-haspopup="dialog" aria-label="{{ _("Menu") }}">{{ _ico('more') }}</button>{% endif %}
+<a class="ab-btn{% if ep == 'notifications' %} on{% endif %}" href="{{ url_for('notifications') }}" aria-label="{{ _("Alertes") }}{% if unread %} ({{ unread }}){% endif %}">{{ _ico('bell') }}{% if unread %}<span class="ab-dot">{{ unread if unread < 10 else '9+' }}</span>{% endif %}</a>
+</div>
+{% endif %}
+<header>
+<a class="brand" href="{{ url_for('home') }}">ChantierVrai</a>
+{% if me %}
+<nav class="top" aria-label="{{ _("Menu principal") }}">
+{% for it in NAV.side %}
+<a href="{{ it.url }}"{% if ep in it.eps %} class="on" aria-current="page"{% endif %}>{{ _ico(it.icon) }}<span>{{ it.label }}</span>{% if it.key == 'alerts' and unread %}<span class="badge">{{ unread }}</span>{% endif %}</a>
+{% endfor %}
+</nav>
+<div class="side-theme">{{ theme_picker() }}</div>
+<form method="post" action="{{ url_for('logout') }}" class="side-logout">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<a class="side-me" href="{{ url_for('account') }}"><span class="side-avatar" aria-hidden="true">{{ (me.name or '?')[:1]|upper }}{{ ((me.name or '').split(' ')[1] if (me.name or '').split(' ')|length > 1 else '')[:1]|upper }}</span><span class="side-me-txt"><b>{{ me.name }}</b><small>{{ ROLES.get(me.role, me.role) }}</small></span></a>
+<button class="btn ghost small" type="submit">{{ _("Déconnexion") }}</button>
+</form>
+{% else %}
+<nav class="top" aria-label="{{ _("Menu principal") }}">
+<a href="{{ url_for('academy') }}">{{ _("Académie") }}</a>
+<a href="{{ url_for('help_page') }}">{{ _("Aide") }}</a>
+<a href="{{ url_for('login') }}">{{ _("Connexion") }}</a>
+</nav>
+{% endif %}
+</header>
+{% if me %}
+{# ---- Ordinateur : fil d'Ariane, recherche (⌘K), raccourcis du chantier, alertes ---- #}
+{% set dk_title = (self.title()|striptags|trim).split(' · ')[0] %}
+<div class="dk-top">
+<nav class="dk-crumb" aria-label="{{ _("Vous êtes ici") }}">
+{% if p is defined and p and p.name is defined %}
+<a href="{{ url_for('home') }}">{{ _("Chantiers") }}</a><i>/</i>
+{% if ep == 'project' %}<b>{{ p.name }}</b>{% else %}<a href="{{ url_for('project', project_id=p.id) }}">{{ p.name }}</a><i>/</i><b>{{ dk_title if dk_title != p.name else _("Page") }}</b>{% endif %}
+{% else %}<b>{{ dk_title if dk_title != 'ChantierVrai' else NAV.primary[0].label }}</b>{% endif %}
+</nav>
+<button type="button" class="dk-search" data-cmdk aria-haspopup="dialog">{{ _ico('search') }}<span>{{ _("Rechercher un chantier, une fonction…") }}</span><kbd>⌘K</kbd></button>
+{% if p is defined and p and p.id is defined and fn_groups %}
+{% set dk_cu = chat_unread(p.id) %}
+{% if ep != 'chat_page' and url_for('chat_page', project_id=p.id) not in ptabs %}<a class="dk-btn" href="{{ url_for('chat_page', project_id=p.id) }}">{{ _ico('chat') }}{{ _("Conversation") }}{% if dk_cu %}<em>{{ dk_cu }}</em>{% endif %}</a>{% endif %}
+<button type="button" class="dk-btn" data-sheet="fn-drawer" aria-haspopup="dialog">{{ _ico('grid') }}{{ _("Toutes les fonctions") }}</button>
+{% elif ep == 'home' and me.role == 'proprio' %}
+<a class="dk-btn p" href="{{ url_for('new_project') }}">+ {{ _("Nouveau chantier") }}</a>
+{% endif %}
+<a class="dk-ib" href="{{ url_for('notifications') }}" aria-label="{{ _("Alertes") }}{% if unread %} ({{ unread }}){% endif %}">{{ _ico('bell') }}{% if unread %}<em>{{ unread if unread < 10 else '9+' }}</em>{% endif %}</a>
+</div>
+<dialog class="dk-cmd" id="dk-cmd" aria-label="{{ _("Rechercher") }}">
+<input type="search" placeholder="{{ _("Chantier, fonction, page…") }}" aria-label="{{ _("Rechercher") }}" autocomplete="off">
+<ul>
+{% set dk_pj = my_projects_brief() %}
+{% if dk_pj %}<li class="dk-cmd-h">{{ _("Chantiers") }}</li>{% for x in dk_pj %}<li><a href="{{ url_for('project', project_id=x.id) }}">{{ _ico('home') }}<span>{{ x.name }}</span><small>{{ x.address or '' }}</small></a></li>{% endfor %}{% endif %}
+{% if fn_groups %}<li class="dk-cmd-h">{{ p.name }}</li>{% for g_ in fn_groups %}{% for it in g_['items'] %}<li><a href="{{ it.url }}">{{ _ico('grid') }}<span>{{ it.label }}</span><small>{{ g_.title }}</small></a></li>{% endfor %}{% endfor %}{% endif %}
+<li class="dk-cmd-h">{{ _("Menu") }}</li>{% for it in NAV.side %}<li><a href="{{ it.url }}">{{ _ico(it.icon) }}<span>{{ it.label }}</span></a></li>{% endfor %}
+</ul>
+</dialog>
+{% endif %}
+<main>
+{% if fn_groups and not ptabs %}<div class="fn-bar"><a class="fn-bar-back" href="{{ url_for('project', project_id=p.id) }}">{{ _ico('back') }}<span>{{ p.name }}</span></a><button type="button" class="tabs-fn" data-sheet="fn-drawer" aria-haspopup="dialog">{{ _ico('grid') }}<span>{{ _("Toutes les fonctions") }}</span></button></div>{% endif %}
+{% for cat, msg in get_flashed_messages(with_categories=true) %}
+<div class="flash {{ cat }}" role="status">{{ msg }}</div>
+{% endfor %}
+{% if sub_banner %}<a class="card alert row" href="{{ url_for('subscription') }}" style="text-decoration:none"><span>{{ sub_banner[1] }}</span><span class="btn small">{{ _("Voir mon abonnement") }}</span></a>{% endif %}
+{% block content %}{% endblock %}
+{% if me %}
+<form method="post" action="{{ url_for('logout') }}" class="logout">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<button class="btn ghost small" type="submit">{{ me.name }} {{ _("· Déconnexion") }}</button>
+</form>
+{% endif %}
+<footer class="foot"><a href="{{ url_for('terms') }}">{{ _("Conditions d'utilisation") }}</a> · <a href="{{ url_for('privacy') }}">{{ _("Confidentialité") }}</a> · {% for code, name in LANGS.items() %}{% if code != lang %}<a href="{{ request.path }}?lang={{ code }}" hreflang="{{ code }}" lang="{{ code }}">{{ name }}</a>{% endif %}{% endfor %}</footer>
+</main>
+{% if ptabs %}{{ ptabs|safe }}{% elif me %}
+<nav class="bottombar" aria-label="{{ _("Menu principal") }}">
+{% for it in NAV.primary %}
+<a href="{{ it.url }}"{% if ep in it.eps %} class="on" aria-current="page"{% endif %}><span class="bb-ico">{{ _ico(it.icon) }}</span><span>{{ it.label }}</span></a>
+{% if loop.index == 2 and QA %}<button type="button" class="bb-plus" data-sheet="quick-sheet" aria-haspopup="dialog" aria-label="{{ _("Actions rapides") }}"><span>＋</span></button>{% endif %}
+{% endfor %}
+<button type="button" class="bb-more" data-sheet="nav-sheet" aria-haspopup="dialog"><span class="bb-ico">{{ _ico('more') }}</span><span>{{ _("Plus") }}</span></button>
+</nav>
+{% endif %}
+</div>
+{% if fn_groups %}{% include "_functions.html" %}{% endif %}
+{% if QA %}
+<dialog class="sheet quick-sheet" id="quick-sheet" aria-label="{{ _("Actions rapides") }}">
+<div class="sheet-grip" aria-hidden="true"></div>
+<div class="qs-head"><b>{{ g.project.name if g.project else _("Que voulez-vous faire ?") }}</b><button type="button" class="dr-close" data-close aria-label="{{ _("Fermer") }}">✕</button></div>
+<div class="qs-grid">
+{% set QI = {'cam': 'cam', 'note': 'chat', 'money': 'wallet', 'plan': 'steps', 'bill': 'bill', 'check': 'check', 'drone': 'drone', 'insp': 'shield', 'sheet': 'folder', 'steps': 'steps', 'land': 'land', 'ai': 'chat', 'talk': 'chat'} %}
+{% for q in QA %}<a class="qs-item{% if q.primary %} primary{% endif %}" href="{{ q.url }}"><span class="qs-ico">{{ _ico(QI.get(q.ic, 'grid')) }}</span><span><b>{{ q.label }}</b><small>{{ q.desc }}</small></span></a>{% endfor %}
+</div>
+</dialog>
+{% endif %}
+{% if me %}
+<dialog class="sheet" id="nav-sheet" aria-label="{{ _("Menu") }}">
+<div class="sheet-grip" aria-hidden="true"></div>
+<a class="sheet-me" href="{{ url_for('account') }}">
+<span class="avatar" aria-hidden="true">{{ (me.name or '?')[:1]|upper }}{{ ((me.name or '').split(' ')[1] if (me.name or '').split(' ')|length > 1 else '')[:1]|upper }}</span>
+<span class="sheet-me-txt"><b>{{ me.name }}</b><span class="muted">{{ ROLES.get(me.role, me.role) }}</span></span>
+<span class="sheet-chev">{{ _ico('chev') }}</span>
+</a>
+<div class="sheet-grid">
+{% for it in (NAV.side if ptabs else NAV.more) %}{% if it.key not in ('account', 'alerts') %}
+<a href="{{ it.url }}"{% if ep in it.eps %} class="on"{% endif %}><span class="bb-ico">{{ _ico(it.icon) }}</span><span>{{ it.label }}</span></a>
+{% endif %}{% endfor %}
+<a href="{{ url_for('notifications') }}"><span class="bb-ico">{{ _ico('bell') }}</span><span>{{ _("Alertes") }}{% if unread %} ({{ unread }}){% endif %}</span></a>
+</div>
+<div class="sheet-theme">{{ theme_picker() }}</div>
+<div class="sheet-row">
+<span class="sheet-lang">{{ _ico('globe') }}{% for code, name in LANGS.items() %}<a href="{{ request.path }}?lang={{ code }}" class="{{ 'on' if code == lang }}" hreflang="{{ code }}" lang="{{ code }}">{{ name }}</a>{% endfor %}</span>
+<form method="post" action="{{ url_for('logout') }}">{{ '' }}<input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small" type="submit">{{ _ico('logout') }}{{ _("Déconnexion") }}</button></form>
+</div>
+<div class="sheet-foot"><a href="{{ url_for('terms') }}">{{ _("Conditions d'utilisation") }}</a> · <a href="{{ url_for('privacy') }}">{{ _("Confidentialité") }}</a></div>
+<button type="button" class="sheet-close" data-close aria-label="{{ _("Fermer") }}">×</button>
+</dialog>
+{% endif %}
+<script>window.CV_T = {{ JS_T|tojson }}; window.CV_GLOSS = {{ GLOSS|tojson }};</script>
+<script src="{{ asset('ui.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+<script>
+(function () {
+  function openTarget() {
+    var id = location.hash.slice(1); if (!id) return;
+    var el = document.getElementById(decodeURIComponent(id)); if (!el) return;
+    var d = el; while (d) { if (d.tagName === 'DETAILS') d.open = true; d = d.parentElement; }
+    if (el.tagName === 'DETAILS') el.open = true;
+    el.scrollIntoView();
+  }
+  window.addEventListener('hashchange', openTarget);
+  if (location.hash) setTimeout(openTarget, 0);
+})();
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('{{ url_for("service_worker") }}', {scope: '/'}).catch(function () {}); }
+</script>
+<script>
+(function () {
+  var COLORS = {ivoire: '#F6F4EF', blanc: '#FFFFFF', nuit: '#070F0B'};
+  document.querySelectorAll('[data-theme]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.dataset.theme;
+      document.body.classList.add('theme-ready');
+      document.body.className = document.body.className.replace(/\btheme-\w+/, 'theme-' + t);
+      document.cookie = 'cv_theme=' + t + '; Max-Age=31536000; Path=/; SameSite=Lax';
+      document.querySelectorAll('[data-theme]').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.theme === t ? 'true' : 'false'); });
+      var m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', COLORS[t]);
+    });
+  });
+})();
+</script>
+</body>
+</html>

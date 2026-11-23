@@ -1,0 +1,237 @@
+/* ==========================================================================
+   Thèmes : Ivoire (par défaut, aucune surcharge), Blanc pur, Nuit
+   ========================================================================== */
+
+/* ---------- Sélecteur de thème ---------- */
+.theme-pick{display:flex;gap:6px;padding:4px;border-radius:14px;background:rgba(255,255,255,.06)}
+.theme-pick button{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 4px;border:0;border-radius:10px;background:transparent;
+  color:inherit;font:600 11px/1 Inter,system-ui,sans-serif;cursor:pointer;opacity:.75;transition:background .15s,opacity .15s}
+.theme-pick button:hover{opacity:1}
+.theme-pick button[aria-pressed="true"]{background:rgba(255,255,255,.14);opacity:1}
+.theme-pick i{width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.35)}
+.theme-pick .sw-ivoire{background:linear-gradient(135deg,#F6F4EF 50%,#0B2219 50%)}
+.theme-pick .sw-blanc{background:linear-gradient(135deg,#FFFFFF 50%,#E9E9E6 50%)}
+.theme-pick .sw-nuit{background:linear-gradient(135deg,#070F0B 50%,#C9A46A 50%)}
+.side-theme{padding:0 4px 10px}
+.sheet-theme{margin:4px 0 2px}
+.sheet-theme .theme-pick{background:#F1EDE4}
+.sheet-theme .theme-pick i{box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.12)}
+.sheet-theme .theme-pick button[aria-pressed="true"]{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+
+/* ======================================================= BLANC PUR */
+body.theme-blanc{--sand:#FFFFFF;--line:#EDEDEB;--muted:#666B68}
+body.theme-blanc:not(.night){background:#FFFFFF}
+body.theme-blanc .card:not(.decision):not(.green):not(.land-cta),body.theme-blanc .post,body.theme-blanc .step,body.theme-blanc .set-list,body.theme-blanc .dr-group ul,
+body.theme-blanc .freq,body.theme-blanc .pick{background:#FFFFFF;box-shadow:0 0 0 1px #EDEDEB,0 10px 30px -18px rgba(0,0,0,.12)}
+body.theme-blanc .post{box-shadow:0 0 0 1px #EDEDEB,0 20px 40px -30px rgba(0,0,0,.25)}
+body.theme-blanc .post.decision{box-shadow:0 0 0 2px #C9A46A,0 24px 50px -30px rgba(0,0,0,.3)}
+body.theme-blanc input,body.theme-blanc select,body.theme-blanc textarea{background:#FFFFFF;border-color:#E3E3E0}
+body.theme-blanc .btn.ghost{background:#FFFFFF;border-color:#E3E3E0}
+body.theme-blanc .story i b{border-color:#FFFFFF}
+body.theme-blanc .np-total,body.theme-blanc .fp-seg,body.theme-blanc .np-steps li:not(.on):not(.done){background:#F4F4F2}
+body.theme-blanc .post-img{background-color:#F2F2F0}
+@media (min-width:1000px){
+  body.theme-blanc.has-app>.wrap>header{background:#FFFFFF;color:#0B2219;box-shadow:inset -1px 0 0 #EDEDEB}
+  body.theme-blanc.has-app header .brand{color:#0B2219}
+  body.theme-blanc.has-app nav.top a{color:#3E4441}
+  body.theme-blanc.has-app nav.top a:not(.on) svg{color:#8A908C}
+  body.theme-blanc.has-app nav.top a:hover{background:#F4F4F2}
+  body.theme-blanc.has-app nav.top a.on{background:#0B2219;color:#FFFFFF}
+  body.theme-blanc.has-app nav.top a.on svg{color:#C9A46A}
+  body.theme-blanc .side-me{background:#F6F6F4!important;color:#0B2219!important}
+  body.theme-blanc .side-me small{color:#666B68!important}
+  body.theme-blanc.has-app .side-logout .btn.ghost{color:#0B2219;border-color:#E3E3E0}
+  body.theme-blanc .tabs{background:#FFFFFF;box-shadow:inset 0 -1px 0 #EDEDEB}
+  body.theme-blanc .side-theme .theme-pick{background:#F4F4F2}
+  body.theme-blanc .side-theme .theme-pick i{box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.12)}
+  body.theme-blanc .side-theme .theme-pick button[aria-pressed="true"]{background:#FFFFFF;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+}
+body.theme-blanc:not(.top-dark) .appbar{background:rgba(255,255,255,.9)}
+
+/* ======================================================= NUIT */
+body.theme-nuit{--sand:#070F0B;--ink:#ECE8DD;--line:rgba(255,255,255,.08);--muted:#93A69D;--gold-soft:rgba(201,164,106,.12);--gold-text:#E3C48E;
+  color-scheme:dark;background:#070F0B;color:#ECE8DD}
+body.theme-nuit main{color:#ECE8DD}
+body.theme-nuit h1,body.theme-nuit h2,body.theme-nuit h3,body.theme-nuit b,body.theme-nuit strong,body.theme-nuit .section-title{color:#F4F0E7}
+body.theme-nuit .muted,body.theme-nuit small{color:#93A69D}
+body.theme-nuit main a:not([class]){color:#E3C48E}
+body.theme-nuit .fp-gold,body.theme-nuit .fp-gold *{color:#0B2219}
+body.theme-nuit .card:not(.decision):not(.land-cta),body.theme-nuit .post,body.theme-nuit .step,body.theme-nuit .set-list,body.theme-nuit .dr-group ul,body.theme-nuit .phero-stats,
+body.theme-nuit .qfig,body.theme-nuit .roles label,body.theme-nuit .freq,body.theme-nuit .pick,body.theme-nuit .np-total,body.theme-nuit .card.alert.todo-list,
+body.theme-nuit dialog.sheet,body.theme-nuit .sheet{background:#0E1914;color:#ECE8DD;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 20px 40px -30px rgba(0,0,0,.8)}
+body.theme-nuit .card a:not(.btn),body.theme-nuit .post a:not(.btn){color:inherit}
+body.theme-nuit .card.alert{box-shadow:0 0 0 1px rgba(217,98,43,.35)}
+body.theme-nuit input,body.theme-nuit select,body.theme-nuit textarea{background:#0A1410;color:#ECE8DD;border-color:rgba(255,255,255,.12)}
+body.theme-nuit input::placeholder,body.theme-nuit textarea::placeholder{color:#5E7268}
+body.theme-nuit .btn{background:#C9A46A;color:#0B2219}
+body.theme-nuit .btn:not(.ghost):not(.orange):hover:not(:disabled){background:#D8B67E}
+body.theme-nuit .btn.ghost{background:transparent;color:#ECE8DD;border-color:rgba(255,255,255,.18)}
+body.theme-nuit .btn.ghost:hover{background:rgba(255,255,255,.06)}
+body.theme-nuit .linkish{color:#E3C48E}
+body.theme-nuit .bar{background:rgba(255,255,255,.08)}
+body.theme-nuit .tag,body.theme-nuit .pill{background:rgba(255,255,255,.08);color:#D9DED9}
+body.theme-nuit .tag.green,body.theme-nuit .pill:not(.warn):not(.amber){background:rgba(31,138,87,.2);color:#74DBA8}
+body.theme-nuit .tag.amber,body.theme-nuit .pill.amber{background:rgba(217,162,58,.18);color:#EBC67F}
+body.theme-nuit .tag.bad,body.theme-nuit .pill.warn{background:rgba(220,90,60,.18);color:#F3A188}
+body.theme-nuit .tag.blue{background:rgba(90,150,230,.18);color:#A4C6F4}
+body.theme-nuit .todo-item{border-color:rgba(255,255,255,.07)}
+body.theme-nuit .todo-count{background:rgba(217,98,43,.2);color:#F3A188}
+body.theme-nuit .log>div{border-color:rgba(255,255,255,.06)}
+body.theme-nuit .log span:first-child{color:#93A69D}
+body.theme-nuit table td,body.theme-nuit table th{border-color:rgba(255,255,255,.07)}
+body.theme-nuit hr{border-color:rgba(255,255,255,.08)}
+body.theme-nuit details>summary{color:#ECE8DD}
+/* Fil de preuves */
+body.theme-nuit .story i{background:#1A2620}
+body.theme-nuit .story i b{border-color:#070F0B;background-color:#14211B}
+body.theme-nuit .story.done i{background:#1F8A57}
+body.theme-nuit .story.now i{background:conic-gradient(#C9A46A 0 60%,#1A2620 0)}
+body.theme-nuit .story span{color:#93A69D}
+body.theme-nuit .story.now span,body.theme-nuit .story.decl span{color:#F4F0E7}
+body.theme-nuit .post-img{background-color:#13201A}
+body.theme-nuit .post-badges span{background:rgba(7,15,11,.82);color:#F4F0E7}
+body.theme-nuit .post.decision{box-shadow:0 0 0 1.5px #C9A46A,0 0 60px -20px rgba(201,164,106,.35)}
+body.theme-nuit .post.decision .post-badges span{background:#C9A46A;color:#0B2219}
+body.theme-nuit .post-tx p{color:#B5C2BB}
+body.theme-nuit .post-checks li::before{background:rgba(31,138,87,.22);color:#74DBA8}
+body.theme-nuit .post-checks li.ko::before{background:rgba(220,90,60,.2);color:#F3A188}
+body.theme-nuit .fp-day,body.theme-nuit .eyebrow{color:#C9A46A}
+body.theme-nuit .fp-money{background:linear-gradient(160deg,#14291F,#0B1712);box-shadow:0 0 0 1px rgba(201,164,106,.22),0 30px 60px -30px rgba(0,0,0,.9)}
+body.theme-nuit .av{background:#1A2E24}
+body.theme-nuit .av.gold{background:#C9A46A}
+/* Création, terrains, drone */
+body.theme-nuit .np-steps li{background:#0E1914;color:#93A69D}
+body.theme-nuit .np-steps li i{background:#1A2620;color:#93A69D}
+body.theme-nuit .np-steps li.on{background:#C9A46A;color:#0B2219}
+body.theme-nuit .np-steps li.on i{background:#0B2219;color:#C9A46A}
+body.theme-nuit .np-steps li.done{background:rgba(31,138,87,.18);color:#74DBA8}
+body.theme-nuit .np-num,body.theme-nuit .lvl-steps li i{background:#1A2620;color:#ECE8DD}
+body.theme-nuit .freq:has(input:checked),body.theme-nuit .pick:has(input:checked){background:#13241C;box-shadow:0 0 0 1.5px #C9A46A}
+body.theme-nuit .freq-price{color:#F4F0E7}
+body.theme-nuit .lvl-bar{background:rgba(255,255,255,.08)}
+/* Barres et menus */
+body.theme-nuit .tabs{background:#070F0B}
+@media (min-width:1000px){
+  body.theme-nuit.has-app>.wrap>header{background:#050B08;box-shadow:inset -1px 0 0 rgba(255,255,255,.05)}
+  body.theme-nuit.has-app nav.top a.on{background:#C9A46A;color:#0B2219}
+  body.theme-nuit.has-app nav.top a.on svg{color:#0B2219}
+  body.theme-nuit .tabs{background:rgba(7,15,11,.92);box-shadow:inset 0 -1px 0 rgba(255,255,255,.06)}
+  body.theme-nuit .tabs a{color:#93A69D}
+  body.theme-nuit .tabs a.on{color:#F4F0E7;border-bottom-color:#C9A46A}
+  body.theme-nuit .tabs-fn{background:transparent;color:#ECE8DD;border-color:rgba(255,255,255,.18)}
+}
+body.theme-nuit .appbar{background:rgba(7,15,11,.88);color:#ECE8DD;border-bottom-color:rgba(255,255,255,.06)}
+body.theme-nuit .appbar .ab-btn{color:#ECE8DD}
+body.theme-nuit .sheet-theme .theme-pick{background:#14211B}
+body.theme-nuit .sheet-theme .theme-pick button[aria-pressed="true"]{background:#24342C}
+body.theme-nuit .flash,body.theme-nuit .flash.ok{background:#13241C;color:#ECE8DD}
+
+/* ======================================================= Finitions haut de gamme (tous thèmes) */
+body.theme-ready,body.theme-ready .card,body.theme-ready .post,body.theme-ready header,body.theme-ready .tabs,body.theme-ready .fp-money{
+  transition:background-color .35s ease,color .35s ease,box-shadow .35s ease,border-color .35s ease}
+:focus-visible{outline:2px solid #C9A46A;outline-offset:2px}
+.post,.card.cardlink,.plot-item,.pcard{transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s ease}
+@media (hover:hover){.post:hover,.plot-item:hover{transform:translateY(-2px)}}
+.fp-big,.big,.freq-price{font-feature-settings:"tnum" 1,"ss01" 1}
+::selection{background:rgba(201,164,106,.35)}
+/* Sélecteur : pastilles avec anneau doré sur le choix actif */
+.theme-pick button[aria-pressed="true"] i{box-shadow:0 0 0 2px #C9A46A,inset 0 0 0 1.5px rgba(255,255,255,.4)}
+.theme-pick button i{transition:transform .2s}
+.theme-pick button:hover i{transform:scale(1.08)}
+
+/* ======================================================= Blanc pur : précision « galerie » */
+body.theme-blanc{--gold-text:#8A6A2E}
+body.theme-blanc h1{letter-spacing:-.035em}
+body.theme-blanc .eyebrow,body.theme-blanc .fp-day{color:#8A6A2E}
+body.theme-blanc .fp-money{background:#0B0F0D;box-shadow:0 30px 60px -30px rgba(0,0,0,.45)}
+body.theme-blanc .fp-money .eyebrow{color:#C9A46A}
+body.theme-blanc .story i b{box-shadow:0 1px 3px rgba(0,0,0,.08)}
+body.theme-blanc .btn:not(.ghost):not(.orange){background:#0B0F0D}
+body.theme-blanc .btn:not(.ghost):not(.orange):hover:not(:disabled){background:#1E2622}
+@media (min-width:1000px){
+  body.theme-blanc.has-app nav.top a.on{background:#0B0F0D}
+}
+
+/* ======================================================= Nuit : profondeur, lueurs et or */
+body.theme-nuit{background:
+  radial-gradient(900px 600px at 12% -10%,rgba(31,138,87,.13),transparent 60%),
+  radial-gradient(800px 500px at 100% 0%,rgba(201,164,106,.08),transparent 55%),#070F0B;background-attachment:fixed}
+body.theme-nuit .card:not(.decision):not(.land-cta),body.theme-nuit .post,body.theme-nuit .step,body.theme-nuit .freq,body.theme-nuit .pick{
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012)),#0C1712}
+body.theme-nuit .btn:not(.ghost):not(.orange){background:linear-gradient(180deg,#D6B57D,#C29A5C);box-shadow:0 8px 24px -10px rgba(201,164,106,.55),inset 0 1px 0 rgba(255,255,255,.35)}
+body.theme-nuit h1{color:#F7F3EA}
+body.theme-nuit .btn-big#shoot{background:linear-gradient(180deg,#D6B57D,#C29A5C);color:#0B2219}
+body.theme-nuit .pcard-tag.hot{background:#C9A46A;color:#0B2219}
+body.theme-nuit .fp-big{background:linear-gradient(180deg,#FFFFFF,#E3C48E);-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (min-width:1000px){
+  body.theme-nuit.has-app>.wrap>header{background:linear-gradient(180deg,#07110C,#040906)}
+  body.theme-nuit.has-app nav.top a.on{background:linear-gradient(180deg,#D6B57D,#C29A5C);box-shadow:0 8px 20px -10px rgba(201,164,106,.6)}
+}
+@media (prefers-reduced-motion:reduce){body.theme-ready *{transition:none!important}.story.decl i,.story.decl i b{animation:none}}
+body.top-dark .appbar .ab-kicker{color:#C9D8CF}
+body.theme-nuit header .brand,body.theme-nuit.has-app header .brand{color:#F7F3EA}
+body.theme-nuit .backlink,body.theme-nuit main a:not([class]){color:#E3C48E}
+body.theme-nuit .lvl-steps li i{background:#1A2620;color:#93A69D}
+body.theme-nuit .lvl-steps li:not(:first-child)::before{background:#1A2620}
+body.theme-nuit .lvl-steps li.done i{background:#C9A46A;color:#0B2219}
+body.theme-nuit .lvl-steps li.done:not(:first-child)::before{background:#C9A46A}
+body.theme-nuit .lvl-steps li.now span{color:#F7F3EA}
+body.theme-nuit .fp-sc{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015)),#0C1712;box-shadow:0 0 0 1px rgba(255,255,255,.07)}
+body.theme-nuit .fp-sc-ico{background:rgba(201,164,106,.14)}
+body.theme-blanc .fp-sc{box-shadow:0 0 0 1px #EDEDEB,0 10px 24px -20px rgba(0,0,0,.2)}
+body.theme-blanc .fp-sc-ico{background:#0B0F0D}
+body.theme-nuit .qs-item{background:#101B16}
+body.theme-nuit .qs-item.primary{background:linear-gradient(135deg,#1A3A2B,#0F2219);box-shadow:0 0 0 1px rgba(201,164,106,.3)}
+body.theme-nuit .qs-ico{background:#1A2620}
+body.theme-blanc .qs-item{background:#F4F4F2}
+body.theme-nuit .act-chips button{background:#14211B;color:#B9C8BF}
+body.theme-nuit .act-chips button.on{background:#C9A46A;color:#0B2219}
+body.theme-nuit .act-row:hover{background:rgba(255,255,255,.04)}
+body.theme-nuit .act-txt span{color:#B5C2BB}
+body.theme-nuit .act-ico{background:#1A2620}
+body.theme-blanc .act-chips button{background:#F2F2F0}
+body.theme-nuit .pv-switch{background:#14211B}
+body.theme-nuit .pv-switch button{color:#93A69D}
+body.theme-nuit .pv-switch button.on{background:#24342C;color:#F4F0E7}
+body.theme-nuit .chat-hd{background:#070F0B}
+body.theme-nuit .ch-msg.them{background:#14211B;color:#ECE8DD}
+body.theme-nuit .ch-msg.me{background:linear-gradient(180deg,#D6B57D,#C29A5C);color:#0B2219}
+body.theme-nuit .ch-msg.me .ch-play{background:#0B2219;color:#E3C48E}
+body.theme-nuit .ch-card{background:#0E1914;color:#ECE8DD}
+body.theme-nuit .ch-day span{background:rgba(255,255,255,.07);color:#93A69D}
+body.theme-nuit .ch-compose{background:rgba(7,15,11,.9)}
+body.theme-nuit .ch-cam{background:#14211B}
+body.theme-nuit .ch-rec{background:#14211B}
+body.theme-nuit .ch-link{color:#74DBA8}
+body.theme-blanc .chat-hd,body.theme-blanc .ch-compose{background:rgba(255,255,255,.94)}
+body.theme-blanc .ch-msg.them{box-shadow:0 0 0 1px #EDEDEB}
+body.theme-nuit .fp-chat{background:#0E1914;color:#ECE8DD;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+body.theme-nuit .fp-chat-ico em{box-shadow:0 0 0 2px #0E1914}
+body.theme-nuit .ch-av{box-shadow:0 0 0 2px #070F0B,0 0 0 4px #C9A46A}
+body.theme-nuit .ch-mic,body.theme-nuit .ch-send{background:linear-gradient(180deg,#E3C48E,#C29A5C)!important;color:#0B2219!important}
+body.theme-nuit .ph-kpis div,body.theme-nuit .ph-item,body.theme-nuit .ph-link{background:#0E1914;color:#ECE8DD;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+body.theme-nuit .ph-done .ph-item{background:transparent;box-shadow:none;border-color:rgba(255,255,255,.08)}
+body.theme-nuit .ph-th{background-color:#14211B;color:#E3C48E}
+body.theme-nuit .ph-tick{background:rgba(31,138,87,.18);color:#74DBA8}
+body.theme-nuit .ph-tx .ph-w{color:#E3C48E}
+body.theme-nuit .ph-h span{background:#E3C48E;color:#0B2219}
+body.theme-blanc .ph-kpis div,body.theme-blanc .ph-item,body.theme-blanc .ph-link{box-shadow:0 0 0 1px #EDEDEB}
+body.theme-nuit .ph-tag.amber{color:#F2B872}body.theme-nuit .ph-tag.blue{color:#A4C6F4}body.theme-nuit .ph-tag.bad{color:#F3A188}body.theme-nuit .ph-tag.green{color:#74DBA8}
+body.theme-nuit .ph-rt .ph-w{color:#E3C48E}
+body.theme-nuit .ph-cta{color:#0B2219!important}
+body.theme-nuit .ph-alt{color:#fff!important}
+
+body.theme-blanc .act-chips button.on{background:#0B2219;color:#fff}
+/* Accueil du chantier : finitions du thème Nuit et Blanc */
+body.theme-nuit .fpa-bar{background:rgba(255,255,255,.1)}
+body.theme-nuit .fp-answers a+a{border-left-color:rgba(255,255,255,.08)}
+body.theme-nuit .fp-answers{box-shadow:0 0 0 1px rgba(255,255,255,.06),0 14px 34px -16px rgba(0,0,0,.6)}
+body.theme-nuit .fp-quick a,body.theme-nuit .fp-quick button{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015)),#0C1712;box-shadow:0 0 0 1px rgba(255,255,255,.07)}
+body.theme-nuit .fq-ico{background:rgba(201,164,106,.14)}
+body.theme-nuit .tab-badge{box-shadow:0 0 0 2px #0C1712}
+body.theme-blanc .fp-quick a,body.theme-blanc .fp-quick button{box-shadow:0 0 0 1px #EDEDEB,0 10px 24px -20px rgba(0,0,0,.2)}
+body.theme-blanc .fq-ico{background:#0B0F0D}
+body.theme-blanc .fp-answers{box-shadow:0 0 0 1px #EDEDEB,0 14px 34px -18px rgba(0,0,0,.22)}
+body.theme-nuit.top-photo .appbar.scrolled{background:rgba(10,20,15,.9)}
+body.theme-nuit.top-photo .appbar.scrolled .ab-btn{color:#ECE8DD}
+body.theme-nuit .totp-qr{background:#fff}

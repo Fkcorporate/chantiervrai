@@ -1923,3 +1923,10 @@ body.chat-page .bottombar,body.chat-page .tabs{display:none!important}
 .dr-foot.dr-foot-min a:last-child{font-weight:500;color:#59625D}
 .dr-foot.dr-foot-min a svg{width:18px;height:18px;transform:rotate(180deg)}
 @media (max-width:999px){body.fp-photo main{padding-bottom:calc(100px + env(safe-area-inset-bottom))}}
+/* Mise en place de la double authentification */
+.totp-qr{align-self:flex-start;padding:10px;border-radius:16px;background:#fff;box-shadow:0 0 0 1px #ECE8DF;line-height:0}
+.totp-qr svg{display:block;max-width:100%;height:auto}
+.totp-key summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:40px;display:flex;align-items:center}
+.totp-key[open]{display:flex;flex-direction:column;gap:8px}
+.totp-code{font-size:17px;letter-spacing:.06em;user-select:all;word-break:break-all}
+.totp-restart{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:13px}

@@ -3968,5 +3968,15 @@
  "Messages": "Messages",
  "Raccourcis": "Shortcuts",
  "point(s) à décider": "item(s) to decide",
- "versés sur %(t)s": "paid of %(t)s"
+ "versés sur %(t)s": "paid of %(t)s",
+ "2. Dans l'application, touchez « + » puis « Scanner un code QR », et visez ce code :": "2. In the app, tap “+” then “Scan a QR code”, and point at this code:",
+ "3. Saisissez le code à 6 chiffres affiché pour ChantierVrai": "3. Enter the 6-digit code shown for ChantierVrai",
+ "Code incorrect. Vérifiez que l'heure du téléphone est réglée automatiquement, et que le compte ajouté est bien « ChantierVrai » avec la clé affichée ici.": "Wrong code. Check that your phone's time is set automatically, and that the account you added is “ChantierVrai” with the key shown here.",
+ "Impossible de scanner ? Saisir la clé à la main": "Can't scan? Enter the key by hand",
+ "La mise en place a expiré. Touchez « Activer la double authentification » pour recommencer.": "Setup has expired. Tap “Turn on two-factor authentication” to start again.",
+ "Le code est toujours refusé ? Supprimez l'entrée ChantierVrai de l'application et recommencez avec une nouvelle clé.": "Code still refused? Delete the ChantierVrai entry from the app and start again with a new key.",
+ "Nouvelle clé": "New key",
+ "Sinon, ajoutez un compte « ChantierVrai », saisissez cette clé et choisissez le type « Basé sur l'heure » :": "Otherwise, add a “ChantierVrai” account, enter this key and choose the “Time-based” type:",
+ "Sur ce téléphone :": "On this phone:",
+ "ouvrir directement dans l'application": "open it straight in the app"
 }

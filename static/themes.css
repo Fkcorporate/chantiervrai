@@ -234,3 +234,4 @@ body.theme-blanc .fq-ico{background:#0B0F0D}
 body.theme-blanc .fp-answers{box-shadow:0 0 0 1px #EDEDEB,0 14px 34px -18px rgba(0,0,0,.22)}
 body.theme-nuit.top-photo .appbar.scrolled{background:rgba(10,20,15,.9)}
 body.theme-nuit.top-photo .appbar.scrolled .ab-btn{color:#ECE8DD}
+body.theme-nuit .totp-qr{background:#fff}

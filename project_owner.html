@@ -1,0 +1,757 @@
+{% extends "base.html" %}
+{% block bodyclass %}{% if tab == 'accueil' %}feed-home{% if cover %} top-photo fp-photo{% endif %}{% endif %}{% endblock %}
+{% from "_macros.html" import proof_card, tabs, csrf, risk_pill, tool, icon with context %}
+{% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
+{% block head %}
+{% if tab == 'vues' %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script type="module" src="https://unpkg.com/@google/model-viewer@3/dist/model-viewer.min.js"></script>
+{% endif %}
+{% endblock %}
+{% block content %}
+
+{# ======================================================== ACCUEIL #}
+{% if tab == 'accueil' %}
+{% include "_desk_project.html" %}
+{% set cur = s.current %}{% set decl = s.steps|selectattr('status', 'equalto', 'declare')|list %}
+<div class="fp">
+{% set step_line %}{% if cur %}{{ _("Étape %(i)s sur %(n)s", i=(s.steps|map(attribute='id')|list).index(cur.id) + 1, n=s.steps|length) }} · {{ cur.name }}{% else %}{{ _("Chantier") }}{% endif %}{% endset %}
+{% if cover %}
+<section class="fp-hero" aria-labelledby="fp-h1">
+<img src="{{ url_for('proof_thumb', proof_id=cover.id) }}" alt="" decoding="async" fetchpriority="high">
+<a class="fp-hero-chip" href="{{ url_for('project', project_id=p.id, onglet='preuves') }}">{{ icon('check') }}<span>{{ _("Photo vérifiée") }} · {{ ago(cover.created_at) }}</span></a>
+<div class="fp-hero-body"><span class="fp-hero-step">{{ step_line }}</span><h1 id="fp-h1">{{ p.name }}</h1>{% if p.address %}<span class="fp-hero-addr">{{ p.address }}</span>{% endif %}</div>
+</section>
+{% else %}
+<div class="fp-head">
+<div><span class="eyebrow">{{ step_line }}</span>
+<h1>{{ p.name }}</h1><span class="muted">{{ p.address }}</span></div>
+</div>
+{% endif %}
+
+{# Les trois réponses, dès le premier écran du téléphone : ça avance ? mon argent ? que dois-je décider ? #}
+{% set n_todo = alerts|length if alerts else 0 %}{% set paid_pct = (100 * s.paid / s.total)|round|int if s.total else 0 %}
+<nav class="fp-answers{% if cover %} on-photo{% endif %}" aria-label="{{ _("En bref") }}">
+<a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}"><b>{{ s.verified_pct }}<i>%</i></b><small>{{ _("Avancement") }}</small><span class="fpa-bar" aria-hidden="true"><span style="width:{{ s.verified_pct }}%"></span></span></a>
+<a href="{{ url_for('payments_ledger', project_id=p.id) }}" title="{{ fcfa(s.paid) }} / {{ fcfa(s.total) }} FCFA"><b>{{ compact(s.paid) }}</b><small>{{ _("versés sur %(t)s", t=compact(s.total)) }}</small></a>
+<a class="{{ 'todo' if n_todo else 'calm' }}" href="{{ '#todo-h' if n_todo else url_for('chat_page', project_id=p.id) }}"><b>{% if n_todo %}{{ n_todo }}{% else %}{{ icon('check') }}{% endif %}</b><small>{{ pl(n_todo, "point(s) à voir") if n_todo else _("Rien à décider") }}</small></a>
+</nav>
+
+{# Étapes en « stories » #}
+<div class="stories" role="list" aria-label="{{ _("Étapes") }}">
+{% for st in feed.stories %}
+<a class="story {{ st.state }}" role="listitem" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}"{% if st.thumb %} data-view="{{ st.thumb }}"{% endif %}>
+<i>{% if st.thumb %}<b style="background-image:url('{{ url_for('proof_thumb', proof_id=st.thumb) }}')"></b>{% else %}<b></b>{% endif %}</i>
+<span>{{ st.name }}</span>{% if st.state == 'decl' %}<em>{{ _("à valider") }}</em>{% endif %}</a>
+{% endfor %}
+</div>
+
+{% set cu = chat_unread(p.id) %}<a class="fp-chat" href="{{ url_for('chat_page', project_id=p.id) }}"><span class="fp-chat-ico">{{ icon('chat') }}{% if cu %}<em>{{ cu }}</em>{% endif %}</span><span><b>{{ _("Conversation du chantier") }}</b><small>{% if cu %}{{ _("1 nouveau message") if cu == 1 else _("%(n)s nouveaux messages", n=cu) }}{% else %}{{ _("Écrire, envoyer une note vocale ou une photo") }}{% endif %}</small></span><span class="fp-chat-go">›</span></a>
+{# Trois gestes directs ; tout le reste est dans le panneau des fonctions #}
+<nav class="fp-quick" aria-label="{{ _("Raccourcis") }}">
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}#membres"><span class="fq-ico">{{ icon('people') }}</span><span>{{ _("Inviter la famille") }}</span></a>
+<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}#inspections"><span class="fq-ico">{{ icon('shield') }}</span><span>{{ _("Faire inspecter") }}</span></a>
+{% if fn_groups %}<button type="button" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fq-ico">{{ icon('grid') }}</span><span>{{ _("Toutes les fonctions") }}</span></button>{% endif %}
+</nav>
+<div class="fp-grid"><div class="fp-main">
+{# Décision : la preuve qui demande une réponse #}
+{% if decl %}{% set dst = decl[0] %}{% set dok = ok_by_step.get(dst.id, 0) %}{% set dcs = checks_by_step.get(dst.id) %}{% set dimg = feed.last_by_step.get(dst.id) %}
+<section class="post decision" aria-labelledby="dp-h">
+<div class="post-img"{% if dimg %} style="background-image:url('{{ url_for('proof_thumb', proof_id=dimg) }}')" data-view="{{ dimg }}"{% endif %}>{% if not dimg %}<span class="muted">{{ _("Aucune photo") }}</span>{% endif %}<span class="post-badges"><span>{{ _("Votre décision") }}</span></span></div>
+<div class="post-tx">
+<span class="eyebrow">{{ _("Étape déclarée terminée") }}</span>
+<h2 id="dp-h">{{ _("%(name)s terminée", name=dst.name) }}</h2>
+<ul class="post-checks">
+<li class="{{ 'ok' if dok else 'ko' }}">{{ _("%(n)s photo(s) vérifiée(s) sur le terrain", n=dok) if dok else _("Aucune photo vérifiée pour cette étape") }}</li>
+{% if dcs %}<li class="{{ 'ko' if dcs.missing else 'ok' }}">{{ _("%(ok)s contrôle(s) sur %(t)s réussi(s)", ok=dcs.ok, t=dcs.total) }}</li>{% endif %}
+<li class="ok"><span>{{ _("Montant conforme au contrat") }} : <b>{{ fcfa(dst.amount) }} FCFA</b></span></li>
+</ul>
+<div class="post-acts"><a class="btn" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">{{ _("Vérifier et valider") }}</a><a class="btn ghost" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">{{ _("Refuser avec un motif") }}</a></div>
+</div></section>
+{% endif %}
+
+{% if alerts %}<section class="card alert todo-list" aria-labelledby="todo-h">
+<h2 id="todo-h"><span class="todo-count">{{ alerts|length }}</span>{{ _("%(n)s point(s) à voir", n=alerts|length) }}</h2>
+{% macro todo_row(title, target, sub) %}{% if target %}<a class="todo-item" href="{{ target if target.startswith('/') else url_for('project', project_id=p.id, onglet=target) }}"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span><span class="chev" aria-hidden="true">›</span></a>
+{% else %}<div class="todo-item"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span></div>{% endif %}{% endmacro %}
+{% for title, target, sub in alerts[:2] %}{{ todo_row(title, target, sub) }}{% endfor %}
+{% if alerts|length > 2 %}<details class="todo-more"><summary>{{ _("Voir les %(n)s autres", n=alerts|length - 2) }}</summary>
+{% for title, target, sub in alerts[2:] %}{{ todo_row(title, target, sub) }}{% endfor %}
+</details>{% endif %}
+</section>{% endif %}
+{% if notes_recent %}<a class="card cardlink" href="{{ url_for('site_notes_page', project_id=p.id) }}"><div class="row"><b>{{ _("Messages du chef") }}</b>{% if notes_unread %}<span class="pill warn">{{ notes_unread }} {{ pl(notes_unread, "nouveau(x)") }}</span>{% endif %}</div>{% for n in notes_recent %}<span class="muted">{% if n.urgent %}<span class="tag bad">{{ _("Urgent") }}</span> {% endif %}{{ '🎙️ ' if n.kind == 'vocal' else '' }}{{ n.summary or n.transcript or _("Note vocale à écouter") }}</span>{% endfor %}</a>{% endif %}
+
+{% for label, items in feed.days %}
+<div class="fp-day">{{ label }}</div>
+{% for it in items %}
+{% if it.type == 'proof' %}
+<article class="post">
+<div class="post-img" style="background-image:url('{{ url_for('proof_thumb', proof_id=it.id) }}')" data-view="{{ it.id }}"><span class="post-badges">{% if it.video %}<span>▶ {{ _("Vidéo") }}</span>{% endif %}<span>{{ dts(it.at) }}</span></span></div>
+<div class="post-tx">
+<div class="post-who"><span class="av">{{ (it.author or '?')[:1] }}</span><b>{{ it.author }}</b>{% if it.role %}<span class="muted">· {{ it.role }}</span>{% endif %}</div>
+<h3><a href="{{ url_for('step_page', project_id=p.id, step_id=it.step_id) }}">{{ it.title }}</a></h3>
+{% if it.note %}<p>{{ it.note }}</p>{% endif %}
+<ul class="post-checks">{% for c in it.checks %}<li class="ok">{{ c }}</li>{% endfor %}</ul>
+</div></article>
+{% elif it.type == 'journal' %}
+<a class="post slim noimg" href="{{ url_for('journal_page', project_id=p.id) }}"><div class="post-tx">
+<div class="post-who"><span class="av">{{ (it.author or '?')[:1] }}</span><b>{{ it.author }}</b><span class="muted">· {{ _("journal du jour") }}</span></div>
+<h3>{{ {'soleil': '☀️', 'nuageux': '⛅', 'pluie': '🌧️', 'forte_pluie': '⛈️'}.get(it.weather, '') }} {{ _("%(n)s ouvrier(s) sur le chantier", n=it.workers or 0) }}</h3>
+{% if it.stopped %}<span class="tag bad">{{ _("Chantier arrêté") }}{% if it.stop_reason %} · {{ it.stop_reason }}{% endif %}</span>{% endif %}
+{% if it.done %}<p>{{ it.done }}</p>{% endif %}{% if it.problems %}<p class="j-pb">⚠ {{ it.problems }}</p>{% endif %}
+</div></a>
+{% elif it.type == 'buy' %}
+<a class="post slim{% if not it.photo %} noimg{% endif %}" href="{{ url_for('purchases_page', project_id=p.id) }}#a{{ it.id }}">
+{% if it.photo %}<div class="post-img" style="background-image:url('{{ url_for('purchase_file', project_id=p.id, req_id=it.id, kind='livraison') }}')"><span class="post-badges"><span>{{ _("Livraison") }}</span></span></div>{% endif %}
+<div class="post-tx"><div class="post-who"><span class="av">{{ (it.author or '?')[:1] }}</span><b>{{ it.author }}</b><span class="muted">· {{ _("achat") }}</span></div>
+<h3>{{ it.title }}</h3><div class="row"><b>{{ fcfa(it.amount) }} FCFA</b><span class="tag {{ {'demande': 'amber', 'acceptee': 'blue', 'refusee': 'bad', 'payee': 'blue', 'livree': 'green'}[it.status] }}">{{ {'demande': _("À décider"), 'acceptee': _("À payer"), 'refusee': _("Refusée"), 'payee': _("Payée"), 'livree': _("Livrée")}[it.status] }}</span></div>
+</div></a>
+{% elif it.type == 'drone' %}
+<a class="post slim" href="{{ url_for('aerial_page', project_id=p.id) }}">
+<div class="post-img"{% if it.media %} style="background-image:url('{{ url_for('media3d_file', media_id=it.media) }}')"{% endif %}><span class="post-badges"><span>{{ _("Vue drone") }}</span></span></div>
+<div class="post-tx"><div class="post-who"><span class="av gold">{{ (it.author or '?')[:1] }}</span><b>{{ it.author }}</b><span class="muted">· {{ _("télépilote agréé") }}</span></div><h3>{{ it.title }}</h3>{% if it.note %}<p class="muted">{{ it.note }}</p>{% endif %}</div></a>
+{% else %}
+<div class="post slim noimg"><div class="post-tx"><div class="post-who"><span class="av">{{ (it.author or '?')[:1] }}</span><b>{{ it.author }}</b><span class="muted">· {{ _("inspecteur indépendant") }}</span></div><h3>{{ it.title }}</h3>{% if it.verdict %}<span class="tag {{ 'green' if it.verdict == 'conforme' else ('amber' if it.verdict == 'reserves' else 'bad') }}">{{ it.verdict_label or it.verdict }}</span>{% endif %}</div></div>
+{% endif %}
+{% endfor %}
+{% else %}
+<div class="card fp-empty"><b>{{ _("Le fil se remplira avec les premières photos") }}</b><span class="muted">{{ _("Chaque photo envoyée par le chef de chantier apparaît ici, avec ce qui prouve qu'elle est vraie.") }}</span></div>
+{% endfor %}
+<a class="btn ghost" href="{{ url_for('project', project_id=p.id, onglet='preuves') }}">{{ _("Toutes les preuves") }}</a>
+</div>
+
+<aside class="fp-side">
+<section class="fp-money">
+<span class="eyebrow">{{ _("Argent suivi") }}</span>
+<span class="fp-big">{{ fcfa(s.paid) }}</span>
+<span class="fp-sub">{{ _("FCFA versés sur") }} {{ fcfa(s.total) }}</span>
+<div class="fp-bars">
+<div><b class="lbl">{{ _("Avancement vérifié") }}</b><b>{{ s.verified_pct }} %</b></div><div class="bar"><div style="width:{{ s.verified_pct }}%"></div></div>
+<div><span>{{ _("Déjà versé") }}</span><b>{{ (100 * s.paid / s.total)|round|int if s.total else 0 }} %</b></div><div class="bar o"><div style="width:{{ (100 * s.paid / s.total)|round|int if s.total else 0 }}%"></div></div>
+</div>
+{% if feed.next %}<a class="fp-gold" href="{{ url_for('step_page', project_id=p.id, step_id=feed.next.id) }}"><span>{{ _("Prochain paiement") }}</span><b>{{ fcfa(feed.next.amount) }} FCFA</b><small>{{ feed.next.name }} · {{ STATUS[feed.next.status] }}</small></a>{% endif %}
+<span class="eyebrow">{{ _("Ces 30 derniers jours") }}</span>
+<dl class="fp-kv">
+<div><dt>{{ _("Photos vérifiées") }}</dt><dd>{{ feed.photos_30 }}</dd></div>
+<div><dt>{{ _("Jours avec des photos") }}</dt><dd>{{ feed.days_30 }}</dd></div>
+<div><dt>{{ _("Prochaine inspection") }}</dt><dd>{{ d(feed.insp_next) if feed.insp_next else '–' }}</dd></div>
+{% if land_label %}<div><dt>{{ _("Terrain") }}</dt><dd><a href="{{ url_for('land_page', project_id=p.id) }}">{{ land_label }}</a></dd></div>{% endif %}
+{% if pred and not pred.done %}<div><dt>{{ _("Fin estimée") }}</dt><dd>{{ d(pred.predicted_end) }}{% if pred.delay > 0 %} <small>+{{ pred.delay }} {{ _("j") }}</small>{% endif %}</dd></div>{% endif %}
+</dl>
+</section>
+{% if trust %}
+<a class="card" id="confiance" href="{{ url_for('trust_page', project_id=p.id) }}" style="text-decoration:none;color:inherit">
+<span class="muted">{{ _("Indice de confiance") }}</span>
+<span class="score {{ trust.level }}" style="font-size:44px">{{ trust.score if trust.score is not none else '–' }}<span style="font-size:18px;font-weight:600">/100</span></span>
+<b>{{ trust.level_label }}</b>
+{% for c in trust.criteria if c.score is not none and c.score < 60 %}<span class="muted">• {{ c.title }} : {{ c.why }}</span>{% endfor %}
+<span class="muted">{{ _("Voir le détail des six critères") }}</span>
+</a>
+{% endif %}
+{% if not p.chef_id %}
+<div class="card">
+<b>{{ _("Invitez votre chef de chantier") }}</b>
+<span class="muted">{{ _("Il crée un compte « Chef de chantier » puis saisit ce code :") }}</span>
+<span class="code">{{ p.invite_code }}</span>
+<a href="{{ url_for('contractors') }}">{{ _("Trouver un entrepreneur vérifié dans l'annuaire") }}</a>
+</div>
+{% else %}
+<div class="card"><span class="muted">{{ _("Chef de chantier") }}</span>
+<div class="row"><a href="{{ url_for('contractor', uid=p.chef_id) }}"><b>{{ people[p.chef_id].name }}</b></a>{% if chef_user and chef_user.verified and chef_user.verify_requested %}<span class="tag blue">{{ _("Entreprise vérifiée") }}</span>{% endif %}</div>
+{% if people[p.chef_id].phone %}<span class="muted">{{ _("Mobile Money et WhatsApp :") }} {{ people[p.chef_id].phone }}</span>{% endif %}
+{% if can_review %}
+<details{% if not my_review %} open{% endif %}><summary>{{ _("Modifier mon avis") if my_review else _("Noter son travail") }}</summary>
+<form method="post" action="{{ url_for('contractor_review', project_id=p.id) }}" class="stack">{{ csrf() }}
+<div class="row" style="justify-content:flex-start;gap:10px" role="radiogroup" aria-label="{{ _("Note sur 5") }}">{% for n in range(1, 6) %}<label><input type="radio" name="rating" value="{{ n }}" required{% if my_review and my_review.rating == n %} checked{% endif %}> {{ n }}</label>{% endfor %}</div>
+<label>{{ _("Commentaire (visible sur son profil)") }}<textarea name="comment" maxlength="600">{{ my_review.comment if my_review and my_review.comment else '' }}</textarea></label>
+<button class="btn ghost small">{{ _("Publier mon avis") }}</button>
+</form></details>
+{% endif %}
+</div>
+{% endif %}
+
+{% if not simple %}<h2>{{ _("Activité récente") }}</h2>
+<div class="card log">
+{% for a in activity[:6] %}<div><span title="{{ dt(a.created_at) }}">{{ dts(a.created_at) }}</span><span>{% if a.author %}<b>{{ a.author }}</b> · {% endif %}{{ a.text|tr }}</span></div>
+{% else %}<span class="muted">{{ _("Rien pour l'instant.") }}</span>{% endfor %}
+{% if activity|length > 6 %}<a class="log-more" href="{{ url_for('reports', project_id=p.id) }}">{{ _("Tout l'historique") }}</a>{% endif %}
+</div>
+{% endif %}
+
+<h2>{{ _("Compte rendu de la semaine") }}</h2>
+{% if last_report %}
+{% set c = last_report.content|fromjson %}
+<a class="card" href="{{ url_for('report', project_id=p.id, report_id=last_report.id) }}" style="text-decoration:none;color:inherit">
+<span class="muted">{{ _("Du") }} {{ d(c.period_start) }} {{ _("au") }} {{ d(c.period_end) }}</span>
+{% for line in c.summary %}<span>{{ line }}</span>{% endfor %}
+</a>
+{% else %}
+<div class="card muted">{{ _("Le premier compte rendu sera prêt 7 jours après la création du chantier.") }}</div>
+{% endif %}
+<a class="btn ghost" href="{{ url_for('reports', project_id=p.id) }}">{{ _("Fil d'actualité et tous les comptes rendus") }}</a>
+</aside>
+</div></div>
+
+
+{# Visionneuse plein écran : on glisse d'une preuve à l'autre #}
+<div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="{{ _("Preuves en plein écran") }}">
+<div class="vw-prog" id="vw-prog"></div>
+<button type="button" class="vw-close" id="vw-close" aria-label="{{ _("Fermer") }}">×</button>
+<img id="vw-img" alt="">
+<div class="vw-info"><span class="eyebrow" id="vw-kicker"></span><b id="vw-title"></b><span id="vw-sub"></span>
+{% if decl %}<div class="vw-acts" id="vw-acts" hidden><a class="btn ghost" href="{{ url_for('step_page', project_id=p.id, step_id=decl[0].id) }}#decision">{{ _("Autre photo") }}</a><a class="btn gold" href="{{ url_for('step_page', project_id=p.id, step_id=decl[0].id) }}#decision">{{ _("Valider") }} ✓</a></div>{% endif %}</div>
+<button type="button" class="vw-nav prev" aria-label="{{ _("Précédente") }}"></button><button type="button" class="vw-nav next" aria-label="{{ _("Suivante") }}"></button>
+<div class="vw-rail">
+{% if decl %}<a class="vw-r gold" id="vw-ok" href="{{ url_for('step_page', project_id=p.id, step_id=decl[0].id) }}#decision" hidden><i>✓</i><span>{{ _("Valider") }}</span></a>{% endif %}
+<a class="vw-r" id="vw-step" href="#"><i>☰</i><span>{{ _("Étape") }}</span></a>
+<a class="vw-r" href="{{ url_for('quality_list', project_id=p.id) }}"><i>⌕</i><span>{{ _("Contrôle") }}</span></a>
+</div>
+<div class="vw-burst" id="vw-burst" aria-hidden="true">✓</div>
+<span class="vw-hint" id="vw-hint">{{ _("Glissez vers le haut") }}</span>
+</div>
+<script>window.CV_FEED = {{ {'items': feed.viewer, 'decl_step': decl[0].id if decl else None, 'step_url': url_for('step_page', project_id=p.id, step_id=0)}|tojson }};</script>
+<script>
+(function () {
+  var F = window.CV_FEED, vw = document.getElementById('viewer');
+  if (!F || !vw || !F.items.length) return;
+  var img = document.getElementById('vw-img'), prog = document.getElementById('vw-prog'), acts = document.getElementById('vw-acts');
+  var i = 0, x0 = null, last = null;
+  prog.innerHTML = F.items.map(function () { return '<i></i>'; }).join('');
+  function show(k) {
+    i = Math.max(0, Math.min(F.items.length - 1, k));
+    var it = F.items[i];
+    img.src = it.src; img.alt = it.title;
+    document.getElementById('vw-title').textContent = it.title;
+    document.getElementById('vw-kicker').textContent = it.kicker;
+    document.getElementById('vw-sub').textContent = it.sub;
+    if (acts) acts.hidden = it.step !== F.decl_step;
+    var okb = document.getElementById('vw-ok'); if (okb) okb.hidden = it.step !== F.decl_step;
+    document.getElementById('vw-step').href = F.step_url.replace('/0', '/' + it.step);
+    prog.querySelectorAll('i').forEach(function (b, n) { b.className = n <= i ? 'on' : ''; });
+    if (F.items[i + 1]) (new Image()).src = F.items[i + 1].src;
+  }
+  function open(id) {
+    var k = F.items.map(function (x) { return String(x.id); }).indexOf(String(id));
+    if (k < 0) return false;
+    last = document.activeElement; vw.hidden = false; document.body.classList.add('vw-open'); show(k);
+    document.getElementById('vw-close').focus(); return true;
+  }
+  function close() { vw.hidden = true; document.body.classList.remove('vw-open'); if (last) last.focus(); }
+  document.querySelectorAll('[data-view]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      if (el.classList.contains('story') && window.matchMedia('(min-width: 900px)').matches) return;   // sur ordinateur : la vignette ouvre l'étape
+      if (open(el.dataset.view)) e.preventDefault();
+    });
+    if (!el.matches('a,button')) { el.setAttribute('role', 'button'); el.tabIndex = 0;
+      el.addEventListener('keydown', function (e) { if (e.key === 'Enter') open(el.dataset.view); }); }
+  });
+  document.getElementById('vw-close').onclick = close;
+  vw.querySelector('.prev').onclick = function () { show(i - 1); };
+  vw.querySelector('.next').onclick = function () { if (i >= F.items.length - 1) close(); else show(i + 1); };
+  document.addEventListener('keydown', function (e) {
+    if (vw.hidden) return;
+    if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') show(i + 1); else if (e.key === 'ArrowLeft') show(i - 1);
+  });
+  /* Gestes : glisser vers le haut ou la gauche = suivante, double tap = valider (étape à valider) */
+  var y0 = null, tapAt = 0;
+  vw.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, {passive: true});
+  vw.addEventListener('touchend', function (e) {
+    if (x0 === null) return;
+    var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = y0 = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 50) {
+      var fwd = Math.abs(dy) > Math.abs(dx) ? dy < 0 : dx < 0;
+      if (fwd && i >= F.items.length - 1) close(); else show(i + (fwd ? 1 : -1));
+      img.classList.remove('slide-up', 'slide-down'); void img.offsetWidth; img.classList.add(fwd ? 'slide-up' : 'slide-down');
+      document.getElementById('vw-hint').classList.add('gone');
+    }
+  });
+  img.addEventListener('click', function () {
+    var now = Date.now();
+    if (now - tapAt < 320) {
+      var b = document.getElementById('vw-burst'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+      if (navigator.vibrate) navigator.vibrate(18);
+      if (F.items[i].step === F.decl_step) setTimeout(function () { location.href = document.getElementById('vw-ok').href; }, 520);
+    }
+    tapAt = now;
+  });
+})();
+</script>
+{% endif %}
+
+{# ======================================================== PREUVES #}
+{% if tab == 'preuves' %}
+<h1>{{ _("Preuves") }}</h1>
+{% if not ai_on %}<div class="muted">{{ _("Analyse IA des photos désactivée sur ce serveur (clé ANTHROPIC_API_KEY absente). Les contrôles GPS, date, doublon et ressemblance restent actifs.") }}</div>{% endif %}
+<form method="post" action="{{ url_for('project_settings', project_id=p.id) }}" class="card">{{ csrf() }}
+<label class="check"><input type="checkbox" name="require_app_capture" value="1"{% if p.require_app_capture %} checked{% endif %} onchange="this.form.submit()"> {{ _("Exiger la caméra de l'application (refuse les photos importées)") }}</label>
+<noscript><button class="btn ghost small">{{ _("Enregistrer") }}</button></noscript>
+</form>
+{% set okp = proofs|selectattr('ok')|list %}
+{% if okp %}
+<div class="pv-switch" role="tablist"><button type="button" class="on" data-pv="grid" aria-label="{{ _("Grille") }}">▦ {{ _("Grille") }}</button><button type="button" data-pv="list" aria-label="{{ _("Liste") }}">☰ {{ _("Détail et refus") }}</button></div>
+<div class="ig-grid" id="pv-grid">
+{% for pr in okp %}{% if pr.kind != 'video' or pr.thumb %}<a href="{{ url_for('proof_photo', proof_id=pr.id) }}" target="_blank" style="background-image:url('{{ url_for('proof_thumb', proof_id=pr.id) }}')" aria-label="{{ pr.step_name }}">{% if pr.kind == 'video' %}<span>▶︎</span>{% endif %}</a>{% endif %}{% endfor %}
+</div>
+{% endif %}
+<div class="proof-grid" id="pv-list"{% if okp %} hidden{% endif %}>{% for pr in proofs %}{{ proof_card(pr, p) }}{% else %}<div class="card muted">{{ _("Aucune preuve reçue.") }}</div>{% endfor %}</div>
+<script>
+document.querySelectorAll('[data-pv]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('[data-pv]').forEach(function (x) { x.classList.toggle('on', x === b); });
+    document.getElementById('pv-grid').hidden = b.dataset.pv !== 'grid';
+    document.getElementById('pv-list').hidden = b.dataset.pv !== 'list';
+  });
+});
+</script>
+{% endif %}
+
+{# ======================================================== ETAPES #}
+{% if tab == 'etapes' %}
+<h1>{{ _("Étapes et paiements") }}</h1>
+<button type="button" class="fn-cta" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fn-cta-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span><span class="fn-cta-txt"><b>{{ _("Toutes les fonctions du chantier") }}</b><span>{{ _("Décompte, confiance, qualité, financement, notes, plan et réalité…") }}</span></span><span class="fn-cta-chev" aria-hidden="true">›</span></button>
+<div class="steps-list">
+{% for st in s.steps %}
+{% set okc = ok_by_step.get(st.id, 0) %}
+<div class="step{% if st.status == 'declare' %} decl{% elif st.status == 'en_cours' %} cur{% endif %}">
+<div class="row"><b>{{ loop.index }}. {{ st.name }}</b><span class="pill{% if st.status == 'declare' %} warn{% endif %}">{{ STATUS[st.status] }}</span></div>
+<div class="muted">{{ fcfa(st.amount) }} {{ _("FCFA ·") }} {{ okc }} {{ pl(okc, "preuve(s) vérifiée(s)") }}{% if schedule.get(st.id) %} {{ _("· fin prévue") }} {{ d(schedule[st.id]) }}{% endif %}{% if st.pay_ref %} {{ _("· Réf.") }} {{ st.pay_ref }}{% endif %}</div>
+{% set cs = checks_by_step.get(st.id) %}
+<div class="tags"><a class="tag {{ 'amber' if cs and cs.missing and st.status not in ('paye','versement') else 'grey' }}" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{% if cs %}{{ _("Contrôles") }} {{ cs.ok }}/{{ cs.total }}{% if cs.missing and st.status not in ('paye','versement') %} · {{ cs.missing }} {{ pl(cs.missing, "obligatoire(s) à faire") }}{% endif %}{% else %}{{ _("Détail de l'étape") }}{% endif %}</a></div>
+{% set qs = qual_by_step.get(st.id) %}{% if qs %}<div class="tags"><a class="tag {{ 'bad' if qs.issues else 'grey' }}" href="{{ url_for('quality_list', project_id=p.id) }}">{{ _("Qualité") }}{% if qs.score is not none %} {{ qs.score }}/100{% endif %}{% if qs.issues %} · {{ qs.issues }} {{ pl(qs.issues, "problème(s) probable(s)") }}{% endif %}</a></div>{% endif %}
+{% if insp_by_step.get(st.id) %}{% set ins = insp_by_step[st.id] %}
+<div class="tags"><span class="tag {{ 'bad' if ins.verdict == 'non_conforme' else 'blue' }}">{{ _("Inspection :") }} {{ VERDICTS[ins.verdict] }}</span></div>
+{% endif %}
+{% if pv_by_step.get(st.id) %}<a href="{{ url_for('document', doc_id=pv_by_step[st.id]) }}" target="_blank">{{ _("PV de réception") }}</a>{% endif %}
+{% if s.suivi and st.status in ('versement', 'paye') %}<a {% if st.status == 'versement' %}class="btn" {% endif %}href="{{ url_for('pay_order', kind='etape', ref_id=st.id) }}">{{ _("Bon à payer : déclarer le paiement") if st.status == 'versement' else _("Bon à payer") }}</a>{% endif %}
+{% if st.status == 'declare' and ((cs and cs.missing) or finance) %}
+<a class="btn" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{{ _("Vérifier avant de payer") }}</a>
+{% if cs and cs.missing %}<span class="muted">{{ _("Paiement bloqué : contrôles obligatoires manquants.") }}</span>{% endif %}
+<form method="post" action="{{ url_for('refuse_step', project_id=p.id, step_id=st.id) }}" class="stack">
+{{ csrf() }}
+<label>{{ _("Motif du refus") }}<input name="motif" placeholder="{{ _("Ex. dalle non visible sur les photos") }}"></label>
+<button class="btn ghost" type="submit">{{ _("Refuser et renvoyer au chantier") }}</button>
+</form>
+{% elif st.status == 'declare' %}
+<a href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">{{ _("Vérification avant paiement (5 points)") }}</a>
+<form method="post" action="{{ url_for('validate_step', project_id=p.id, step_id=st.id) }}" class="stack">
+{{ csrf() }}
+{% if s.sequestre %}
+<button class="btn" type="submit"{% if s.escrow.balance < st.amount %} disabled{% endif %}>{{ _("Valider et verser") }} {{ fcfa(st.amount) }} FCFA</button>
+{% if s.escrow.balance < st.amount %}<span class="muted">{{ _("Solde insuffisant : déposez") }} {{ fcfa(st.amount - s.escrow.balance) }} {{ _("FCFA.") }}</span>{% endif %}
+{% elif s.suivi %}
+<button class="btn" type="submit">{{ _("Valider l'étape et émettre le bon à payer") }}</button>
+{% else %}
+<label>{{ _("Référence du paiement Mobile Money (facultatif)") }}<input name="pay_ref" placeholder="{{ _("Ex. Wave TX123456") }}"></label>
+<button class="btn" type="submit">{{ _("Valider l'étape et confirmer le paiement") }}</button>
+{% endif %}
+</form>
+<form method="post" action="{{ url_for('refuse_step', project_id=p.id, step_id=st.id) }}" class="stack">
+{{ csrf() }}
+<label>{{ _("Motif du refus") }}<input name="motif" placeholder="{{ _("Ex. dalle non visible sur les photos") }}"></label>
+<button class="btn ghost" type="submit">{{ _("Refuser et renvoyer au chantier") }}</button>
+</form>
+{% endif %}
+</div>
+{% endfor %}
+</div>
+
+{% if qual_open %}<div class="card"><b>{{ _("Contrôles qualité en cours") }}</b>{% for q in qual_open %}<a class="row" href="{{ url_for('quality_page', rid=q.id) }}"><span>{{ q.name }}{% if q.label %} · {{ q.label }}{% endif %}</span><span class="tag {{ 'amber' if q.status == 'photos' else 'grey' }}">{% if q.status == 'photos' %}{{ _("Photos à prendre") }}{% elif q.status == 'pret' and q.score is not none %}{{ q.score }}/100{% else %}{{ _("Voir") }}{% endif %}</span></a>{% endfor %}</div>{% endif %}
+<h2 class="sec-title">{{ _("Paiement et planning") }}</h2>
+
+<div class="card">
+<div class="row"><b>{{ _("Paiement") }}</b>{% if s.sequestre %}<span class="pill{% if not provider.real %} grey{% endif %}">{{ _(provider.label) }}</span>{% else %}<a class="btn ghost small" href="{{ url_for('payments_ledger', project_id=p.id) }}">{{ _("Registre des paiements") }}</a>{% endif %}</div>
+<form method="post" action="{{ url_for('set_pay_mode', project_id=p.id) }}" class="stack">
+{{ csrf() }}
+<select name="pay_mode" onchange="this.form.submit()" aria-label="{{ _("Mode de paiement") }}">
+{% for k, v in PAY_MODES.items() %}{% if k != 'sequestre' or escrow_on or s.sequestre %}<option value="{{ k }}"{% if p.pay_mode == k %} selected{% endif %}>{{ v }}</option>{% endif %}{% endfor %}
+</select>
+<noscript><button class="btn ghost small">{{ _("Changer") }}</button></noscript>
+</form>
+{% if s.sequestre %}
+<div class="grid2">
+<div><span class="muted">{{ _("Fonds bloqués") }}</span><div class="big">{{ fcfa(s.escrow.balance) }}</div></div>
+<div><span class="muted">{{ _("Versé") }}</span><div class="big">{{ fcfa(s.escrow.released) }}</div></div>
+</div>
+{% if s.escrow.pending_in %}<span class="muted">{{ fcfa(s.escrow.pending_in) }} {{ _("FCFA en attente de confirmation de l'opérateur.") }}</span>{% endif %}
+{% if not escrow_on %}<span class="muted">{{ _("Le séquestre n'accepte plus de nouveaux dépôts. Les fonds restants paient les prochaines étapes ; ensuite, passez au paiement suivi.") }}</span>{% else %}
+<form method="post" action="{{ url_for('deposit', project_id=p.id) }}" class="stack">
+{{ csrf() }}
+<label>{{ _("Déposer sur le séquestre (FCFA)") }}<input name="amount" inputmode="numeric" value="{{ s.to_deposit or (s.current.amount if s.current else '') }}"></label>
+<button class="btn" type="submit">{{ _("Déposer") }}{% if provider.real %} {{ _("par Mobile Money ou carte") }}{% endif %}</button>
+</form>{% endif %}
+{% if not provider.real %}<span class="muted">{{ _("Mode simulation : aucun argent réel ne circule. Le branchement CinetPay s'active avec les clés de l'opérateur (voir le README).") }}</span>{% endif %}
+{% elif s.suivi %}
+<span class="muted">{{ _("ChantierVrai ne touche pas votre argent. À chaque validation, un bon à payer est émis : vous payez le bénéficiaire avec votre Mobile Money ou votre banque, vous déclarez le paiement avec la référence ou le reçu, et il confirme la réception.") }}</span>
+{% if s.awaiting_pay %}<span><b>{{ fcfa(s.awaiting_pay) }} FCFA</b> {{ _("validés, à payer ou en attente de confirmation.") }}</span>{% endif %}
+{% else %}
+<span class="muted">{{ _("Payez le chef de chantier dans votre application Mobile Money, puis notez ici la référence du paiement.") }}</span>
+{% endif %}
+</div>
+{% if (auto_validate_on or p.auto_validate) and p.pay_mode != 'sequestre' and me.id == p.owner_id %}
+<form method="post" action="{{ url_for('project_settings', project_id=p.id) }}" class="card">{{ csrf() }}<input type="hidden" name="setting" value="auto_validate">
+<b>{{ _("Validation automatique") }}</b>
+<label class="check"><input type="checkbox" name="on" value="1"{% if p.auto_validate %} checked{% endif %}{% if not auto_validate_on and not p.auto_validate %} disabled{% endif %} onchange="this.form.submit()"> {{ _("J'accepte la validation automatique : si je ne valide ni ne refuse une étape déclarée terminée dans les %(n)s jours, elle est validée et le bon à payer est émis.", n=AUTO_VALIDATE_DAYS) }}</label>
+<span class="muted">{{ _("Vous êtes relancé à J+2, puis 3 jours et 1 jour avant l'échéance. Jusqu'au dernier jour, vous pouvez refuser l'étape avec un motif ou ouvrir un litige. Les contrôles obligatoires et l'inspection exigée restent nécessaires. Le chef de chantier voit si cette règle est active.") }}</span>
+</form>
+{% endif %}
+
+{% if pred %}
+<div class="card">
+<div class="row"><b>{{ _("Prédiction") }}</b>{{ risk_pill(pred) }}</div>
+<span>{{ _("Fin estimée le") }} <b>{{ d(pred.predicted_end) }}</b>{{ _(", prévue le") }} {{ d(pred.planned_end) }}{% if not pred.done %} ({{ '+' if pred.delay > 0 }}{{ pred.delay }} {{ _("jours)") }}{% endif %}.</span>
+<span class="muted">{{ _("Rythme mesuré :") }} {{ pred.pace }} {{ _("× la durée prévue · fiabilité") }} {{ _(pred.reliability) }}</span>
+{% for r in pred.reasons %}<span class="muted">• {{ r }}</span>{% endfor %}
+</div>
+{% endif %}
+
+<details class="card"{% if not pred %} open{% endif %}>
+<summary><b>{{ _("Planning prévu") }}</b></summary>
+<form method="post" action="{{ url_for('update_planning', project_id=p.id) }}" class="stack">
+{{ csrf() }}
+<label>{{ _("Date de début du chantier") }}<input type="date" name="start_date" value="{{ p.start_date or '' }}" required></label>
+{% for st in s.steps %}
+<label>{{ loop.index }}. {{ st.name }} {{ _("– durée en jours") }}<input name="days_{{ st.id }}" value="{{ st.planned_days or '' }}" inputmode="numeric"></label>
+{% endfor %}
+<button class="btn ghost" type="submit">{{ _("Enregistrer le planning") }}</button>
+</form>
+</details>
+
+<details class="card" id="modifier">
+<summary><b>{{ _("Modifier les étapes") }}</b></summary>
+<span class="muted">{{ _("Les étapes déclarées ou payées gardent leur montant. Les étapes à venir peuvent être déplacées ou supprimées.") }}</span>
+<form method="post" action="{{ url_for('edit_steps', project_id=p.id) }}" class="stack">
+{{ csrf() }}<input type="hidden" name="action" value="save">
+{% for st in s.steps %}
+<div class="steped">
+<input name="name_{{ st.id }}" value="{{ st.name }}" aria-label="Nom de l'étape {{ loop.index }}">
+<input name="amount_{{ st.id }}" value="{{ st.amount }}" inputmode="numeric" aria-label="Montant de l'étape {{ loop.index }}"{% if st.status in ('declare','versement','paye') %} readonly{% endif %}>
+<div class="acts">{% if st.status == 'attente' %}
+<button class="btn ghost small" form="mv-up-{{ st.id }}" aria-label="{{ _("Monter") }}">↑</button>
+<button class="btn ghost small" form="mv-down-{{ st.id }}" aria-label="{{ _("Descendre") }}">↓</button>
+<button class="btn ghost small" form="mv-del-{{ st.id }}" aria-label="{{ _("Supprimer") }}">×</button>
+{% else %}<span class="muted">{{ STATUS[st.status] }}</span>{% endif %}</div>
+</div>
+{% endfor %}
+<button class="btn ghost" type="submit">{{ _("Enregistrer les noms et montants") }}</button>
+</form>
+{% for st in s.steps if st.status == 'attente' %}
+{% for act in ('up', 'down', 'delete') %}
+<form method="post" action="{{ url_for('edit_steps', project_id=p.id) }}" id="mv-{{ 'del' if act == 'delete' else act }}-{{ st.id }}" class="hidden">{{ csrf() }}<input type="hidden" name="action" value="{{ act }}"><input type="hidden" name="step_id" value="{{ st.id }}"></form>
+{% endfor %}
+{% endfor %}
+<form method="post" action="{{ url_for('edit_steps', project_id=p.id) }}" class="stack">
+{{ csrf() }}<input type="hidden" name="action" value="add">
+<b>{{ _("Ajouter une étape à la fin") }}</b>
+<div class="grid3">
+<label>{{ _("Nom") }}<input name="new_name" required></label>
+<label>{{ _("Montant") }}<input name="new_amount" inputmode="numeric" required></label>
+<label>{{ _("Jours") }}<input name="new_days" inputmode="numeric"></label>
+</div>
+<button class="btn ghost" type="submit">{{ _("Ajouter") }}</button>
+</form>
+</details>
+
+
+{% if transactions %}
+<h2>{{ _("Mouvements d'argent") }}</h2>
+<div class="card log">
+{% set tst = {'reussi': _('confirmé'), 'en_attente': _('en attente'), 'echoue': _('échoué')} %}
+{% for t in transactions %}<div><span title="{{ dt(t.created_at) }}">{{ dts(t.created_at) }}</span><span>{{ _('Dépôt') if t.kind == 'depot' else _('Versement') }} {{ fcfa(t.amount) }} {{ _("FCFA ·") }} {{ tst[t.status] }}{% if t.provider == 'simulation' %} {{ _("(simulation)") }}{% endif %}{% if t.error %} · {{ t.error }}{% endif %}</span></div>{% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+{# ======================================================== VUES : SATELLITE, DRONE, 3D #}
+{% if tab == 'vues' %}
+<h1>{{ _("Vues du chantier") }}</h1>
+<div class="seg">
+{% for key, label in SAT_LAYERS.items() %}<a href="{{ url_for('project', project_id=p.id, onglet='vues', couche=key) }}" class="{{ 'on' if key == layer }}">{{ label.split(' (')[0] }}</a>{% endfor %}
+</div>
+<span class="muted">{{ SAT_LAYERS[layer] }} {{ _("· 30 à 50 cm par pixel · terrain") if layer == 'thr' else _("· 10 m par pixel · terrain") }} {{ '%.5f'|format(p.lat) }}, {{ '%.5f'|format(p.lng) }}</span>
+
+{% if cmp_a and cmp_b %}
+<div class="card">
+<div class="row"><b>{{ _("Comparaison") }}</b>{% if change is not none %}<span class="pill{% if change < 2 %} warn{% endif %}">{{ change }} {{ _("% de changement") }}</span>{% endif %}</div>
+<div class="compare" id="compare">
+<img src="{{ url_for('satellite_image', sat_id=cmp_b.id) }}" alt="Image satellite {{ cmp_b.month }}">
+<div class="after" id="cmp-top"><img src="{{ url_for('satellite_image', sat_id=cmp_a.id) }}" alt="Image satellite {{ cmp_a.month }}"></div>
+<span class="lbl l">{{ cmp_a.month }}</span><span class="lbl r">{{ cmp_b.month }}</span>
+</div>
+<input type="range" min="0" max="100" value="50" id="cmp-range" aria-label="{{ _("Glisser pour comparer les deux mois") }}">
+<form method="get" class="grid2">
+<input type="hidden" name="onglet" value="vues"><input type="hidden" name="couche" value="{{ layer }}">
+<label>{{ _("Avant") }}<select name="avant" onchange="this.form.submit()">{% for sm in sat_months %}<option{% if sm.month == cmp_a.month %} selected{% endif %}>{{ sm.month }}</option>{% endfor %}</select></label>
+<label>{{ _("Après") }}<select name="apres" onchange="this.form.submit()">{% for sm in sat_months %}<option{% if sm.month == cmp_b.month %} selected{% endif %}>{{ sm.month }}</option>{% endfor %}</select></label>
+</form>
+<a href="{{ url_for('satellite_change', a=cmp_a.id, b=cmp_b.id) }}" target="_blank">{{ _("Voir la carte des changements (en orange)") }}</a>
+</div>
+{% elif cmp_b %}
+<div class="card"><b>{{ cmp_b.month }}</b><img class="sat" src="{{ url_for('satellite_image', sat_id=cmp_b.id) }}" alt="Image satellite {{ cmp_b.month }}"><span class="muted">{{ _("Ajoutez un deuxième mois pour comparer.") }}</span></div>
+{% endif %}
+
+{% if sat_months %}
+<div class="card log">
+<b>{{ _("Mois par mois") }}</b>
+{% for sm in sat_months %}<div><span>{{ sm.month }}</span><span>{% if sm.change_pct is not none %}{{ sm.change_pct }} {{ _("% de changement depuis l'image précédente") }}{% else %}{{ _("première image") }}{% endif %} · {{ 'Copernicus' if sm.source == 'copernicus' else _('ajoutée à la main') }}</span></div>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('satellite_add', project_id=p.id) }}" enctype="multipart/form-data" class="card">
+{{ csrf() }}
+<b>{{ _("Ajouter une image du mois") }}</b>
+<div class="grid2">
+<label>{{ _("Mois") }}<select name="month">{% for m in months %}<option>{{ m }}</option>{% endfor %}</select></label>
+<label>{{ _("Couche") }}<select name="layer">{% for key, label in SAT_LAYERS.items() %}<option value="{{ key }}"{% if key == layer %} selected{% endif %}>{{ label.split(' (')[0] }}</option>{% endfor %}</select></label>
+</div>
+{% if sat_on %}
+<span class="muted">{{ _("Laissez le fichier vide pour télécharger automatiquement l'image Copernicus du mois.") }}</span>
+<label>{{ _("Image (facultatif)") }}<input type="file" name="file" accept="image/*"></label>
+<button class="btn" type="submit">{{ _("Obtenir l'image") }}</button>
+{% else %}
+<span class="muted">{{ _("Téléchargement automatique non configuré. Exportez l'image depuis Copernicus Browser (lien ci-dessous), puis ajoutez-la ici.") }}</span>
+<label>{{ _("Image") }}<input type="file" name="file" accept="image/*" required></label>
+<button class="btn" type="submit">{{ _("Ajouter") }}</button>
+{% endif %}
+</form>
+<div class="grid2">
+<a class="btn ghost" target="_blank" rel="noopener" href="https://www.google.com/maps/@{{ p.lat }},{{ p.lng }},120m/data=!3m1!1e3">{{ _("Google Maps satellite") }}</a>
+<a class="btn ghost" target="_blank" rel="noopener" href="https://browser.dataspace.copernicus.eu/?zoom=17&lat={{ p.lat }}&lng={{ p.lng }}">{{ _("Copernicus Browser") }}</a>
+</div>
+
+<div class="card" id="thr">
+<b>{{ _("Image très haute résolution") }}</b>
+<span class="muted">{{ _("Sentinel montre le terrain à 10 m par pixel. Pléiades Neo, SkySat et Vantor descendent à 30–50 cm : on distingue la dalle, les murs, la toiture et les extensions hors parcelle. Ces images sont payantes : l'équipe ChantierVrai vous envoie un devis, commande l'image et l'ajoute à la comparaison mois par mois.") }}</span>
+{% for o in imagery_orders %}<div class="row"><span>{{ IMAGERY_PROVIDERS[o.provider] }} · {{ d(o.created_at) }}</span><span class="tag {{ 'blue' if o.status == 'livree' else 'amber' if o.status == 'demandee' else 'grey' }}">{{ IMAGERY_STATUS[o.status] }}</span></div>{% endfor %}
+<form method="post" action="{{ url_for('imagery_order', project_id=p.id) }}" class="stack">{{ csrf() }}
+<label>{{ _("Satellite") }}<select name="provider">{% for k, v in IMAGERY_PROVIDERS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("Précisions (facultatif)") }}<input name="note" maxlength="300" placeholder="{{ _("Après le coulage de la dalle du 1er étage") }}"></label>
+<button class="btn ghost">{{ _("Demander un devis et une image") }}</button>
+</form>
+</div>
+
+<h2>{{ _("Drone et 3D") }}</h2>
+{% set drones = media3d|selectattr('kind', 'equalto', 'drone')|list %}
+{% set models = media3d|selectattr('kind', 'equalto', 'modele3d')|list %}
+{% set orthos = media3d|selectattr('kind', 'equalto', 'orthophoto')|list %}
+{% if drones|selectattr('lat')|list %}<div id="drone-map" class="map small"></div>{% endif %}
+{% for m in models %}
+<div class="card"><b>{{ m.note or m.original_name }}</b>
+<model-viewer src="{{ url_for('media3d_file', media_id=m.id) }}" camera-controls auto-rotate shadow-intensity="1" alt="{{ _("Modèle 3D du chantier") }}" style="width:100%;height:320px;background:#ECE9E2;border-radius:12px"></model-viewer>
+<span class="muted">{{ dts(m.created_at) }}</span></div>
+{% endfor %}
+{% for m in orthos %}
+<div class="card"><b>{{ _("Orthophoto ·") }} {{ m.note or m.original_name }}</b><a href="{{ url_for('media3d_file', media_id=m.id) }}" target="_blank"><img class="sat" src="{{ url_for('media3d_file', media_id=m.id) }}" alt="{{ _("Orthophoto du chantier") }}" loading="lazy"></a><span class="muted">{{ dts(m.created_at) }}</span></div>
+{% endfor %}
+{% if drones %}
+<div class="gallery">{% for m in drones %}<a href="{{ url_for('media3d_file', media_id=m.id) }}" target="_blank"><img src="{{ url_for('media3d_file', media_id=m.id) }}" alt="Vue de drone {{ m.original_name }}" loading="lazy"></a>{% endfor %}</div>
+{% endif %}
+<a class="card land-cta" href="{{ url_for('aerial_page', project_id=p.id) }}">
+<span class="land-cta-ic" aria-hidden="true">{{ icon('drone') }}</span>
+<span><b>{{ _("Vous n'avez rien à faire : un télépilote s'en charge") }}</b><span class="muted">{{ _("Choisissez un passage unique, mensuel ou hebdomadaire. Un télépilote agréé vient photographier le chantier et les vues arrivent ici.") }}</span></span>
+<span class="land-cta-go" aria-hidden="true">→</span>
+</a>
+<details class="card fold-upload">
+<summary>{{ _("Vous avez déjà vos propres photos de drone ? (facultatif)") }}</summary>
+<form method="post" action="{{ url_for('upload_media3d', project_id=p.id) }}" enctype="multipart/form-data" class="stack">
+{{ csrf() }}
+<span class="muted">{{ _("Seulement si vous, votre architecte ou un proche avez déjà fait voler un drone sur le chantier.") }}</span>
+<label>{{ _("Type") }}<select name="kind"><option value="drone">{{ _("Photos de drone (position vérifiée)") }}</option><option value="orthophoto">{{ _("Orthophoto (vue du dessus assemblée)") }}</option><option value="modele3d">{{ _("Modèle 3D (GLB ou GLTF)") }}</option></select></label>
+<label>{{ _("Fichiers") }}<input type="file" name="files" multiple required></label>
+<label>{{ _("Note") }}<input name="note" placeholder="{{ _("Vol du 12 mars, dalle haute") }}"></label>
+<button class="btn" type="submit">{{ _("Envoyer") }}</button>
+<span class="muted">{{ _("Le modèle 3D et l'orthophoto se calculent à partir des photos de drone avec un logiciel de photogrammétrie (WebODM, gratuit, ou Pix4D). Exportez le modèle en GLB.") }}</span>
+</form>
+</details>
+{% endif %}
+
+{# ======================================================== DOSSIER #}
+{% if tab == 'dossier' %}
+<h1>{{ _("Dossier du chantier") }}</h1>
+{% if me.id == p.owner_id %}<a class="btn" href="#membres" style="margin-bottom:10px">{{ _("Inviter quelqu'un (famille, architecte, comptable…)") }}</a>{% endif %}
+<button type="button" class="fn-cta" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fn-cta-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span><span class="fn-cta-txt"><b>{{ _("Toutes les fonctions du chantier") }}</b><span>{{ _("Fiche du projet, terrain, crédit, export, plan et réalité…") }}</span></span><span class="fn-cta-chev" aria-hidden="true">›</span></button>
+
+{# --- Matériaux --- #}
+<h2 id="materiaux">{{ _("Contrôle des matériaux") }}</h2>
+<div class="tools">
+{{ tool(url_for('project_stock', project_id=p.id), _("Stock du chantier"), 'stock', _("Livraisons, consommations, inventaire")) }}
+{{ tool(url_for('calculator', project_id=p.id), _("Calculateur de matériaux"), 'calc', _("Béton, fer, parpaings, enduit")) }}
+</div>
+{% set role = 'owner' %}{% include "_orders.html" %}
+{% for a in mat_alerts %}<div class="card alert"><b>{{ a }}</b></div>{% endfor %}
+{% if mat_table %}
+<div class="card table-wrap">
+<table>
+<thead><tr><th>{{ _("Étape") }}</th><th>{{ _("Matériau") }}</th><th>{{ _("Prévu") }}</th><th>{{ _("Facturé") }}</th><th>{{ _("Dépensé") }}</th></tr></thead>
+<tbody>
+{% for r in mat_table %}
+<tr{% if r.flags %} class="bad"{% endif %}><td>{{ r.step }}</td><td>{{ _(r.material) }}</td>
+<td>{{ r.planned|round(1) if r.planned else '–' }} {{ r.unit or '' }}</td>
+<td>{{ r.invoiced|round(1) }}{% if r.pct is not none %} <span class="muted">({{ r.pct }} %)</span>{% endif %}</td>
+<td>{{ fcfa(r.spent) }}</td></tr>
+{% endfor %}
+</tbody></table>
+</div>
+{% endif %}
+<details class="card">
+<summary><b>{{ _("Quantités prévues par étape") }}</b> <span class="muted">({{ mat_plans|length }})</span></summary>
+<span class="muted">{{ _("Reprenez le devis ou le métré de votre maçon. Le prix de référence sert à repérer les factures gonflées.") }}</span>
+{% for pl in mat_plans %}
+<form method="post" action="{{ url_for('delete_material_plan', project_id=p.id, plan_id=pl.id) }}" class="row">
+{{ csrf() }}
+<span>{{ (s.steps|selectattr('id', 'equalto', pl.step_id)|first).name }} · {{ _(pl.material) }} : {{ pl.qty_planned }} {{ pl.unit }}{% if pl.unit_price_ref %} {{ _("à") }} {{ fcfa(pl.unit_price_ref) }}{% endif %}</span>
+<button class="btn ghost small" aria-label="{{ _("Supprimer") }}">×</button>
+</form>
+{% endfor %}
+<form method="post" action="{{ url_for('add_material_plan', project_id=p.id) }}" class="stack">
+{{ csrf() }}
+<label>{{ _("Étape") }}<select name="step_id">{% for st in s.steps %}<option value="{{ st.id }}">{{ st.name }}</option>{% endfor %}</select></label>
+<div class="grid2">
+<label>{{ _("Matériau") }}<select name="material">{% for m in MATERIALS %}<option value="{{ m }}">{{ _(m) }}</option>{% endfor %}</select></label>
+<label>{{ _("Autre matériau") }}<input name="material_other" placeholder="{{ _("facultatif") }}"></label>
+</div>
+<div class="grid3">
+<label>{{ _("Quantité") }}<input name="qty" inputmode="decimal" required></label>
+<label>{{ _("Unité") }}<input name="unit" placeholder="{{ _("sacs, t, m³") }}"></label>
+<label>{{ _("Prix réf.") }}<input name="price" inputmode="numeric" placeholder="{{ _("FCFA") }}"></label>
+</div>
+<button class="btn ghost" type="submit">{{ _("Ajouter") }}</button>
+</form>
+</details>
+<div class="card">
+<b>{{ _("Factures") }}</b>
+{% for inv in invoices %}
+<a class="row" href="{{ url_for('invoice', project_id=p.id, invoice_id=inv.id) }}"><span>{{ inv.supplier or _('Fournisseur ?') }}{% if inv.number %} {{ _("n°") }}{{ inv.number }}{% endif %} · {{ inv.step_name or _('sans étape') }} · {{ inv.n_lines }} {{ pl(inv.n_lines, "ligne(s)") }}</span>
+<span class="pill{% if inv.status in ('doublon', 'a_saisir') %} warn{% elif inv.status != 'validee' %} grey{% endif %}">{{ {'a_saisir': _('À saisir'), 'lecture_ia': _('Lecture IA…'), 'a_verifier': _('À vérifier'), 'validee': _('Vérifiée'), 'doublon': _('Doublon')}[inv.status] }}</span></a>
+{% else %}<span class="muted">{{ _("Aucune facture. Le chef de chantier peut aussi en envoyer.") }}</span>{% endfor %}
+<form method="post" action="{{ url_for('upload_invoice', project_id=p.id) }}" enctype="multipart/form-data" class="stack">
+{{ csrf() }}
+<label>{{ _("Facture (photo ou PDF)") }}<input type="file" name="file" accept="image/*,application/pdf" required></label>
+<label>{{ _("Étape concernée") }}<select name="step_id">{% for st in s.steps %}<option value="{{ st.id }}"{% if s.current and st.id == s.current.id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select></label>
+<button class="btn ghost" type="submit">{{ _("Ajouter la facture") }}{% if ai_on %} {{ _("(lecture automatique)") }}{% endif %}</button>
+</form>
+</div>
+
+{# --- Inspections --- #}
+<h2 id="inspections">{{ _("Inspection indépendante") }}</h2>
+<form method="post" action="{{ url_for('project_settings', project_id=p.id) }}" class="card">{{ csrf() }}<input type="hidden" name="setting" value="inspection">
+<label class="check"><input type="checkbox" name="on" value="1"{% if p.require_inspection %} checked{% endif %}{% if p.kind == 'public' and p.require_inspection %} disabled{% endif %} onchange="this.form.submit()"> {{ _("Inspection obligatoire avant de valider les étapes critiques (fondations, structure, dalle, toiture)") }}</label>
+<span class="muted">{{ _("Obligatoire sur les chantiers publics. Recommandé partout : c'est le seul regard extérieur au chef de chantier.") }}</span></form>
+{% for i in inspections %}
+<div class="card">
+<div class="row"><b>{{ i.inspector_name }}</b><span class="pill{% if i.verdict == 'non_conforme' %} warn{% elif i.status != 'realisee' %} grey{% endif %}">{{ VERDICTS[i.verdict] if i.verdict else INSP_STATUS[i.status] }}</span></div>
+<span class="muted">{{ i.step_name or _('Visite générale') }}{% if i.wanted_date %} {{ _("· le") }} {{ d(i.wanted_date) }}{% endif %}{% if i.fee and not i.sold %} · {{ fcfa(i.fee) }} FCFA{% endif %}{% if i.inspector_phone %} · {{ i.inspector_phone }}{% endif %}</span>
+{% if i.report %}<div class="report">{{ i.report }}</div>{% endif %}
+{% if i.sold %}<span class="muted">{{ _("Inspecteur attribué et payé par ChantierVrai") }}</span>
+{% elif i.status == 'realisee' and i.fee and not i.paid %}
+<form method="post" action="{{ url_for('pay_inspection', iid=i.id) }}" class="stack">{{ csrf() }}
+{% if s.suivi %}<button class="btn">{{ _("Bon à payer :") }} {{ fcfa(i.fee) }} FCFA</button>
+{% elif s.sequestre %}<button class="btn">{{ _("Payer") }} {{ fcfa(i.fee) }} {{ _("FCFA depuis le séquestre") }}</button>
+{% else %}<label>{{ _("Référence du paiement (Mobile Money)") }}<input name="pay_ref" placeholder="{{ _("Ex. Wave TX123") }}"></label><input type="hidden" name="via" value="manuel"><button class="btn ghost">{{ _("J'ai payé l'inspecteur") }}</button>{% endif %}
+</form>
+{% elif i.paid %}<span class="muted">{{ _("Payée") }}{% if i.pay_ref %} {{ _("· réf.") }} {{ i.pay_ref }}{% endif %}</span>{% endif %}
+{% if i.status in ('demandee', 'acceptee') and not i.sold %}
+<form method="post" action="{{ url_for('cancel_inspection', iid=i.id) }}">{{ csrf() }}<button class="btn ghost small">{{ _("Annuler") }}</button></form>
+{% endif %}
+</div>
+{% endfor %}
+{% for r in insp_requests %}
+<div class="card"><div class="row"><b>{{ _("Inspection commandée") }}</b><span class="pill warn">{{ _("Facture à régler") if r.status == 'a_payer' else _("Inspecteur en cours d'attribution") }}</span></div>
+<span class="muted">{{ fcfa(r.price) }} {{ _("FCFA TTC") }}{% if r.wanted_date %} · {{ _("souhaitée le") }} {{ d(r.wanted_date) }}{% endif %}</span>
+{% if r.status == 'a_payer' %}<div class="acts-row"><a class="btn small" href="{{ url_for('billing_invoice', inv_id=r.invoice_id) }}">{{ _("Régler la facture") }}</a>
+<form method="post" action="{{ url_for('cancel_inspection_request', rid=r.id) }}">{{ csrf() }}<button class="btn ghost small">{{ _("Annuler") }}</button></form></div>{% endif %}
+</div>
+{% endfor %}
+<form method="post" action="{{ url_for('book_inspection', project_id=p.id) }}" class="card">
+{{ csrf() }}
+<b>{{ _("Commander une inspection indépendante") }} · {{ fcfa(insp_price) }} {{ _("FCFA TTC") }}</b>
+<span class="muted">{{ _("Vous payez ChantierVrai, pas l'inspecteur. L'équipe attribue un inspecteur vérifié de votre zone et le rémunère elle-même : il ne dépend ni de vous ni du chef de chantier. Il prend ses propres photos vérifiées et dépose son rapport dans le dossier.") }}</span>
+<label>{{ _("Étape à contrôler") }}<select name="step_id"><option value="">{{ _("Visite générale") }}</option>{% for st in s.steps %}<option value="{{ st.id }}"{% if s.current and st.id == s.current.id %} selected{% endif %}>{{ st.name }}</option>{% endfor %}</select></label>
+<label>{{ _("Date souhaitée") }}<input type="date" name="wanted_date"></label>
+<label>{{ _("Message pour l'inspecteur") }}<textarea name="message" placeholder="{{ _("Vérifier le ferraillage de la dalle avant coulage") }}"></textarea></label>
+<button class="btn" type="submit">{{ _("Commander et payer") }}</button>
+</form>
+
+{# --- Documents --- #}
+<h2 id="documents">{{ _("Documents") }}</h2>
+<div class="card">
+{% for cat in DOC_CATEGORIES %}
+{% set docs = documents|selectattr('category', 'equalto', cat)|list %}
+{% if docs %}
+<b>{{ _(cat) }}</b>
+{% for doc in docs %}
+<div class="row"><a href="{{ url_for('document', doc_id=doc.id) }}" target="_blank">{{ doc.title }}</a>
+<span class="muted">{{ d(doc.created_at) }}</span></div>
+{% endfor %}
+{% endif %}
+{% else %}{% endfor %}
+{% if not documents %}<span class="muted">{{ _("Aucun document. Les PV de réception sont créés automatiquement à chaque étape validée.") }}</span>{% endif %}
+<form method="post" action="{{ url_for('upload_document', project_id=p.id) }}" enctype="multipart/form-data" class="stack">
+{{ csrf() }}
+<div class="grid2">
+<label>{{ _("Type") }}<select name="category">{% for c in DOC_CATEGORIES %}<option value="{{ c }}">{{ _(c) }}</option>{% endfor %}</select></label>
+<label>{{ _("Titre") }}<input name="title" placeholder="{{ _("Contrat de construction") }}"></label>
+</div>
+<label>{{ _("Fichier") }}<input type="file" name="file" required></label>
+
+<button class="btn ghost" type="submit">{{ _("Ajouter le document") }}</button>
+</form>
+</div>
+
+{# --- Litiges --- #}
+<h2 id="litiges">{{ _("Litiges") }}</h2>
+{% include "_disputes.html" %}
+
+{# --- Co-proprietaires --- #}
+<h2 id="membres" style="scroll-margin-top:12px">{{ _("Intervenants et responsabilités") }}</h2>
+<div class="card">
+<span class="muted">{{ _("Séparez les responsabilités : le chef de chantier déclare, un contrôleur habilité contrôle, le responsable financier paie. Chacun reçoit les alertes de son rôle.") }}</span>
+<div class="row"><span>{{ owner_user.name }}</span><span class="pill">{{ _("Propriétaire principal") }}</span></div>
+{% if p.chef_id %}<div class="row"><span>{{ people[p.chef_id].name }}</span><span class="pill">{{ _("Chef de chantier : déclare") }}</span></div>{% endif %}
+{% for m in members %}
+<form method="post" action="{{ url_for('manage_members', project_id=p.id) }}" class="row member-row">{{ csrf() }}
+<span>{{ m.name }} <span class="muted">{{ m.email }}</span></span>
+<span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill{% if m.member_role == 'controleur' %} blue{% endif %}">{{ MEMBER_ROLES[m.member_role or 'coproprio'] }}</span>
+{% if me.id == p.owner_id %}<input type="hidden" name="action" value="remove"><input type="hidden" name="user_id" value="{{ m.id }}"><button class="btn ghost small">{{ _("Retirer") }}</button>{% endif %}</span>
+</form>
+{% endfor %}
+{% if me.id == p.owner_id %}
+<form method="post" action="{{ url_for('manage_members', project_id=p.id) }}" class="stack">{{ csrf() }}
+<div class="grid2">
+<label>{{ _("Rôle") }}<select name="role">{% for k, v in MEMBER_ROLES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label>{{ _("E-mail de son compte") }}<input type="email" name="email" required></label>
+</div>
+<span class="muted">{{ _("Co-propriétaire et responsable financier : compte « Propriétaire ». Architecte, ingénieur, conducteur de travaux, entrepreneur, comptable : compte « Professionnel du BTP ». Contrôleur habilité et ingénieur : qualifications vérifiées, ils valident les contrôles techniques. Avec un responsable financier, chaque paiement demande deux validations : la vôtre, puis la sienne.") }}</span>
+<button class="btn ghost">{{ _("Ajouter") }}</button>
+</form>
+{% endif %}
+</div>
+
+{% endif %}
+{% endblock %}
+{% block tabs %}{% set chat_u = url_for('chat_page', project_id=p.id) %}{{ tabs(p, [('accueil',_('Accueil'),'home'),('preuves',_('Preuves'),'cam'),('etapes',_('Paiements'),'wallet'),(chat_u,_('Messages'),'chat')], tab, {chat_u: chat_unread(p.id)}) }}{% endblock %}
+{% block scripts %}
+{% if tab == 'vues' %}
+<script>
+(function () {
+  var r = document.getElementById('cmp-range'), top = document.getElementById('cmp-top');
+  if (r && top) { var f = function () { top.style.width = r.value + '%'; }; r.addEventListener('input', f); f(); }
+})();
+</script>
+{% set pts = [] %}{% for m in media3d if m.kind == 'drone' and m.lat is not none %}{% set _ = pts.append({'lat': m.lat, 'lng': m.lng, 'name': m.original_name, 'url': url_for('media3d_file', media_id=m.id)}) %}{% endfor %}
+{% if pts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function () {
+  var pts = {{ pts|tojson }}, site = [{{ p.lat }}, {{ p.lng }}];
+  var map = L.map('drone-map').setView(site, 17);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'}).addTo(map);
+  L.circle(site, {radius: {{ p.radius }}, color: '#0E5A3A'}).addTo(map);
+  pts.forEach(function (q) {
+    var m = L.circleMarker([q.lat, q.lng], {radius: 6, color: '#B4501F'}).addTo(map);
+    m.bindPopup('<a target="_blank" href="' + q.url + '"><img src="' + q.url + '" style="width:180px"></a>');
+  });
+})();
+</script>
+{% endif %}
+{% endif %}
+{% endblock %}
