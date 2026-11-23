@@ -299,3 +299,9 @@ body.theme-nuit .fpa-bar{background:#101B16;color:#ECE8DD}
 body.theme-nuit .fp-quick a,body.theme-nuit .fp-quick button{background:#101B16;color:#ECE8DD}
 body.theme-nuit .dr-foot.dr-foot-min a:last-child{color:#74DBA8}
 body.theme-nuit .totp-qr{background:#101B16;color:#ECE8DD}
+body.theme-nuit .sat-switch{background:#101B16;color:#ECE8DD}
+body.theme-nuit .sat-switch button{color:#74DBA8}
+body.theme-nuit .sat-switch button.on{background:#101B16;color:#ECE8DD}
+body.theme-nuit .sat-btn{background:#101B16;color:#ECE8DD;border-color:rgba(255,255,255,.1)}
+body.theme-nuit .sat-legend{color:#74DBA8}
+body.theme-nuit .lg-photo{border-color:rgba(255,255,255,.1)}

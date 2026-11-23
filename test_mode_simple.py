@@ -111,4 +111,12 @@ s.execute("UPDATE users SET lang = 'en' WHERE email = ?", (AMI,)); s.commit()
 h = web(AMI).get(P + "?lang=en").get_data(as_text=True)
 check("Other functions" in h and "paid of" in h and "Always show everything" in h and "Book an inspection" in h, "mode simple traduit")
 
+print("Vues : carte satellite nette")
+s.execute("UPDATE users SET lang = 'fr' WHERE email = ?", (AMI,)); s.commit()
+h = web(AMI).get(P + "?onglet=vues").get_data(as_text=True)
+check('id="sat-map"' in h and "World_Imagery" in h and h.index('id="sat-map"') < h.index("Suivi mois par mois"),
+      "la carte satellite Esri est en tête des vues, le suivi mensuel Sentinel en dessous")
+check("Parcelle" in h and "photos vérifiées" in h and "pas du jour" in h, "légende : parcelle, photos vérifiées, date de l'image expliquée")
+check("tile.openstreetmap.org" in h and h.count("leaflet.js") == 1, "bouton Plan disponible, Leaflet chargé une seule fois")
+
 print(f"\nMode simple : {ok} vérifications OK")

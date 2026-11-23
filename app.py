@@ -3554,6 +3554,14 @@ def project(project_id):
                 ctx["insp_by_step"][i["step_id"]] = i
     if tab == "vues":
         ctx.update(views_context(p))
+        # Carte satellite nette en tête : parcelle dessinée et photos vérifiées placées là où elles ont été prises
+        ctx["sat_parcel"] = (GEO.parse(p["parcel"]) if p["parcel"] else None) or []
+        ctx["sat_proofs"] = [{"lat": r["lat"], "lng": r["lng"], "url": url_for("proof_thumb", proof_id=r["id"]),
+                              "when": ago(r["created_at"])}
+                             for r in db.execute("SELECT id, created_at, COALESCE(photo_lat, device_lat) AS lat, "
+                                                 "COALESCE(photo_lng, device_lng) AS lng FROM proofs WHERE project_id = ? "
+                                                 "AND ok = 1 AND COALESCE(photo_lat, device_lat) IS NOT NULL "
+                                                 "ORDER BY id DESC LIMIT 40", (project_id,))]
         ctx["imagery_orders"] = db.execute("SELECT * FROM imagery_orders WHERE project_id = ? ORDER BY id DESC",
                                            (project_id,)).fetchall()
     if tab == "dossier":
@@ -12773,6 +12781,21 @@ def run_task_route(name):
     return jsonify(task=name, started=started, note=None if started else "déjà en cours"), (202 if started else 200)
 
 
+def storage_status():
+    """Sur Render, tout ce qui n'est ni dans PostgreSQL ni sur un disque permanent est effacé à chaque déploiement.
+    Renvoie None hors Render."""
+    if not os.environ.get("RENDER"):
+        return None
+    base_ok = DB.is_pg()
+    disk_ok = bool(os.environ.get("CV_INSTANCE")) and os.path.ismount(os.environ["CV_INSTANCE"])
+    return {"base": "permanente (PostgreSQL)" if base_ok else "TEMPORAIRE : effacée à chaque déploiement (DATABASE_URL absente)",
+            "fichiers": "disque permanent" if disk_ok else "TEMPORAIRES : photos et documents effacés à chaque déploiement "
+                                                        "(disque /var/data et CV_INSTANCE absents)",
+            "permanent": base_ok and disk_ok}
+
+app.jinja_env.globals["storage_status"] = storage_status
+
+
 @app.route("/sante")
 def health():
     """État du service, pour l'hébergeur (contrôle de santé) et un service de surveillance externe.
@@ -12802,8 +12825,11 @@ def health():
         out["disque"] = "ok" if free > 500e6 else "presque plein"
     except OSError as e:
         ok, out["disque"] = False, "écriture impossible : " + str(e)[:120]
+    st = storage_status()
+    if st:
+        out["stockage"] = st
     out["alerte"] = bool(out.get("sauvegarde_heures") and out["sauvegarde_heures"] > 36) or out.get("copie_distante") == "échec" \
-        or out.get("disque") == "presque plein"
+        or out.get("disque") == "presque plein" or bool(st and not st["permanent"])
     out["statut"] = "ok" if ok else "panne"
     resp = jsonify(out)
     resp.headers["Cache-Control"] = "no-store"

@@ -3978,5 +3978,16 @@
  "Nouvelle clé": "New key",
  "Sinon, ajoutez un compte « ChantierVrai », saisissez cette clé et choisissez le type « Basé sur l'heure » :": "Otherwise, add a “ChantierVrai” account, enter this key and choose the “Time-based” type:",
  "Sur ce téléphone :": "On this phone:",
- "ouvrir directement dans l'application": "open it straight in the app"
+ "ouvrir directement dans l'application": "open it straight in the app",
+ "Données non conservées : elles seront effacées au prochain déploiement": "Data not kept: it will be erased at the next deployment",
+ "Base :": "Database:",
+ "Fichiers :": "Files:",
+ "Sur Render : ajoutez une base PostgreSQL (variable DATABASE_URL) et un disque permanent monté sur /var/data (variable CV_INSTANCE = /var/data). Voir le README, « Mise en ligne sur Render ».": "On Render: add a PostgreSQL database (DATABASE_URL variable) and a persistent disk mounted on /var/data (CV_INSTANCE = /var/data). See the README, “Going live on Render”.",
+ "Fond de carte": "Base map",
+ "Image Esri : nette, mais pas du jour (souvent 1 à 3 ans). Elle sert à situer le terrain. Pour suivre l'avancement mois par mois : les images ci-dessous, ou la très haute résolution.": "Esri imagery: sharp, but not from today (often 1 to 3 years old). Use it to locate the plot. To follow progress month by month: the images below, or very high resolution.",
+ "Plein écran": "Full screen",
+ "Recentrer": "Recenter",
+ "Suivi mois par mois": "Month-by-month tracking",
+ "Vue satellite du terrain": "Satellite view of the plot",
+ "Zone du chantier": "Site area"
 }

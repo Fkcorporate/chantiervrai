@@ -464,6 +464,20 @@ document.querySelectorAll('[data-pv]').forEach(function (b) {
 {# ======================================================== VUES : SATELLITE, DRONE, 3D #}
 {% if tab == 'vues' %}
 <h1>{{ _("Vues du chantier") }}</h1>
+{# Carte satellite nette, sans réglage : pour situer le terrain, la parcelle et les photos #}
+<section class="sat-live">
+<div id="sat-map" class="sat-map" aria-label="{{ _("Vue satellite du terrain") }}"><noscript><a href="https://www.google.com/maps/@{{ p.lat }},{{ p.lng }},120m/data=!3m1!1e3">{{ _("Google Maps satellite") }}</a></noscript></div>
+<div class="sat-bar">
+<div class="sat-switch" role="group" aria-label="{{ _("Fond de carte") }}"><button type="button" class="on" data-base="sat">{{ _("Satellite") }}</button><button type="button" data-base="plan">{{ _("Plan") }}</button></div>
+<span class="sat-sp"></span>
+<button type="button" class="sat-btn" data-recenter aria-label="{{ _("Recentrer") }}" title="{{ _("Recentrer") }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+<button type="button" class="sat-btn" data-full aria-label="{{ _("Plein écran") }}" title="{{ _("Plein écran") }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</div>
+<p class="sat-legend">{% if sat_parcel %}<span class="lg-parcel"></span>{{ _("Parcelle") }}{% else %}<span class="lg-circle"></span>{{ _("Zone du chantier") }}{% endif %}{% if sat_proofs %}<span class="lg-photo"></span>{{ _("%(n)s photo(s) vérifiée(s)", n=sat_proofs|length) }}{% endif %}</p>
+<p class="muted sat-note">{{ _("Image Esri : nette, mais pas du jour (souvent 1 à 3 ans). Elle sert à situer le terrain. Pour suivre l'avancement mois par mois : les images ci-dessous, ou la très haute résolution.") }}</p>
+</section>
+
+<h2 class="sat-h2">{{ _("Suivi mois par mois") }}</h2>
 <div class="seg">
 {% for key, label in SAT_LAYERS.items() %}<a href="{{ url_for('project', project_id=p.id, onglet='vues', couche=key) }}" class="{{ 'on' if key == layer }}">{{ label.split(' (')[0] }}</a>{% endfor %}
 </div>
@@ -737,14 +751,59 @@ document.querySelectorAll('[data-pv]').forEach(function (b) {
   if (r && top) { var f = function () { top.style.width = r.value + '%'; }; r.addEventListener('input', f); f(); }
 })();
 </script>
-{% set pts = [] %}{% for m in media3d if m.kind == 'drone' and m.lat is not none %}{% set _ = pts.append({'lat': m.lat, 'lng': m.lng, 'name': m.original_name, 'url': url_for('media3d_file', media_id=m.id)}) %}{% endfor %}
-{% if pts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
 (function () {
+  var el = document.getElementById('sat-map');
+  if (!el || !window.L) { if (el) el.classList.add('sat-off'); return; }
+  var site = [{{ p.lat }}, {{ p.lng }}], parcel = {{ sat_parcel|tojson }}, photos = {{ sat_proofs|tojson }};
+  var map = L.map(el, {zoomControl: false, attributionControl: true, tap: true}).setView(site, 18);
+  L.control.zoom({position: 'topright'}).addTo(map);
+  var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                        {maxZoom: 21, maxNativeZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics'});
+  var labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+                           {maxZoom: 21, maxNativeZoom: 19, opacity: .9});
+  var plan = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 21, maxNativeZoom: 19, attribution: '© OpenStreetMap'});
+  sat.addTo(map); labels.addTo(map);
+  var shape;
+  if (parcel.length >= 3) shape = L.polygon(parcel, {color: '#F2C14E', weight: 3, fillColor: '#F2C14E', fillOpacity: .12}).addTo(map);
+  else shape = L.circle(site, {radius: {{ p.radius }}, color: '#FFFFFF', weight: 2, dashArray: '6 6', fill: false}).addTo(map);
+  L.circleMarker(site, {radius: 7, color: '#fff', weight: 3, fillColor: '#0F6E45', fillOpacity: 1}).addTo(map);
+  photos.forEach(function (q) {
+    L.circleMarker([q.lat, q.lng], {radius: 6, color: '#fff', weight: 2, fillColor: '#F08A4B', fillOpacity: 1}).addTo(map)
+      .bindPopup('<img src="' + q.url + '" alt="" style="width:180px;border-radius:8px;display:block"><span style="font-size:12px">' + q.when + '</span>');
+  });
+  var fit = function () { map.fitBounds(shape.getBounds(), {padding: [28, 28], maxZoom: 19}); };
+  fit();
+  document.querySelectorAll('[data-base]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var toSat = b.dataset.base === 'sat';
+      [sat, labels, plan].forEach(function (t) { map.removeLayer(t); });
+      if (toSat) { sat.addTo(map); labels.addTo(map); } else { plan.addTo(map); }
+      document.querySelectorAll('[data-base]').forEach(function (x) { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+    });
+  });
+  var rc = document.querySelector('[data-recenter]'); if (rc) rc.addEventListener('click', fit);
+  var fs = document.querySelector('[data-full]');
+  if (fs) fs.addEventListener('click', function () {
+    var box = el.closest('.sat-live');
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    if (box.requestFullscreen) box.requestFullscreen().catch(function () { box.classList.toggle('sat-big'); });
+    else box.classList.toggle('sat-big');
+    setTimeout(function () { map.invalidateSize(); }, 250);
+  });
+  document.addEventListener('fullscreenchange', function () { setTimeout(function () { map.invalidateSize(); }, 200); });
+})();
+</script>
+{% set pts = [] %}{% for m in media3d if m.kind == 'drone' and m.lat is not none %}{% set _ = pts.append({'lat': m.lat, 'lng': m.lng, 'name': m.original_name, 'url': url_for('media3d_file', media_id=m.id)}) %}{% endfor %}
+{% if pts %}
+<script>
+(function () {
+  if (!window.L) return;
   var pts = {{ pts|tojson }}, site = [{{ p.lat }}, {{ p.lng }}];
-  var map = L.map('drone-map').setView(site, 17);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'}).addTo(map);
+  var map = L.map('drone-map').setView(site, 18);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              {maxZoom: 21, maxNativeZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics'}).addTo(map);
   L.circle(site, {radius: {{ p.radius }}, color: '#0E5A3A'}).addTo(map);
   pts.forEach(function (q) {
     var m = L.circleMarker([q.lat, q.lng], {radius: 6, color: '#B4501F'}).addTo(map);

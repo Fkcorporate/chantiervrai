@@ -1930,3 +1930,30 @@ body.chat-page .bottombar,body.chat-page .tabs{display:none!important}
 .totp-key[open]{display:flex;flex-direction:column;gap:8px}
 .totp-code{font-size:17px;letter-spacing:.06em;user-select:all;word-break:break-all}
 .totp-restart{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:13px}
+/* Vues : carte satellite nette en tête */
+.sat-live{display:flex;flex-direction:column;gap:10px;margin:4px 0 8px}
+.sat-map{height:min(62vh,520px);min-height:320px;border-radius:22px;overflow:hidden;background:#2B3A31;z-index:1;
+  box-shadow:0 1px 2px rgba(12,42,30,.06),0 18px 40px -22px rgba(12,42,30,.45)}
+.sat-map.sat-off{display:none}
+.sat-live:fullscreen{background:#0C2A1E;padding:12px;justify-content:center}
+.sat-live:fullscreen .sat-map,.sat-live.sat-big .sat-map{height:calc(100vh - 120px);border-radius:16px}
+.sat-live:fullscreen .sat-note,.sat-live:fullscreen .sat-legend{color:#C9D6CE}
+.sat-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sat-switch{display:inline-flex;padding:3px;border-radius:999px;background:#E9E4DA}
+.sat-switch button{border:0;background:none;font:inherit;font-size:14px;font-weight:500;color:#4A544E;padding:8px 16px;min-height:40px;border-radius:999px;cursor:pointer}
+.sat-switch button.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(12,42,30,.12)}
+.sat-btn{display:grid;place-items:center;width:46px;height:46px;border:1px solid #DDD7CB;background:#fff;color:var(--ink);border-radius:50%;cursor:pointer;padding:0}
+.sat-btn svg{width:21px;height:21px}
+.sat-sp{flex:1}
+.sat-bar{flex-wrap:nowrap}
+.sat-bar button:focus-visible{outline:3px solid var(--forest);outline-offset:2px}
+.sat-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0;font-size:13px;color:#4A544E}
+.sat-legend span{display:inline-block;width:14px;height:14px;border-radius:4px;margin-left:6px}
+.sat-legend span:first-child{margin-left:0}
+.lg-parcel{background:rgba(242,193,78,.25);border:2px solid #E0A92E}
+.lg-circle{border:2px dashed #7C877F;border-radius:50% !important}
+.lg-photo{background:#F08A4B;border:2px solid #fff;border-radius:50% !important;box-shadow:0 0 0 1px #E4DED2}
+.sat-note{font-size:13px;margin:0}
+.sat-h2{margin-top:18px}
+.sat-map .leaflet-control-zoom a{width:40px;height:40px;line-height:38px;font-size:20px}
+.sat-map .leaflet-control-attribution{font-size:10px}

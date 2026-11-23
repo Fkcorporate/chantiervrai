@@ -3,6 +3,9 @@
 {% block title %}{{ _("Administration · ChantierVrai") }}{% endblock %}
 {% block wrapclass %} wide{% endblock %}
 {% block content %}
+{% set st = storage_status() %}{% if st and not st.permanent %}<div class="card alert" role="alert"><b>{{ _("Données non conservées : elles seront effacées au prochain déploiement") }}</b>
+<span>{{ _("Base :") }} {{ st.base }}</span><span>{{ _("Fichiers :") }} {{ st.fichiers }}</span>
+<span class="muted">{{ _("Sur Render : ajoutez une base PostgreSQL (variable DATABASE_URL) et un disque permanent monté sur /var/data (variable CV_INSTANCE = /var/data). Voir le README, « Mise en ligne sur Render ».") }}</span></div>{% endif %}
 <div class="row"><h1>{{ _("Administration") }}</h1>{% if can('team') %}<a class="btn ghost small" href="{{ url_for('staff_team') }}">{{ _("Équipe") }}</a>{% endif %}</div>
 <p class="muted">{{ _("Votre rôle :") }} <b>{{ STAFF_ROLES[my_role] }}</b>. {{ _("Vous ne voyez que les sections de ce rôle.") }}</p>
 <div class="card{% if todo %} alert{% endif %}"><b>{{ _("À traiter") }}</b>

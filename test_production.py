@@ -257,3 +257,16 @@ check('id="exploitation"' in h and "en échec" in h and "Sauvegardes à vérifie
 
 srv.shutdown()
 print(f"\n{ok} contrôles réussis{' (PostgreSQL)' if PG else ''}.")
+
+# Stockage temporaire sur Render : signalé dans /sante et en tête de l'administration
+os.environ["RENDER"] = "true"
+try:
+    st = A.storage_status()
+    assert st and st["permanent"] is False and "TEMPORAIRE" in st["base"] and "TEMPORAIRES" in st["fichiers"]
+    j = A.app.test_client().get("/sante")
+    assert j.status_code == 200 and j.json["alerte"] is True and j.json["stockage"]["permanent"] is False
+    print("  ✓ Render sans base ni disque permanents : /sante lève l'alerte (sans faire redémarrer le service)")
+finally:
+    os.environ.pop("RENDER", None)
+assert A.storage_status() is None
+print("  ✓ hors Render : pas de contrôle de stockage")
