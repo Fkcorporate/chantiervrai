@@ -54,6 +54,8 @@ const EN = {
   'Toutes les fonctions': 'All functions',
   'Toutes les fonctions du chantier': 'All project functions',
   'Autres fonctions': 'Other functions',
+  'Fonctions masquées': 'Hidden functions',
+  '%(n)s fonction(s) éteinte(s) : réglez-les sur le site, dans « Fonctions de l\'appli »': '%(n)s function(s) turned off: change this on the website, under “App functions”',
   '%(n)s fonction(s) en plus': '%(n)s more function(s)',
   'Mode simple : l\'essentiel d\'abord.': 'Simple mode: the essentials first.',
   'Vous voyez toutes les fonctions.': 'You are seeing every function.',

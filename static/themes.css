@@ -235,3 +235,11 @@ body.theme-blanc .fp-answers{box-shadow:0 0 0 1px #EDEDEB,0 14px 34px -18px rgba
 body.theme-nuit.top-photo .appbar.scrolled{background:rgba(10,20,15,.9)}
 body.theme-nuit.top-photo .appbar.scrolled .ab-btn{color:#ECE8DD}
 body.theme-nuit .totp-qr{background:#fff}
+/* Onglets À valider / Plus / Fonctions : thème Nuit */
+body.theme-nuit .dv p,body.theme-nuit .dv-lead,body.theme-nuit .px-tx span,body.theme-nuit .nw-tx span,body.theme-nuit .ft-tx span,
+body.theme-nuit .dv-watch span,body.theme-nuit .dv-empty{color:#A9B4AD}
+body.theme-nuit .px-grp h2,body.theme-nuit .dv-sub,body.theme-nuit .ft-grp{color:#8D9A92}
+body.theme-nuit .dv-acts .btn.soft,body.theme-nuit .dv-no>summary.btn{background:rgba(255,255,255,.08);color:#ECE8DD;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+body.theme-nuit .dv-pics a,body.theme-nuit .nw-img{background-color:#1A2620}
+body.theme-nuit .px-tag,body.theme-nuit .ft-lock{background:rgba(255,255,255,.08);color:#C9D2CC}
+body.theme-nuit .dv-pics a,body.theme-nuit .nw-img{background-size:cover;background-position:center;background-repeat:no-repeat}

@@ -59,8 +59,8 @@ export default function FunctionsPanel({ visible, onClose, title, groups, onOpen
                     <Pressable onPress={() => setMore(!more)} accessibilityRole="button" accessibilityState={{ expanded: more }}
                       style={({ pressed }) => [s.more, more && s.moreOpen, pressed && { opacity: 0.7 }]}>
                       <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={s.label}>{t('Autres fonctions')}</Text>
-                        <Text style={s.desc}>{t('%(n)s fonction(s) en plus', { n: g.items.length })}</Text>
+                        <Text style={s.label}>{g.title || t('Fonctions masquées')}</Text>
+                        <Text style={s.desc}>{t('%(n)s fonction(s) éteinte(s) : réglez-les sur le site, dans « Fonctions de l\'appli »', { n: g.items.length })}</Text>
                       </View>
                       <Ionicons name={more ? 'chevron-down' : 'chevron-forward'} size={18} color="#9AA09C" />
                     </Pressable>

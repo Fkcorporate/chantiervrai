@@ -416,3 +416,26 @@ document.addEventListener('click', function (e) {
   var tr = e.target.closest && e.target.closest('tr[data-href]');
   if (tr && !e.target.closest('a,button,form')) location.href = tr.dataset.href;
 });
+
+/* Page « Plus » du chantier : recherche dans toutes les fonctions, y compris celles masquées */
+(function () {
+  var box = document.querySelector('[data-px]');
+  if (!box) return;
+  var q = box.querySelector('[data-px-q]'), empty = box.querySelector('[data-px-empty]');
+  var norm = function (t) { return (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); };
+  var items = [].slice.call(box.querySelectorAll('[data-px-it]'));
+  items.forEach(function (a) { a.dataset.n = norm(a.dataset.n); });
+  q.addEventListener('input', function () {
+    var words = norm(q.value).split(/\s+/).filter(Boolean), shown = 0;
+    items.forEach(function (a) {
+      var ok = !words.length || words.every(function (w) { return a.dataset.n.indexOf(w) > -1; });
+      a.hidden = !ok; if (ok && words.length) shown++;
+    });
+    box.querySelectorAll('[data-px-grp]').forEach(function (g) {
+      if (g.hasAttribute('data-px-keep')) { g.hidden = words.length > 0; return; }
+      var hiddenGrp = g.classList.contains('px-hidden');
+      g.hidden = words.length ? !g.querySelector('[data-px-it]:not([hidden])') : hiddenGrp;
+    });
+    empty.hidden = !words.length || shown > 0;
+  });
+})();

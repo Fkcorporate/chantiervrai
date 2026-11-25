@@ -305,3 +305,33 @@ body.theme-nuit .sat-switch button.on{background:#101B16;color:#ECE8DD}
 body.theme-nuit .sat-btn{background:#101B16;color:#ECE8DD;border-color:rgba(255,255,255,.1)}
 body.theme-nuit .sat-legend{color:#74DBA8}
 body.theme-nuit .lg-photo{border-color:rgba(255,255,255,.1)}
+body.theme-nuit .nw{background:#101B16;color:#ECE8DD}
+body.theme-nuit .nw-img,body.theme-nuit .nw-ico{background:#101B16;color:#ECE8DD}
+body.theme-nuit .nw-ico{background:#11271C;color:#ECE8DD}
+body.theme-nuit .nw-tx span{color:#74DBA8}
+body.theme-nuit .dv-lead{color:#74DBA8}
+body.theme-nuit .dv{background:#101B16;color:#ECE8DD}
+body.theme-nuit .dv-k.warm{color:#F3A188}
+body.theme-nuit .dv p{color:#74DBA8}
+body.theme-nuit .dv-pics a{background:#101B16;color:#ECE8DD}
+body.theme-nuit .dv-pics .dv-more{background:#101B16;color:#74DBA8}
+body.theme-nuit .dv-acts .btn.soft,body.theme-nuit .dv-no>summary.btn{background:#101B16;color:#ECE8DD}
+body.theme-nuit .dv-no textarea{border-color:rgba(255,255,255,.1)}
+body.theme-nuit .dv-empty{background:#101B16;color:#74DBA8}
+body.theme-nuit .dv-sub{color:#74DBA8}
+body.theme-nuit .dv-watch{background:#101B16;color:#ECE8DD}
+body.theme-nuit .dv-watch>a,body.theme-nuit .dv-watch>div{border-bottom-color:rgba(255,255,255,.1)}
+body.theme-nuit .dv-watch span{color:#74DBA8}
+body.theme-nuit .px-search{background:#101B16;color:#74DBA8}
+body.theme-nuit .px-grp h2{color:#74DBA8}
+body.theme-nuit .px-list{background:#101B16;color:#ECE8DD}
+body.theme-nuit .px-it{border-bottom-color:rgba(255,255,255,.1)}
+body.theme-nuit .px-tx span{color:#74DBA8}
+body.theme-nuit .px-tag{background:#101B16;color:#74DBA8}
+body.theme-nuit .ft-grp{color:#74DBA8}
+body.theme-nuit .ft-list{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ft-row{border-bottom-color:rgba(255,255,255,.1)}
+body.theme-nuit .ft-tx span{color:#74DBA8}
+body.theme-nuit .ft-lock{background:#101B16;color:#74DBA8}
+body.theme-nuit .ft-sw i{background:#101B16;color:#ECE8DD}
+body.theme-nuit .ft-sw i::after{background:#101B16;color:#ECE8DD}
