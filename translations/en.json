@@ -4052,5 +4052,10 @@
  "← Accueil du chantier": "← Site home",
  "%(n)s à valider": "%(n)s to approve",
  "Votre avis sur %(n)s aide les autres familles à choisir": "Your review of %(n)s helps other families choose",
- "Pour commencer": "To get started"
+ "Pour commencer": "To get started",
+ "Fonctions éteintes": "Turned-off functions",
+ "Les rallumer": "Turn them back on",
+ "Elles restent utilisables : touchez-en une pour l'ouvrir. Rallumez-les pour les ranger avec les autres.": "They still work: tap one to open it. Turn them back on to file them with the others.",
+ "Éteinte": "Off",
+ "L'application": "The app"
 }

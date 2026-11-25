@@ -2058,3 +2058,14 @@ body.chat-page .bottombar,body.chat-page .tabs{display:none!important}
 label.ft-row{flex-direction:row}
 .fp-invite{margin-top:14px}.fp-invite .code{align-self:flex-start;font-size:24px;letter-spacing:.12em;margin:6px 0}
 .nw-ico.hot{background:#FCEBE3;color:#A84B12}
+/* Plus : fonctions éteintes, toujours visibles ; menu de l'application */
+.px-off-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:20px 4px 4px}
+.px-off-h h2{margin:0!important}
+.px-off-h a{font-size:14px;font-weight:600;color:var(--accent);text-decoration:none;padding:8px 0}
+.px-off-p{margin:0 4px 8px;font-size:13px;color:#59625D}
+.px-hidden .px-it .px-ic{background:#E9E4DA;color:#59625D}
+.px-hidden .px-it .px-tx b{color:#3E4742}
+.px-ic.soft{background:#EAF3EE;color:var(--accent)}
+.px-tx b:only-child{line-height:40px}
+body.theme-nuit .px-hidden .px-it .px-ic,body.theme-nuit .px-ic.soft{background:rgba(255,255,255,.08);color:#C9D2CC}
+body.theme-nuit .px-off-p{color:#A9B4AD}

@@ -105,7 +105,13 @@ hp = plus(own)
 vis = hp.split("px-hidden")[0]
 check("Preuves photo et vidéo" in vis and "Plan de financement" in vis and "Stock du chantier" not in vis and "Export comptable" not in vis,
       "page Plus : l'essentiel et les modules allumés ; stock et export masqués par défaut")
-check("px-hidden" in hp and "Stock du chantier" in hp.split("px-hidden")[1] and "Masquée" in hp, "les fonctions masquées restent trouvables par la recherche")
+off = hp.split("px-hidden")[1]
+check("Stock du chantier" in off and "Éteinte" in off and "Les rallumer" in off and 'data-px-grp hidden' not in hp,
+      "les fonctions éteintes restent affichées en bas de Plus, utilisables, avec « Les rallumer »")
+app_sec = hp.split("L&#39;application")[1]
+check(all(x in app_sec for x in ("Tous mes chantiers", "Carte", "Terrains", "Assistant", "Académie", "Mon compte", "Aide")),
+      "menu de l'application dans Plus : chantiers, carte, terrains, assistant, académie, compte, aide")
+check(own.get(P + "/stock").status_code == 200, "une fonction éteinte s'ouvre quand même")
 check("Fonctions de l&#39;appli" in hp and "Tous mes chantiers" in hp, "réglage « Fonctions de l'appli » et sortie vers tous les chantiers")
 hf = own.get("/compte/fonctions").get_data(as_text=True)
 check(hf.count('role="switch"') == len(A.FEATURE_MODULES) and "Toujours actif" in hf, "un interrupteur par module, le cœur toujours actif")

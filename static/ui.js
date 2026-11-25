@@ -433,8 +433,7 @@ document.addEventListener('click', function (e) {
     });
     box.querySelectorAll('[data-px-grp]').forEach(function (g) {
       if (g.hasAttribute('data-px-keep')) { g.hidden = words.length > 0; return; }
-      var hiddenGrp = g.classList.contains('px-hidden');
-      g.hidden = words.length ? !g.querySelector('[data-px-it]:not([hidden])') : hiddenGrp;
+      g.hidden = words.length ? !g.querySelector('[data-px-it]:not([hidden])') : false;
     });
     empty.hidden = !words.length || shown > 0;
   });

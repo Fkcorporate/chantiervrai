@@ -331,9 +331,11 @@
 <div class="px" data-px>
 <label class="px-search">{{ icon('search') }}<input type="search" placeholder="{{ _("Chercher une fonction") }}" aria-label="{{ _("Chercher une fonction") }}" data-px-q></label>
 {% for g in fn_groups %}
-<section class="px-grp{% if g.hidden %} px-hidden{% endif %}" data-px-grp{% if g.hidden %} hidden{% endif %}>
-<h2>{{ _("Fonctions masquées") if g.hidden else g.title }}</h2>
-<div class="px-list">{% for it in g['items'] %}<a class="px-it" href="{{ it.url }}" data-px-it data-n="{{ (it.label ~ ' ' ~ it.desc)|lower }}"><span class="px-ic">{{ fni(it.ic) }}</span><span class="px-tx"><b>{{ it.label }}</b><span>{{ it.desc }}</span></span>{% if g.hidden %}<em class="px-tag">{{ _("Masquée") }}</em>{% endif %}<span class="px-ch">{{ fni('chev') }}</span></a>{% endfor %}</div>
+<section class="px-grp{% if g.hidden %} px-hidden{% endif %}" data-px-grp>
+{% if g.hidden %}<div class="px-off-h"><h2>{{ _("Fonctions éteintes") }} · {{ g['items']|length }}</h2><a href="{{ url_for('account_features', next=request.full_path) }}">{{ _("Les rallumer") }}</a></div>
+<p class="px-off-p">{{ _("Elles restent utilisables : touchez-en une pour l'ouvrir. Rallumez-les pour les ranger avec les autres.") }}</p>
+{% else %}<h2>{{ g.title }}</h2>{% endif %}
+<div class="px-list">{% for it in g['items'] %}<a class="px-it" href="{{ it.url }}" data-px-it data-n="{{ (it.label ~ ' ' ~ it.desc)|lower }}"><span class="px-ic">{{ fni(it.ic) }}</span><span class="px-tx"><b>{{ it.label }}</b><span>{{ it.desc }}</span></span>{% if g.hidden %}<em class="px-tag">{{ _("Éteinte") }}</em>{% endif %}<span class="px-ch">{{ fni('chev') }}</span></a>{% endfor %}</div>
 </section>
 {% endfor %}
 <p class="px-empty muted" hidden data-px-empty>{{ _("Aucune fonction ne correspond.") }}</p>
@@ -341,9 +343,12 @@
 <h2>{{ _("Réglages") }}</h2>
 <div class="px-list">
 <a class="px-it" href="{{ url_for('account_features', next=request.full_path) }}"><span class="px-ic">{{ fni('sliders') }}</span><span class="px-tx"><b>{{ _("Fonctions de l'appli") }}</b><span>{{ _("Activez seulement ce dont vous avez besoin") }}</span></span><span class="px-ch">{{ fni('chev') }}</span></a>
-<a class="px-it" href="{{ url_for('home') }}"><span class="px-ic">{{ fni('home') }}</span><span class="px-tx"><b>{{ _("Tous mes chantiers") }}</b><span>{{ _("Revenir à la liste de vos chantiers") }}</span></span><span class="px-ch">{{ fni('chev') }}</span></a>
-<a class="px-it" href="{{ url_for('help_page') }}"><span class="px-ic">{{ fni('help') }}</span><span class="px-tx"><b>{{ _("Aide") }}</b><span>{{ _("Questions fréquentes, nous écrire") }}</span></span><span class="px-ch">{{ fni('chev') }}</span></a>
 </div></section>
+{# Le menu général de l'application (carte, terrains, assistant, académie, compte, administration) #}
+<section class="px-grp" data-px-grp>
+<h2>{{ _("L'application") }}</h2>
+<div class="px-list">{% for it in NAV.side if it.key != 'alerts' %}<a class="px-it" href="{{ it.url }}" data-px-it data-n="{{ it.label|lower }}"><span class="px-ic soft">{{ fni(it.icon) }}</span><span class="px-tx"><b>{{ _("Tous mes chantiers") if it.key == 'home' else it.label }}</b></span><span class="px-ch">{{ fni('chev') }}</span></a>{% endfor %}</div>
+</section>
 </div>
 {% endif %}
 
