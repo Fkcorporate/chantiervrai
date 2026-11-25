@@ -60,8 +60,8 @@ assert 'déclarée terminée' in r.get_data(as_text=True)
 t = tok(own, f'/chantiers/{pid}?onglet=etapes')
 r = own.post(f'/chantiers/{pid}/etapes/{step1}/valider', data=dict(csrf=t, pay_ref='WAVE123', override='1'), follow_redirects=True)
 h = r.get_data(as_text=True); assert 'Étape validée' in h and 'WAVE123' in h; print('paid ok')
-home = own.get(f'/chantiers/{pid}').get_data(as_text=True)
-print('verified', re.search(r'Avancement vérifié</b><b[^>]*>(\d+) %', home).group(1), '% ; refused alert', '4 preuve(s) refusée(s)' in home)
+home = own.get(f'/chantiers/{pid}?fil=tout').get_data(as_text=True)
+print('verified', re.search(r'Avancement vérifié</b><b[^>]*>(\d+) %', home).group(1), '% ; refused alert', '4 preuve(s) refusée(s)' in own.get(f'/chantiers/{pid}?onglet=valider').get_data(as_text=True))
 for tab in ['preuves','satellite']: assert own.get(f'/chantiers/{pid}?onglet={tab}').status_code == 200
 assert chef.get(f'/chantiers/{pid}?onglet=preuves').status_code == 200
 assert own.get('/photos/1').status_code == 200

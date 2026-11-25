@@ -211,7 +211,7 @@ r = post(chef, f"/chantiers/{pid}/litiges", dict(step_id=st1["id"], subject="Val
 did = s.execute("SELECT id FROM disputes").fetchone()[0]
 assert "Validation bloquée" in html(r)
 assert s.execute("SELECT COUNT(*) FROM notifications WHERE title LIKE '%Litige ouvert%' AND channel='app' AND user_id=(SELECT id FROM users WHERE email='admin@x.ci')").fetchone()[0] == 1
-assert "1 litige en cours" in html(own.get(f"/chantiers/{pid}"))
+assert "1 litige en cours" in html(own.get(f"/chantiers/{pid}?onglet=valider"))
 post(own, f"/litiges/{did}", dict(action="message", text="Je veux voir le ferraillage."), f"/litiges/{did}")
 assert adm.get(f"/litiges/{did}").status_code == 200 and insp.get(f"/litiges/{did}").status_code == 403
 okp = s.execute("SELECT id FROM proofs WHERE project_id=? AND ok=1", (pid,)).fetchone()[0]

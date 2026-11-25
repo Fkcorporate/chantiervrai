@@ -171,7 +171,7 @@ check("Message transmis" in wa("Le ferrailleur arrive demain matin.")[0] and not
 h = html(own.get(f"/chantiers/{pid}/notes"))
 check("Il manque vingt sacs" in h and "Urgent" in h and "ferrailleur" in h and "<audio" in h, "page des notes du chantier")
 check(own.get(f"/notes/{n['id']}/audio").status_code == 200, "note vocale écoutable")
-check("Messages du chef" in html(own.get(f"/chantiers/{pid}")), "accueil : derniers messages du chef")
+check("Notes du chantier" in html(own.get(f"/chantiers/{pid}?onglet=plus")), "page Plus : les notes du chef")
 check(register("z@x.ci").get(f"/chantiers/{pid}/notes").status_code == 403, "notes inaccessibles à un étranger")
 
 print("Plusieurs chantiers, chantier exigeant l'application")

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ _("Fonctions de l'appli · ChantierVrai") }}{% endblock %}
+{% block content %}
+<a class="backlink" href="{{ back }}">{{ _("← Retour") }}</a>
+<div class="ft-head"><h1>{{ _("Choisissez ce que vous voyez") }}</h1>
+<p class="muted">{{ _("Le reste est caché, pas supprimé : vous pouvez le rallumer quand vous voulez, et la recherche le retrouve toujours.") }}</p></div>
+<form method="post" class="ft-form">{{ csrf() }}<input type="hidden" name="next" value="{{ back }}">
+<h2 class="ft-grp">{{ _("Toujours là") }}</h2>
+<div class="ft-list"><div class="ft-row"><span class="ft-tx"><b>{{ _("Preuves, paiements, messages") }}</b><span>{{ _("Le cœur de la protection de votre argent : photos vérifiées, étapes, achats, travaux supplémentaires, documents, famille") }}</span></span><span class="ft-lock">{{ _("Toujours actif") }}</span></div></div>
+<h2 class="ft-grp">{{ _("À la carte") }}</h2>
+<div class="ft-list">
+{% for m in mods %}<label class="ft-row" for="f-{{ m.key }}"><span class="ft-tx"><b>{{ m.label }}</b><span>{{ m.desc }}</span></span>
+<span class="ft-sw"><input type="checkbox" role="switch" id="f-{{ m.key }}" name="f" value="{{ m.key }}"{% if m.on %} checked{% endif %}><i aria-hidden="true"></i></span></label>
+{% endfor %}</div>
+<div class="ft-acts"><button class="btn" type="submit">{{ _("Enregistrer") }}</button><button class="linkbtn" type="submit" name="action" value="defaut" formnovalidate>{{ _("Réglages par défaut") }}</button></div>
+</form>
+{% endblock %}

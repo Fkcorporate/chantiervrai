@@ -103,11 +103,11 @@ assert "Taken" in page and "m from the plot" in page, page[:3000]
 assert "Prise à" not in page
 no_french(page, "preuves")
 home = text(own.get(f"/chantiers/{pid}"))
-assert "Other functions" in home and "paid of" in home and "Progress" in home and "Invite family" in home   # mode simple du particulier
+assert "Latest news" in home and "paid of" in home and "Progress" in home and "To approve" in home   # accueil court
 no_french(home, "accueil")
 # Mode complet : le journal d'activité (écrit en français par le chef) apparaît, traduit
 s.execute("UPDATE users SET advanced = 1 WHERE id = (SELECT owner_id FROM projects WHERE id = ?)", (pid,)); s.commit()
-home = text(own.get(f"/chantiers/{pid}"))
+home = text(own.get(f"/chantiers/{pid}?fil=tout"))      # « Tout le fil »
 assert "Recent activity" in home and "declared complete" in home and "Verified progress" in home
 no_french(home, "accueil (mode complet)")
 for tab in ("etapes", "vues", "dossier"):

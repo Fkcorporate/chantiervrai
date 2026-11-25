@@ -107,7 +107,7 @@ check(r.status_code == 200 and r.get_json()["ok"], "le chef écrit")
 check(notif("own@x.ci", "Nouveau message") == 1, "le propriétaire est prévenu")
 send(chef, {"body": "Il faudra 3 camions de sable."})
 check(notif("own@x.ci", "Nouveau message") == 1, "pas de pluie d'alertes : une seule tant que non lue")
-check("2 nouveaux messages" in html(own.get(f"/chantiers/{pid}")), "badge non lus sur l'accueil")
+check("2 non lus" in html(own.get(f"/chantiers/{pid}")), "pastille des non lus sur l'onglet Messages")
 h = html(own.get(X))
 check("on coule la dalle" in h and "Nouveaux messages" in h, "le propriétaire lit, avec le repère des nouveaux")
 check(s.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND link = ? AND is_read = 0", (uid("own@x.ci"), X)).fetchone()[0] == 0,

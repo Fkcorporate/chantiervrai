@@ -96,8 +96,9 @@ r = post(chef, B, {"action": "create", "title": "40 sacs de ciment", "amount": "
 rq = s.execute("SELECT * FROM purchase_requests").fetchone()
 check(rq and rq["amount"] == 224000 and rq["quote_file"], "demande enregistrée avec le devis (montant avec espaces lu)")
 check(notif("own@x.ci", "achat") == 1, "le propriétaire est prévenu")
-check("argent pour des achats" in html(own.get(f"/chantiers/{pid}")),
-      "alerte sur l'accueil du propriétaire")
+h = html(own.get(f"/chantiers/{pid}?onglet=valider"))
+check("Demande d&#39;achat" in h and "224" in h and 'value="accept"' in h,
+      "la demande attend le propriétaire dans l'onglet « À valider », avec ses boutons")
 check(own.get(f"{B}/{rq['id']}/devis").status_code == 200 and other.get(f"{B}/{rq['id']}/devis").status_code == 403, "devis privé")
 check(post(chef, B, {"action": "paid", "id": rq["id"]}).status_code == 403, "le chef ne peut pas se marquer payé")
 r = post(own, B, {"action": "refuse", "id": rq["id"], "refusal": ""})
@@ -112,8 +113,9 @@ check("prenez-la sur place" in html(r), "photo de livraison loin du chantier ref
 post(chef, B, {"action": "delivered", "id": rq["id"], "photo": (io.BytesIO(gps_jpg(*SITE, seed=3)), "livraison.jpg")}, files=True)
 rq = s.execute("SELECT * FROM purchase_requests WHERE id = ?", (rq["id"],)).fetchone()
 check(rq["status"] == "livree" and rq["received_at"] and rq["delivery_distance"] is not None, "livraison photographiée sur place")
-page = html(own.get(f"/chantiers/{pid}"))
+page = html(own.get(f"/chantiers/{pid}?fil=tout"))
 check("40 sacs de ciment" in page and "Livrée" in page, "l'achat livré apparaît dans le fil du propriétaire")
+check("40 sacs de ciment" in html(own.get(f"/chantiers/{pid}")), "et dans les dernières nouvelles de l'accueil")
 post(chef, B, {"action": "create", "title": "Sable", "amount": "90000"})
 r2 = s.execute("SELECT id FROM purchase_requests WHERE title = 'Sable'").fetchone()[0]
 post(own, B, {"action": "refuse", "id": r2, "refusal": "Trop cher, deuxième devis"})

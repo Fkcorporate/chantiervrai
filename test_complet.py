@@ -190,7 +190,7 @@ iid2 = int(r.headers["Location"].split("/")[-1])
 assert s.execute("SELECT status FROM invoices WHERE id=?", (iid2,)).fetchone()[0] == "doublon"
 h = own.get(f"/chantiers/{pid}?onglet=dossier").get_data(as_text=True)
 assert "140 % du prévu facturé" in h and "Prix jusqu&#39;à 130 % de la référence" in h, re.findall(r"Ciment[^<]*", h)[:5]
-assert re.search(r"alertes? sur les matériaux", own.get(f"/chantiers/{pid}").get_data(as_text=True))
+assert re.search(r"alertes? sur les matériaux", own.get(f"/chantiers/{pid}?onglet=valider").get_data(as_text=True))   # « À surveiller »
 assert own.get(f"/factures/{iid}/fichier").status_code == 200
 print("materiaux ok : depassement quantite, prix, facture en double")
 
@@ -227,7 +227,7 @@ assert "Photo d&#39;inspection vérifiée" in h or "Photo d'inspection vérifié
 post(insp, f"/inspections/{ins}/rapport", dict(verdict="non_conforme", report="Enrobage insuffisant sur la dalle nord, à reprendre."),
      f"/chantiers/{pid}")
 assert s.execute("SELECT status, verdict FROM inspections WHERE id=?", (ins,)).fetchone()[:] == ("realisee", "non_conforme")
-assert "Inspection non conforme" in own.get(f"/chantiers/{pid}").get_data(as_text=True)
+assert "Inspection non conforme" in own.get(f"/chantiers/{pid}?onglet=valider").get_data(as_text=True)
 assert s.execute("SELECT payout_status FROM inspections WHERE id=?", (ins,)).fetchone()[0] == "a_verser"
 assert "Attribuée et payée" not in own.get(f"/chantiers/{pid}?onglet=dossier").get_data(as_text=True)
 print("inspection ok (vendue par ChantierVrai, inspecteur attribué par l'équipe)")
@@ -275,7 +275,7 @@ print("drone et 3D ok")
 
 # --- 12. Compte rendu hebdomadaire ---
 s.execute("UPDATE projects SET created_at=? WHERE id=?", ((datetime.now(timezone.utc) - timedelta(days=8)).isoformat(), pid)); s.commit()
-h = own.get(f"/chantiers/{pid}").get_data(as_text=True)
+h = own.get(f"/chantiers/{pid}?fil=tout").get_data(as_text=True)      # « Tout le fil » : colonne d'à-côté
 i = h.find("Compte rendu de la semaine"); assert "Compte rendu de la semaine" in h and re.search(r"preuves? vérifiées? cette semaine", h), h[i:i+700]
 rid = s.execute("SELECT id FROM reports WHERE project_id=?", (pid,)).fetchone()[0]
 assert "Photos de la semaine" in own.get(f"/chantiers/{pid}/rapports/{rid}").get_data(as_text=True)

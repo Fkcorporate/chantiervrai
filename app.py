@@ -1229,7 +1229,7 @@ MIGRATIONS = {
               ("lang", "TEXT"), ("profession", "TEXT"), ("verify_requested", "INTEGER NOT NULL DEFAULT 0"),
               ("company", "TEXT"), ("staff_role", "TEXT"),
               ("onboarding_hidden", "INTEGER NOT NULL DEFAULT 0"), ("advanced", "INTEGER NOT NULL DEFAULT 0"),
-              ("supplier_terms_at", "TEXT")],
+              ("supplier_terms_at", "TEXT"), ("features", "TEXT")],
     "billing_invoices": [("kind", "TEXT NOT NULL DEFAULT 'abonnement'"), ("inspection_request_id", "INTEGER")],
     "disputes": [("stage", "TEXT NOT NULL DEFAULT 'echanges'"), ("respond_by", "TEXT"), ("decide_by", "TEXT"),
                  ("outcome", "TEXT"), ("amount", "INTEGER"), ("appeal_until", "TEXT"), ("appeal_text", "TEXT"),
@@ -1844,25 +1844,64 @@ def project_role(p, user=None):
 # Toutes les fonctions d'un chantier, rangées par famille et filtrées selon le profil.
 # Un seul endroit à maintenir : le panneau « Toutes les fonctions » (web) et l'API mobile le lisent.
 # ---------------------------------------------------------------------------
+# « Fonctions de l'appli » : le propriétaire choisit ce qu'il voit. Le cœur (preuves, paiements, messages, documents,
+# famille) est toujours là ; chaque module s'allume ou s'éteint sans rien supprimer, et la recherche retrouve le reste.
+FEATURE_MODULES = [
+    # clé, libellé, description, allumé par défaut pour un particulier
+    ("vues", L("Vue satellite et drone"), L("Voir le terrain d'en haut, parcelle et photos sur la carte"), True),
+    ("inspection", L("Inspection indépendante"), L("Un expert vérifie sur place avant les gros paiements"), True),
+    ("qualite", L("Contrôle qualité et plan"), L("Défauts repérés sur les photos, ce qui est bâti face au plan"), True),
+    ("financement", L("Plan de financement"), L("Apport, crédit, prochains versements, dossier pour la banque"), True),
+    ("rapports", L("Comptes rendus et notes du chef"), L("Résumé de la semaine, messages vocaux du chef"), True),
+    ("journal", L("Journal de chantier"), L("Chaque jour : ouvriers présents, météo, arrêts"), False),
+    ("stock", L("Stock et matériaux"), L("Livraisons, consommations, quantités prévues, calculateur"), False),
+    ("compta", L("Décompte et export comptable"), L("Situation des travaux, fichier pour le comptable"), False),
+    ("plans_ia", L("Lire un plan avec l'IA"), L("Surfaces et quantités à partir d'un plan"), False),
+    ("entrepreneurs", L("Annuaire des entrepreneurs"), L("Trouver ou noter une entreprise vérifiée"), False),
+    ("avance", L("Outils avancés"), L("Zones, quantités posées, maquette 3D, visites 360°, capteurs"), False),
+]
+FEATURE_KEYS = [k for k, *_r in FEATURE_MODULES]
+# Fonction -> module (les autres font partie du cœur, toujours visibles)
+FEATURE_OF = {("project", "vues"): "vues", "aerial_page": "vues", ("project", "dossier#inspections"): "inspection",
+              "quality_list": "qualite", "plan_real": "qualite", "financing": "financement", "financing_file": "financement",
+              "reports": "rapports", "site_notes_page": "rapports", "journal_page": "journal", "project_stock": "stock",
+              ("project", "dossier#materiaux"): "stock", "calculator": "stock", "calculator_public": "stock",
+              "decompte": "compta", "accounting_export": "compta", "plan_reading": "plans_ia", "contractors": "entrepreneurs",
+              "zones_page": "avance", "quantities": "avance", "bim": "avance", "panos": "avance", "sensors_page": "avance"}
+
+
+def enabled_features(user, advanced_data=False):
+    """Modules visibles pour ce compte. Rien d'enregistré : les réglages par défaut (tout pour un professionnel)."""
+    if user is not None:
+        try:
+            saved = json.loads(user["features"]) if user["features"] else None
+        except (ValueError, TypeError, IndexError, KeyError):
+            saved = None
+        if isinstance(saved, list):
+            return {k for k in saved if k in FEATURE_KEYS}
+        if user["role"] != "proprio" or user["advanced"]:
+            return set(FEATURE_KEYS)
+    on = {k for k, _l, _d, default in FEATURE_MODULES if default}
+    if advanced_data:                       # le chantier utilise déjà zones, 360°, capteurs… : on ne les cache pas
+        on.add("avance")
+    return on
+
+
 def simple_mode(user):
-    """Mode simple : réglage par défaut du propriétaire particulier. Les pros, chefs et inspecteurs voient tout ;
-    le particulier peut passer en mode complet depuis le panneau des fonctions ou Mon compte."""
-    return bool(user) and user["role"] == "proprio" and not user["advanced"]
+    """Compatibilité : vrai quand des modules sont éteints pour ce propriétaire."""
+    return bool(user) and enabled_features(user) != set(FEATURE_KEYS)
 
 
-# Fonctions qui répondent aux trois questions du particulier : ça avance ? mon argent ? que dois-je décider ?
-SIMPLE_CORE = {("project", "preuves"), ("project", "etapes"), ("project", "vues"), "chat_page", "reports",
-               ("project", "dossier#inspections"), "plan_real", "trust_page", "purchases_page", "change_orders_page",
-               "payments_ledger", "financing", ("project", "dossier#documents"), "land_page",
-               ("project", "dossier#membres"), ("project", "dossier#litiges")}
-
-
-def project_functions(p, role=None, advanced=None, simple=None):
+def project_functions(p, role=None, advanced=None, features=None):
+    """Fonctions du chantier par famille. Pour le propriétaire, les modules éteints vont dans une famille
+    « Fonctions masquées » (repliée, hidden=True) : invisibles, mais la recherche les retrouve."""
     role = role or g.get("project_role") or project_role(p)
     if advanced is None:
         advanced = g.get("advanced", True)
-    if simple is None:
-        simple = role == "owner" and simple_mode(current_user())
+    if role == "owner" and features is None:
+        features = enabled_features(current_user(), advanced)
+    if role == "owner" and "avance" in features:
+        advanced = True
     pid = p["id"]
     u = lambda ep, **kw: url_for(ep, project_id=pid, **kw)
     tab = lambda t, anchor=None: url_for("project", project_id=pid, onglet=t) + (f"#{anchor}" if anchor else "")
@@ -1873,8 +1912,12 @@ def project_functions(p, role=None, advanced=None, simple=None):
         if items:
             G.append({"key": key, "title": title, "items": items})
 
-    core_urls = {url_for("project", project_id=pid, onglet=k[1].split("#")[0]) + ("#" + k[1].split("#")[1] if "#" in k[1] else "")
-                 if isinstance(k, tuple) else url_for(k, project_id=pid) for k in SIMPLE_CORE} if simple else set()
+    def _url_of(k):
+        if isinstance(k, tuple):
+            t, _sep, anchor = k[1].partition("#")
+            return url_for("project", project_id=pid, onglet=t) + (f"#{anchor}" if anchor else "")
+        return url_for(k) if k in ("calculator_public", "contractors") else url_for(k, project_id=pid)
+    module_of = {_url_of(k): m for k, m in FEATURE_OF.items()} if role == "owner" else {}
 
     def it(label, desc, url, ic):
         return {"label": label, "desc": desc, "url": url, "ic": ic}
@@ -2009,16 +2052,16 @@ def project_functions(p, role=None, advanced=None, simple=None):
             it(_("Visites 360°"), _("Se déplacer dans le chantier"), u("panos"), "pano"),
             it(_("Capteurs et météo"), _("Pluie, température, humidité du béton"), u("sensors_page"), "sensor"),
         ])
-    if simple and core_urls:
-        # Mode simple : l'essentiel reste rangé par famille, tout le reste va dans « Autres fonctions », replié
-        # (la recherche le retrouve quand même).
-        rest = []
+    if module_of:
+        hidden = []
         for grp_ in G:
-            rest += [i for i in grp_["items"] if i["url"] not in core_urls]
-            grp_["items"] = [i for i in grp_["items"] if i["url"] in core_urls]
+            for i in grp_["items"]:
+                i["module"] = module_of.get(i["url"])
+            hidden += [i for i in grp_["items"] if i["module"] and i["module"] not in features]
+            grp_["items"] = [i for i in grp_["items"] if not (i["module"] and i["module"] not in features)]
         G = [grp_ for grp_ in G if grp_["items"]]
-        if rest:
-            G.append({"key": "autres", "title": _("Autres fonctions"), "items": rest, "collapsed": True})
+        if hidden:
+            G.append({"key": "masquees", "title": _("Fonctions masquées"), "items": hidden, "collapsed": True, "hidden": True})
     return G
 
 
@@ -2174,22 +2217,62 @@ def project_prediction(p, s, db=None):
     return PRED.predict(p, s["steps"], silent, s["refused"], s["proofs_total"], nc)
 
 
-def project_alerts(p, s, pred, db=None):
-    """Liste d'alertes (texte, lien d'onglet)."""
+def pending_decisions(project_id):
+    """Ce qui attend l'accord du propriétaire : étapes déclarées, achats à payer, travaux supplémentaires proposés.
+    Sert au compteur de l'onglet « À valider » (calculé une fois par requête)."""
+    cache = g.setdefault("_pending", {})
+    if project_id not in cache:
+        db = get_db()
+        n = db.execute("SELECT COUNT(*) FROM steps WHERE project_id = ? AND status = 'declare'", (project_id,)).fetchone()[0]
+        n += db.execute("SELECT COUNT(*) FROM purchase_requests WHERE project_id = ? AND status IN ('demande', 'acceptee')",
+                        (project_id,)).fetchone()[0]
+        n += db.execute("SELECT COUNT(*) FROM change_orders WHERE project_id = ? AND status = 'proposee'", (project_id,)).fetchone()[0]
+        cache[project_id] = n
+    return cache[project_id]
+
+
+app.jinja_env.globals["pending_decisions"] = pending_decisions
+
+
+def decisions_context(db, p, stats):
+    """Contenu de l'onglet « À valider »."""
+    pid = p["id"]
+    steps = []
+    for st in stats["steps"]:
+        if st["status"] != "declare":
+            continue
+        pics = [r["id"] for r in db.execute("SELECT id FROM proofs WHERE project_id = ? AND step_id = ? AND ok = 1 "
+                                            "AND (kind IS NULL OR kind != 'video' OR thumb IS NOT NULL) ORDER BY id DESC LIMIT 4",
+                                            (pid, st["id"]))]
+        n_ok = db.execute("SELECT COUNT(*) FROM proofs WHERE project_id = ? AND step_id = ? AND ok = 1", (pid, st["id"])).fetchone()[0]
+        steps.append({"id": st["id"], "name": st["name"], "amount": st["amount"], "pics": pics, "n_ok": n_ok})
+    buys = db.execute("SELECT r.*, u.name AS author, st.name AS step_name FROM purchase_requests r JOIN users u ON u.id = r.user_id "
+                      "LEFT JOIN steps st ON st.id = r.step_id WHERE r.project_id = ? AND r.status IN ('demande', 'acceptee') "
+                      "ORDER BY r.id", (pid,)).fetchall()
+    cos = db.execute("SELECT c.*, u.name AS author FROM change_orders c JOIN users u ON u.id = c.user_id "
+                     "WHERE c.project_id = ? AND c.status = 'proposee' ORDER BY c.id", (pid,)).fetchall()
+    total = sum(x["amount"] for x in steps) + sum(b["amount"] for b in buys) + sum(c["amount"] for c in cos)
+    return {"dec_steps": steps, "dec_buys": buys, "dec_cos": cos, "dec_total": total,
+            "dec_count": len(steps) + len(buys) + len(cos)}
+
+
+def project_alerts(p, s, pred, db=None, decisions=True):
+    """Liste d'alertes (texte, lien d'onglet). decisions=False : sans les décisions déjà listées dans « À valider »
+    (étapes déclarées, demandes d'achat, travaux supplémentaires)."""
     db = db or get_db()
     out = []
-    if s["to_validate"]:
+    if s["to_validate"] and decisions:
         out.append((_('%(to_validate)s étape déclarée terminée à valider', to_validate=s['to_validate']), 'etapes',
                     _('Vérifiez les preuves avant de payer.')))
     if s["refused"]:
         out.append((_('%(refused)s preuve(s) refusée(s)', refused=s['refused']), 'preuves', _('Hors zone, ancienne, en double ou retouchée.')))
     buy = db.execute("SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM purchase_requests WHERE project_id = ? AND status IN ('demande', 'acceptee')",
                      (p["id"],)).fetchone()
-    if buy[0]:
+    if buy[0] and decisions:
         out.append((_('%(n)s demande(s) d\'argent pour des achats', n=buy[0]), url_for("purchases_page", project_id=p["id"]),
                     _('%(m)s FCFA demandés par le chef de chantier.', m=f"{buy[1]:,}".replace(",", " "))))
     co = db.execute("SELECT COUNT(*) FROM change_orders WHERE project_id = ? AND status = 'proposee'", (p["id"],)).fetchone()[0]
-    if co:
+    if co and decisions:
         out.append((_('%(n)s proposition(s) de travaux supplémentaires', n=co), url_for("change_orders_page", project_id=p["id"]),
                     _('À accepter ou refuser avant qu\'ils soient faits.')))
     if s["days_silent"] is not None and s["days_silent"] >= 7:
@@ -2346,15 +2429,39 @@ def register():
 @app.route("/compte/mode", methods=["POST"])
 @login_required
 def account_mode():
-    """Bascule mode simple / mode complet (toutes les fonctions), depuis le panneau des fonctions."""
+    """Compatibilité : « complet » allume toutes les fonctions, « simple » revient aux réglages par défaut."""
     me = current_user()
     full = request.form.get("mode") == "complet"
-    db = get_db()
-    db.execute("UPDATE users SET advanced = ? WHERE id = ?", (1 if full else 0, me["id"]))
-    db.commit()
-    flash(_("Mode complet : toutes les fonctions sont affichées.") if full else
-          _("Mode simple : l'essentiel d'abord, le reste dans « Autres fonctions »."), "ok")
+    save_features(me["id"], FEATURE_KEYS if full else None)
+    flash(_("Toutes les fonctions sont affichées.") if full else _("Réglages par défaut rétablis."), "ok")
     return redirect(local_url(request.form.get("next") or request.referrer))
+
+
+def save_features(user_id, keys):
+    """Enregistre les modules choisis (None : revenir aux réglages par défaut)."""
+    db = get_db()
+    val = None if keys is None else json.dumps([k for k in FEATURE_KEYS if k in set(keys)])
+    db.execute("UPDATE users SET features = ?, advanced = 0 WHERE id = ?", (val, user_id))
+    db.commit()
+
+
+@app.route("/compte/fonctions", methods=["GET", "POST"])
+@login_required
+def account_features():
+    """« Fonctions de l'appli » : le propriétaire choisit ce qu'il voit sur ses chantiers."""
+    me = current_user()
+    back = local_url(request.values.get("next"), url_for("account"))
+    if request.method == "POST":
+        if request.form.get("action") == "defaut":
+            save_features(me["id"], None)
+            flash(_("Réglages par défaut rétablis."), "ok")
+        else:
+            save_features(me["id"], request.form.getlist("f"))
+            flash(_("Fonctions enregistrées."), "ok")
+        return redirect(back)
+    on = enabled_features(me)
+    mods = [{"key": k, "label": str(lab), "desc": str(desc), "on": k in on} for k, lab, desc, _d in FEATURE_MODULES]
+    return render_template("features.html", mods=mods, back=back)
 
 
 @app.route("/connexion", methods=["GET", "POST"])
@@ -3527,12 +3634,14 @@ def project(project_id):
     ctx["activity"] = db.execute(
         "SELECT activity.*, users.name AS author FROM activity LEFT JOIN users ON users.id = activity.user_id "
         "WHERE project_id = ? ORDER BY activity.id DESC LIMIT 15", (project_id,)).fetchall()
-    ctx["alerts"] = project_alerts(p, stats, ctx["pred"])
+    ctx["alerts"] = project_alerts(p, stats, ctx["pred"], decisions=not (role == "owner" and tab == "valider"))
+    if role == "owner" and tab == "valider":
+        ctx.update(decisions_context(db, p, stats))
     if tab == "accueil":
         ctx["trust"] = project_trust(p, stats, ctx["pred"], db)
         if role == "owner":
-            ctx["simple"] = simple_mode(current_user()) and role == "owner"
-            ctx["feed"] = owner_feed(db, p, stats, proofs, limit=5 if ctx["simple"] else 10)
+            ctx["full_feed"] = request.args.get("fil") == "tout"     # « Tout le fil » ; sinon les 3 dernières nouvelles
+            ctx["feed"] = owner_feed(db, p, stats, proofs, limit=10 if ctx["full_feed"] else 3)
         if p["chef_id"]:
             ctx["chef_user"] = db.execute("SELECT * FROM users WHERE id = ?", (p["chef_id"],)).fetchone()
             ctx["my_review"] = db.execute("SELECT * FROM contractor_reviews WHERE project_id = ? AND author_id = ?",
@@ -10149,8 +10258,8 @@ def purchases_page(project_id):
         r = db.execute("SELECT * FROM purchase_requests WHERE id = ? AND project_id = ?", (to_int(f.get("id")), project_id)).fetchone() \
             if f.get("id") else None
         back = redirect(url_for("purchases_page", project_id=project_id, _anchor=f"a{r['id']}" if r else ""))
-        if (f.get("next") or "").startswith(f"/chantiers/{project_id}/conversation"):
-            back = redirect(f.get("next"))
+        if (f.get("next") or "").startswith(f"/chantiers/{project_id}"):
+            back = redirect(local_url(f.get("next")))
         if action == "create" and role == "chef":
             title = (f.get("title") or "").strip()[:120]
             amount = to_int(re.sub(r"\D", "", f.get("amount") or ""), 0)
@@ -10272,14 +10381,16 @@ def change_orders_page(project_id):
             else:
                 if not (f.get("refusal") or "").strip():
                     flash(_("Dites pourquoi vous refusez."), "error")
+                    if (f.get("next") or "").startswith(f"/chantiers/{project_id}"):
+                        return redirect(local_url(f.get("next")))
                     return redirect(url_for("change_orders_page", project_id=project_id, _anchor=f"c{c['id']}"))
                 db.execute("UPDATE change_orders SET status = 'refusee', decided_by = ?, decided_at = ?, refusal = ? WHERE id = ?",
                            (me["id"], now_iso(), f.get("refusal").strip()[:500], c["id"]))
                 notify(project_id, chef_ids(p), L("Travaux supplémentaires refusés"), L("« %(t)s » : ne les faites pas.", t=c["title"]),
                        url_for("change_orders_page", project_id=project_id, _anchor=f"c{c['id']}"), important=True, db=db)
         db.commit()
-        if (f.get("next") or "").startswith(f"/chantiers/{project_id}/conversation"):
-            return redirect(f.get("next"))
+        if (f.get("next") or "").startswith(f"/chantiers/{project_id}"):
+            return redirect(local_url(f.get("next")))
         return redirect(url_for("change_orders_page", project_id=project_id))
     rows = db.execute("SELECT c.*, u.name AS author, st.status AS step_status FROM change_orders c JOIN users u ON u.id = c.user_id "
                       "LEFT JOIN steps st ON st.id = c.step_id WHERE c.project_id = ? ORDER BY (c.status != 'proposee'), c.id DESC",
@@ -13005,12 +13116,25 @@ def api_logout():
 @app.route("/api/v1/compte/mode", methods=["POST"])
 @api_auth
 def api_account_mode():
+    """Compatibilité avec les anciennes versions de l'application : « complet » allume tout, « simple » revient aux réglages par défaut."""
     me = current_user()
     full = (request.get_json(silent=True) or request.form or {}).get("mode") == "complet"
-    db = get_db()
-    db.execute("UPDATE users SET advanced = ? WHERE id = ?", (1 if full else 0, me["id"]))
-    db.commit()
-    return jsonify(ok=True, simple_mode=simple_mode(db.execute("SELECT * FROM users WHERE id = ?", (me["id"],)).fetchone()))
+    save_features(me["id"], FEATURE_KEYS if full else None)
+    return jsonify(ok=True, simple_mode=not full)
+
+
+@app.route("/api/v1/compte/fonctions", methods=["GET", "POST"])
+@api_auth
+def api_account_features():
+    me = current_user()
+    if request.method == "POST":
+        keys = (request.get_json(silent=True) or {}).get("features")
+        if not isinstance(keys, list):
+            return jsonify(ok=False, error=_("Liste de fonctions attendue.")), 400
+        save_features(me["id"], keys)
+        me = get_db().execute("SELECT * FROM users WHERE id = ?", (me["id"],)).fetchone()
+    on = enabled_features(me)
+    return jsonify(ok=True, modules=[{"key": k, "label": str(lab), "desc": str(desc), "on": k in on} for k, lab, desc, _d in FEATURE_MODULES])
 
 
 @app.route("/api/v1/compte/supprimer", methods=["POST"])
@@ -13160,11 +13284,13 @@ def api_project(project_id):
                                                   (project_id, current_user()["id"]))] if role == "inspecteur" else []
     out["chat_unread"] = chat_unread(project_id)
     # Le même catalogue que le panneau « Toutes les fonctions » du site, pour l'application
-    simple = role == "owner" and simple_mode(current_user())
-    out["simple_mode"] = simple if role == "owner" and current_user()["role"] == "proprio" else None   # None : pas de bascule proposée
+    adv = show_advanced(db, current_user(), project_id)
+    feats = enabled_features(current_user(), adv) if role == "owner" else None
+    out["features"] = sorted(feats) if feats is not None else None
+    out["simple_mode"] = None          # remplacé par les « Fonctions de l'appli » (réglées sur le site)
     out["functions"] = [{"key": grp_["key"], "title": grp_["title"], "collapsed": bool(grp_.get("collapsed")),
                          "items": [{"label": i["label"], "desc": i["desc"], "path": i["url"], "icon": i["ic"]} for i in grp_["items"]]}
-                        for grp_ in project_functions(p, role, show_advanced(db, current_user(), project_id), simple)]
+                        for grp_ in project_functions(p, role, adv, feats)]
     return jsonify(ok=True, project=out)
 
 

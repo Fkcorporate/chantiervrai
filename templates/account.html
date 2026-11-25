@@ -33,7 +33,7 @@
 <label>{{ _("Présentation") }}<textarea name="bio">{{ me.bio or '' }}</textarea></label>
 {% endif %}
 {% if me.role in ('proprio', 'chef') %}
-{% if me.role == 'proprio' %}<label class="check"><input type="checkbox" name="advanced" value="1"{% if me.advanced %} checked{% endif %}> {{ _("Mode complet : afficher toutes les fonctions sur mes chantiers (sinon l'essentiel d'abord, le reste dans « Autres fonctions »)") }}</label>
+{% if me.role == 'proprio' %}<a class="card cardlink" href="{{ url_for('account_features') }}"><b>{{ _("Fonctions de l'appli") }}</b><span class="muted">{{ _("Activez seulement ce dont vous avez besoin sur vos chantiers") }}</span></a>
 {% else %}<label class="check"><input type="checkbox" name="advanced" value="1"{% if me.advanced %} checked{% endif %}> {{ _("Afficher les fonctions avancées : maquette numérique, capteurs, visites 360°, zones et quantités") }}</label>{% endif %}
 {% endif %}
 <button class="btn" type="submit">{{ _("Enregistrer") }}</button>

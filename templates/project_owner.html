@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block bodyclass %}{% if tab == 'accueil' %}feed-home{% if cover %} top-photo fp-photo{% endif %}{% endif %}{% endblock %}
 {% from "_macros.html" import proof_card, tabs, csrf, risk_pill, tool, icon with context %}
+{% from "_fnicons.html" import fni %}
 {% block title %}{{ p.name }} {{ _("· ChantierVrai") }}{% endblock %}
 {% block head %}
 {% if tab == 'vues' %}
@@ -34,9 +35,35 @@
 <nav class="fp-answers{% if cover %} on-photo{% endif %}" aria-label="{{ _("En bref") }}">
 <a href="{{ url_for('project', project_id=p.id, onglet='etapes') }}"><b>{{ s.verified_pct }}<i>%</i></b><small>{{ _("Avancement") }}</small><span class="fpa-bar" aria-hidden="true"><span style="width:{{ s.verified_pct }}%"></span></span></a>
 <a href="{{ url_for('payments_ledger', project_id=p.id) }}" title="{{ fcfa(s.paid) }} / {{ fcfa(s.total) }} FCFA"><b>{{ compact(s.paid) }}</b><small>{{ _("versés sur %(t)s", t=compact(s.total)) }}</small></a>
-<a class="{{ 'todo' if n_todo else 'calm' }}" href="{{ '#todo-h' if n_todo else url_for('chat_page', project_id=p.id) }}"><b>{% if n_todo %}{{ n_todo }}{% else %}{{ icon('check') }}{% endif %}</b><small>{{ pl(n_todo, "point(s) à voir") if n_todo else _("Rien à décider") }}</small></a>
+{% set n_dec = pending_decisions(p.id) %}<a class="{{ 'todo' if n_dec else 'calm' }}" href="{{ url_for('project', project_id=p.id, onglet='valider') }}"><b>{% if n_dec %}{{ n_dec }}{% else %}{{ icon('check') }}{% endif %}</b><small>{{ _("à valider") if n_dec else _("Rien à valider") }}</small></a>
 </nav>
 
+{% if not full_feed %}
+{% if not p.chef_id %}<section class="dv fp-invite" aria-labelledby="inv-h">
+<span class="dv-k warm">{{ _("Pour commencer") }}</span>
+<h2 id="inv-h">{{ _("Invitez votre chef de chantier") }}</h2>
+<p>{{ _("Il crée un compte « Chef de chantier » puis saisit ce code :") }}</p>
+<span class="code">{{ p.invite_code }}</span>
+<p><a href="{{ url_for('contractors') }}">{{ _("Trouver un entrepreneur vérifié dans l'annuaire") }}</a></p>
+</section>{% endif %}
+{# Accueil court : les 3 dernières nouvelles ; le reste dans « Tout le fil » #}
+<section class="fp-news" aria-labelledby="fn-h">
+<div class="fp-news-h"><h2 id="fn-h">{{ _("Dernières nouvelles") }}</h2>{% if feed.days %}<a href="{{ url_for('project', project_id=p.id, fil='tout') }}">{{ _("Tout le fil") }}</a>{% endif %}</div>
+{% if notes_unread and notes_recent %}{% set n0 = notes_recent[0] %}<a class="nw" href="{{ url_for('site_notes_page', project_id=p.id) }}"><span class="nw-ico{% if n0.urgent %} hot{% endif %}">{{ fni('note') }}</span><span class="nw-tx"><b>{{ _("Messages du chef") }} · {{ notes_unread }} {{ pl(notes_unread, "nouveau(x)") }}</b><span>{% if n0.urgent %}{{ _("Urgent") }} · {% endif %}{{ n0.summary or n0.transcript or _("Note vocale à écouter") }}</span></span></a>{% endif %}
+{% for label, items in feed.days %}{% for it in items %}
+{% set href = url_for('step_page', project_id=p.id, step_id=it.step_id) if it.type == 'proof' else url_for('purchases_page', project_id=p.id) ~ '#a' ~ it.id if it.type == 'buy' else url_for('journal_page', project_id=p.id) if it.type == 'journal' else url_for('aerial_page', project_id=p.id) if it.type == 'drone' else url_for('project', project_id=p.id, fil='tout') %}
+<a class="nw" href="{{ href }}">
+{% if it.type == 'proof' %}<span class="nw-img" style="background-image:url('{{ url_for('proof_thumb', proof_id=it.id) }}')"></span>
+{% elif it.type == 'buy' and it.photo %}<span class="nw-img" style="background-image:url('{{ url_for('purchase_file', project_id=p.id, req_id=it.id, kind='livraison') }}')"></span>
+{% elif it.type == 'drone' and it.media %}<span class="nw-img" style="background-image:url('{{ url_for('media3d_file', media_id=it.media) }}')"></span>
+{% else %}<span class="nw-ico">{{ fni('money' if it.type == 'buy' else 'note' if it.type == 'journal' else 'insp') }}</span>{% endif %}
+<span class="nw-tx"><b>{% if it.type == 'journal' %}{{ _("%(n)s ouvrier(s) sur le chantier", n=it.workers or 0) }}{% else %}{{ it.title }}{% endif %}</b>
+<span>{{ label }}{% if it.author %} · {{ it.author }}{% endif %}{% if it.type == 'buy' %} · {{ fcfa(it.amount) }} FCFA{% endif %}</span></span></a>
+{% endfor %}{% else %}<div class="card fp-empty"><b>{{ _("Le fil se remplira avec les premières photos") }}</b><span class="muted">{{ _("Chaque photo envoyée par le chef de chantier apparaît ici, avec ce qui prouve qu'elle est vraie.") }}</span></div>{% endfor %}
+</section>
+{% if can_review and not my_review and p.chef_id %}<a class="nw fp-review" href="{{ url_for('project', project_id=p.id, fil='tout') }}#avis"><span class="nw-ico">{{ fni('pro') }}</span><span class="nw-tx"><b>{{ _("Noter son travail") }}</b><span>{{ _("Votre avis sur %(n)s aide les autres familles à choisir", n=people[p.chef_id].name) }}</span></span></a>{% endif %}
+{% else %}
+<a class="backlink fp-back" href="{{ url_for('project', project_id=p.id) }}">{{ _("← Accueil du chantier") }}</a>
 {# Étapes en « stories » #}
 <div class="stories" role="list" aria-label="{{ _("Étapes") }}">
 {% for st in feed.stories %}
@@ -45,42 +72,9 @@
 <span>{{ st.name }}</span>{% if st.state == 'decl' %}<em>{{ _("à valider") }}</em>{% endif %}</a>
 {% endfor %}
 </div>
-
-{% set cu = chat_unread(p.id) %}<a class="fp-chat" href="{{ url_for('chat_page', project_id=p.id) }}"><span class="fp-chat-ico">{{ icon('chat') }}{% if cu %}<em>{{ cu }}</em>{% endif %}</span><span><b>{{ _("Conversation du chantier") }}</b><small>{% if cu %}{{ _("1 nouveau message") if cu == 1 else _("%(n)s nouveaux messages", n=cu) }}{% else %}{{ _("Écrire, envoyer une note vocale ou une photo") }}{% endif %}</small></span><span class="fp-chat-go">›</span></a>
-{# Trois gestes directs ; tout le reste est dans le panneau des fonctions #}
-<nav class="fp-quick" aria-label="{{ _("Raccourcis") }}">
-<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}#membres"><span class="fq-ico">{{ icon('people') }}</span><span>{{ _("Inviter la famille") }}</span></a>
-<a href="{{ url_for('project', project_id=p.id, onglet='dossier') }}#inspections"><span class="fq-ico">{{ icon('shield') }}</span><span>{{ _("Faire inspecter") }}</span></a>
-{% if fn_groups %}<button type="button" data-sheet="fn-drawer" aria-haspopup="dialog"><span class="fq-ico">{{ icon('grid') }}</span><span>{{ _("Toutes les fonctions") }}</span></button>{% endif %}
-</nav>
-<div class="fp-grid"><div class="fp-main">
-{# Décision : la preuve qui demande une réponse #}
-{% if decl %}{% set dst = decl[0] %}{% set dok = ok_by_step.get(dst.id, 0) %}{% set dcs = checks_by_step.get(dst.id) %}{% set dimg = feed.last_by_step.get(dst.id) %}
-<section class="post decision" aria-labelledby="dp-h">
-<div class="post-img"{% if dimg %} style="background-image:url('{{ url_for('proof_thumb', proof_id=dimg) }}')" data-view="{{ dimg }}"{% endif %}>{% if not dimg %}<span class="muted">{{ _("Aucune photo") }}</span>{% endif %}<span class="post-badges"><span>{{ _("Votre décision") }}</span></span></div>
-<div class="post-tx">
-<span class="eyebrow">{{ _("Étape déclarée terminée") }}</span>
-<h2 id="dp-h">{{ _("%(name)s terminée", name=dst.name) }}</h2>
-<ul class="post-checks">
-<li class="{{ 'ok' if dok else 'ko' }}">{{ _("%(n)s photo(s) vérifiée(s) sur le terrain", n=dok) if dok else _("Aucune photo vérifiée pour cette étape") }}</li>
-{% if dcs %}<li class="{{ 'ko' if dcs.missing else 'ok' }}">{{ _("%(ok)s contrôle(s) sur %(t)s réussi(s)", ok=dcs.ok, t=dcs.total) }}</li>{% endif %}
-<li class="ok"><span>{{ _("Montant conforme au contrat") }} : <b>{{ fcfa(dst.amount) }} FCFA</b></span></li>
-</ul>
-<div class="post-acts"><a class="btn" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">{{ _("Vérifier et valider") }}</a><a class="btn ghost" href="{{ url_for('step_page', project_id=p.id, step_id=dst.id) }}#decision">{{ _("Refuser avec un motif") }}</a></div>
-</div></section>
 {% endif %}
-
-{% if alerts %}<section class="card alert todo-list" aria-labelledby="todo-h">
-<h2 id="todo-h"><span class="todo-count">{{ alerts|length }}</span>{{ _("%(n)s point(s) à voir", n=alerts|length) }}</h2>
-{% macro todo_row(title, target, sub) %}{% if target %}<a class="todo-item" href="{{ target if target.startswith('/') else url_for('project', project_id=p.id, onglet=target) }}"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span><span class="chev" aria-hidden="true">›</span></a>
-{% else %}<div class="todo-item"><span><b>{{ title }}</b><span class="muted">{{ sub }}</span></span></div>{% endif %}{% endmacro %}
-{% for title, target, sub in alerts[:2] %}{{ todo_row(title, target, sub) }}{% endfor %}
-{% if alerts|length > 2 %}<details class="todo-more"><summary>{{ _("Voir les %(n)s autres", n=alerts|length - 2) }}</summary>
-{% for title, target, sub in alerts[2:] %}{{ todo_row(title, target, sub) }}{% endfor %}
-</details>{% endif %}
-</section>{% endif %}
-{% if notes_recent %}<a class="card cardlink" href="{{ url_for('site_notes_page', project_id=p.id) }}"><div class="row"><b>{{ _("Messages du chef") }}</b>{% if notes_unread %}<span class="pill warn">{{ notes_unread }} {{ pl(notes_unread, "nouveau(x)") }}</span>{% endif %}</div>{% for n in notes_recent %}<span class="muted">{% if n.urgent %}<span class="tag bad">{{ _("Urgent") }}</span> {% endif %}{{ '🎙️ ' if n.kind == 'vocal' else '' }}{{ n.summary or n.transcript or _("Note vocale à écouter") }}</span>{% endfor %}</a>{% endif %}
-
+{% if full_feed %}
+<div class="fp-grid"><div class="fp-main">
 {% for label, items in feed.days %}
 <div class="fp-day">{{ label }}</div>
 {% for it in items %}
@@ -160,7 +154,7 @@
 <div class="row"><a href="{{ url_for('contractor', uid=p.chef_id) }}"><b>{{ people[p.chef_id].name }}</b></a>{% if chef_user and chef_user.verified and chef_user.verify_requested %}<span class="tag blue">{{ _("Entreprise vérifiée") }}</span>{% endif %}</div>
 {% if people[p.chef_id].phone %}<span class="muted">{{ _("Mobile Money et WhatsApp :") }} {{ people[p.chef_id].phone }}</span>{% endif %}
 {% if can_review %}
-<details{% if not my_review %} open{% endif %}><summary>{{ _("Modifier mon avis") if my_review else _("Noter son travail") }}</summary>
+<details id="avis"{% if not my_review %} open{% endif %}><summary>{{ _("Modifier mon avis") if my_review else _("Noter son travail") }}</summary>
 <form method="post" action="{{ url_for('contractor_review', project_id=p.id) }}" class="stack">{{ csrf() }}
 <div class="row" style="justify-content:flex-start;gap:10px" role="radiogroup" aria-label="{{ _("Note sur 5") }}">{% for n in range(1, 6) %}<label><input type="radio" name="rating" value="{{ n }}" required{% if my_review and my_review.rating == n %} checked{% endif %}> {{ n }}</label>{% endfor %}</div>
 <label>{{ _("Commentaire (visible sur son profil)") }}<textarea name="comment" maxlength="600">{{ my_review.comment if my_review and my_review.comment else '' }}</textarea></label>
@@ -191,6 +185,7 @@
 <a class="btn ghost" href="{{ url_for('reports', project_id=p.id) }}">{{ _("Fil d'actualité et tous les comptes rendus") }}</a>
 </aside>
 </div></div>
+{% endif %}
 
 
 {# Visionneuse plein écran : on glisse d'une preuve à l'autre #}
@@ -279,6 +274,79 @@
 {% endif %}
 
 {# ======================================================== PREUVES #}
+{% if tab == 'valider' %}
+{# À valider : tout ce qui attend l'accord du propriétaire, au même endroit #}
+{% set back_here = url_for('project', project_id=p.id, onglet='valider') %}
+<div class="dv-head"><h1>{{ _("À valider") }}</h1>
+{% if dec_count %}<p class="dv-lead"><b>{{ _("%(n)s décision(s)", n=dec_count) }}</b> · {{ _("%(m)s FCFA attendent votre accord", m=fcfa(dec_total)) }}</p>
+{% else %}<p class="dv-lead">{{ _("Rien n'attend votre accord pour l'instant.") }}</p>{% endif %}</div>
+
+{% for st in dec_steps %}
+<article class="dv" id="dv-s{{ st.id }}">
+<span class="dv-k">{{ _("Étape terminée") }}</span>
+<h2>{{ st.name }}</h2>
+<p>{{ _("Le chef déclare l'étape finie") }} · {{ _("%(n)s photo(s) vérifiée(s)", n=st.n_ok) if st.n_ok else _("aucune photo vérifiée") }}{% set dcs = checks_by_step.get(st.id) %}{% if dcs %} · {{ _("%(ok)s contrôle(s) sur %(t)s réussi(s)", ok=dcs.ok, t=dcs.total) }}{% endif %}</p>
+{% if st.pics %}<div class="dv-pics">{% for pid in st.pics[:3] %}<a href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}" style="background-image:url('{{ url_for('proof_thumb', proof_id=pid) }}')" aria-label="{{ _("Voir la photo") }}"></a>{% endfor %}{% if st.n_ok > 3 %}<a class="dv-more" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}">+{{ st.n_ok - 3 }}</a>{% endif %}</div>{% endif %}
+<b class="dv-amt">{{ fcfa(st.amount) }} FCFA</b>
+<div class="dv-acts"><a class="btn" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}#decision">{{ _("Vérifier et payer") }}</a><a class="btn soft" href="{{ url_for('step_page', project_id=p.id, step_id=st.id) }}#decision">{{ _("Corriger") }}</a></div>
+</article>
+{% endfor %}
+
+{% for b in dec_buys %}
+<article class="dv" id="dv-a{{ b.id }}">
+<span class="dv-k warm">{{ _("Achat à payer") if b.status == 'acceptee' else _("Demande d'achat") }}</span>
+<h2>{{ b.title }}</h2>
+<p>{{ b.author }}{% if b.supplier %} · {{ b.supplier }}{% endif %}{% if b.step_name %} · {{ b.step_name }}{% endif %}{% if b.quote_file %} · <a href="{{ url_for('purchase_file', project_id=p.id, req_id=b.id, kind='devis') }}">{{ _("voir le devis") }}</a>{% endif %}</p>
+<b class="dv-amt">{{ fcfa(b.amount) }} FCFA</b>
+<div class="dv-acts">
+{% if b.status == 'acceptee' %}<form method="post" action="{{ url_for('purchases_page', project_id=p.id) }}">{{ csrf() }}<input type="hidden" name="id" value="{{ b.id }}"><input type="hidden" name="next" value="{{ back_here }}"><button class="btn" name="action" value="paid">{{ _("J'ai payé") }}</button></form>
+{% else %}<form method="post" action="{{ url_for('purchases_page', project_id=p.id) }}">{{ csrf() }}<input type="hidden" name="id" value="{{ b.id }}"><input type="hidden" name="next" value="{{ back_here }}"><button class="btn" name="action" value="accept">{{ _("Accepter") }}</button></form>
+<details class="dv-no"><summary class="btn soft">{{ _("Refuser") }}</summary><form method="post" action="{{ url_for('purchases_page', project_id=p.id) }}">{{ csrf() }}<input type="hidden" name="id" value="{{ b.id }}"><input type="hidden" name="next" value="{{ back_here }}"><label>{{ _("Pourquoi ? Le chef pourra corriger sa demande.") }}<textarea name="refusal" rows="2" required></textarea></label><button class="btn danger" name="action" value="refuse">{{ _("Refuser la demande") }}</button></form></details>{% endif %}
+</div>
+</article>
+{% endfor %}
+
+{% for c in dec_cos %}
+<article class="dv" id="dv-c{{ c.id }}">
+<span class="dv-k warm">{{ _("Travaux supplémentaires") }}</span>
+<h2>{{ c.title }}</h2>
+<p>{{ c.author }}{% if c.extra_days %} · {{ _("+ %(n)s jour(s) de délai", n=c.extra_days) }}{% endif %}{% if c.reason %} · {{ c.reason }}{% endif %}</p>
+<b class="dv-amt">{{ fcfa(c.amount) }} FCFA</b>
+<div class="dv-acts">
+<form method="post" action="{{ url_for('change_orders_page', project_id=p.id) }}">{{ csrf() }}<input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="next" value="{{ back_here }}"><button class="btn" name="action" value="accept">{{ _("Accepter") }}</button></form>
+<details class="dv-no"><summary class="btn soft">{{ _("Refuser") }}</summary><form method="post" action="{{ url_for('change_orders_page', project_id=p.id) }}">{{ csrf() }}<input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="next" value="{{ back_here }}"><label>{{ _("Pourquoi refusez-vous ?") }}<textarea name="refusal" rows="2" required></textarea></label><button class="btn danger" name="action" value="refuse">{{ _("Refuser les travaux") }}</button></form></details>
+</div>
+</article>
+{% endfor %}
+
+{% if not dec_count %}<div class="dv-empty">{{ icon('check') }}<b>{{ _("Tout est à jour") }}</b><span>{{ _("Vous serez prévenu dès que le chef déclare une étape, demande de l'argent ou propose des travaux.") }}</span></div>{% endif %}
+
+{% if alerts %}<h2 class="dv-sub" id="todo-h">{{ _("À surveiller") }}</h2>
+<div class="dv-watch">{% for title, target, sub in alerts %}{% if target %}<a href="{{ target if target.startswith('/') else url_for('project', project_id=p.id, onglet=target) }}">{% else %}<div>{% endif %}<b>{{ title }}</b><span>{{ sub }}</span>{% if target %}</a>{% else %}</div>{% endif %}{% endfor %}</div>{% endif %}
+{% endif %}
+
+{% if tab == 'plus' %}
+{# Plus : toutes les fonctions du chantier sur une vraie page ; les fonctions masquées restent trouvables #}
+<div class="dv-head"><h1>{{ _("Plus") }}</h1></div>
+<div class="px" data-px>
+<label class="px-search">{{ icon('search') }}<input type="search" placeholder="{{ _("Chercher une fonction") }}" aria-label="{{ _("Chercher une fonction") }}" data-px-q></label>
+{% for g in fn_groups %}
+<section class="px-grp{% if g.hidden %} px-hidden{% endif %}" data-px-grp{% if g.hidden %} hidden{% endif %}>
+<h2>{{ _("Fonctions masquées") if g.hidden else g.title }}</h2>
+<div class="px-list">{% for it in g['items'] %}<a class="px-it" href="{{ it.url }}" data-px-it data-n="{{ (it.label ~ ' ' ~ it.desc)|lower }}"><span class="px-ic">{{ fni(it.ic) }}</span><span class="px-tx"><b>{{ it.label }}</b><span>{{ it.desc }}</span></span>{% if g.hidden %}<em class="px-tag">{{ _("Masquée") }}</em>{% endif %}<span class="px-ch">{{ fni('chev') }}</span></a>{% endfor %}</div>
+</section>
+{% endfor %}
+<p class="px-empty muted" hidden data-px-empty>{{ _("Aucune fonction ne correspond.") }}</p>
+<section class="px-grp" data-px-grp data-px-keep>
+<h2>{{ _("Réglages") }}</h2>
+<div class="px-list">
+<a class="px-it" href="{{ url_for('account_features', next=request.full_path) }}"><span class="px-ic">{{ fni('sliders') }}</span><span class="px-tx"><b>{{ _("Fonctions de l'appli") }}</b><span>{{ _("Activez seulement ce dont vous avez besoin") }}</span></span><span class="px-ch">{{ fni('chev') }}</span></a>
+<a class="px-it" href="{{ url_for('home') }}"><span class="px-ic">{{ fni('home') }}</span><span class="px-tx"><b>{{ _("Tous mes chantiers") }}</b><span>{{ _("Revenir à la liste de vos chantiers") }}</span></span><span class="px-ch">{{ fni('chev') }}</span></a>
+<a class="px-it" href="{{ url_for('help_page') }}"><span class="px-ic">{{ fni('help') }}</span><span class="px-tx"><b>{{ _("Aide") }}</b><span>{{ _("Questions fréquentes, nous écrire") }}</span></span><span class="px-ch">{{ fni('chev') }}</span></a>
+</div></section>
+</div>
+{% endif %}
+
 {% if tab == 'preuves' %}
 <h1>{{ _("Preuves") }}</h1>
 {% if not ai_on %}<div class="muted">{{ _("Analyse IA des photos désactivée sur ce serveur (clé ANTHROPIC_API_KEY absente). Les contrôles GPS, date, doublon et ressemblance restent actifs.") }}</div>{% endif %}
@@ -742,7 +810,7 @@ document.querySelectorAll('[data-pv]').forEach(function (b) {
 
 {% endif %}
 {% endblock %}
-{% block tabs %}{% set chat_u = url_for('chat_page', project_id=p.id) %}{{ tabs(p, [('accueil',_('Accueil'),'home'),('preuves',_('Preuves'),'cam'),('etapes',_('Paiements'),'wallet'),(chat_u,_('Messages'),'chat')], tab, {chat_u: chat_unread(p.id)}) }}{% endblock %}
+{% block tabs %}{% set chat_u = url_for('chat_page', project_id=p.id) %}{{ tabs(p, [('accueil',_('Accueil'),'home'),('preuves',_('Preuves'),'cam'),('valider',_('À valider'),'shield'),(chat_u,_('Messages'),'chat'),('plus',_('Plus'),'grid')], tab, {chat_u: chat_unread(p.id), 'valider': pending_decisions(p.id)}) }}{% endblock %}
 {% block scripts %}
 {% if tab == 'vues' %}
 <script>

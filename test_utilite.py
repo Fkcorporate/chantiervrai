@@ -60,9 +60,11 @@ check(A.app.test_client().get(f"/photos/{pr['id']}/vignette").status_code in (30
 check("en attente de la validation du propriétaire" in html(chef.get(f"/chantiers/{pid}")), "le chef voit que l'étape attend le propriétaire")
 
 h = html(own.get(f"/chantiers/{pid}"))
-check('class="actionbar"' not in h and h.index('fp-answers') < h.index('class="post decision"') < h.index("todo-list")
-      and h.count('class="post decision"') == 1,
-      "l'étape à valider : comptée dans la synthèse en haut, puis une seule carte de décision (plus de barre en double)")
+check('class="actionbar"' not in h and 'class="post decision"' not in h and 'onglet=valider' in h.split('fp-answers')[1][:1500],
+      "accueil : l'étape à valider est comptée dans la synthèse, qui mène à l'onglet « À valider »")
+hv = html(own.get(f"/chantiers/{pid}?onglet=valider"))
+check(hv.count('class="dv"') >= 1 and "Étape terminée" in hv and "Vérifier et payer" in hv and hv.index('class="dv"') < hv.index("À surveiller"),
+      "onglet « À valider » : une carte par décision, avec ses boutons, puis les points à surveiller")
 t = A.TRUST.compute(dict(A.trust_inputs(s, s.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone(),
                                         A.project_stats(pid, s), None)))
 check(t["score"] <= 79, "problème de solidité ouvert : l'indice ne peut pas dire « bonne maîtrise »")
@@ -100,12 +102,12 @@ def url_for_home_in_drawer(h):
     return 'href="/"' in foot[:foot.index("</div>")]
 
 
-h = html(own.get(f"/chantiers/{pid}"))
-check('class="card alert todo-list"' in h and h.count('class="card alert"') == 0, "accueil : les points à voir regroupés dans une seule carte")
+h = html(own.get(f"/chantiers/{pid}?onglet=valider"))
+check('class="dv-watch"' in h and h.count('class="card alert"') == 0, "« À valider » : les points à surveiller regroupés dans une seule liste")
 check("(s)" not in re.sub(r"<script.*?</script>", "", h, flags=re.S), "accueil : pluriels accordés (« 1 preuve refusée », pas « 1 preuve(s) refusée(s) »)")
-check('class="appbar"' in h and 'class="tabs"' in h and 'class="bottombar"' not in h and 'data-sheet="fn-drawer"' in h
+check('class="appbar"' in h and 'class="tabs tabs-5"' in h and 'class="bottombar"' not in h and 'onglet=plus' in h
       and 'class="dr-foot' in h and url_for_home_in_drawer(h),
-      "chantier sur téléphone : barre du haut (retour, toutes les fonctions, alertes), sortie vers tous les chantiers, sections du chantier en bas")
+      "chantier du propriétaire sur téléphone : barre du haut (retour, alertes), onglets Accueil · Preuves · À valider · Messages · Plus")
 h_home = html(own.get("/"))
 bb = re.search(r'<nav class="bottombar".*?</nav>', h_home, re.S).group(0)
 check(len(re.findall(r"<a href=", bb)) == 4 and "bb-more" in bb and 'class="on" aria-current="page"' in bb,
